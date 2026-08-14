@@ -73,9 +73,7 @@ def check_auth(pc, cfg):
 
 
 def get_progress(pc, cfg):
-    """Status/pct_complete of the submission(s) that matter right now: all
-    still-Running submissions if any are running, otherwise just the latest.
-    """
+    """Get status/pct_complete of the currently relevant submission(s)."""
     campaign_stage_id = pc.get_campaign_stage_id(
         cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"]
     )
@@ -108,11 +106,7 @@ def get_progress(pc, cfg):
 
 
 def get_active_submission_count(pc, cfg, campaign_stage_id):
-    """How many submissions for this campaign stage are still New/Idle/Running.
-
-    running_submissions isn't wrapped in poms_client.py, so this goes through
-    make_poms_call directly.
-    """
+    """Count submissions for this campaign stage still in New/Idle/Running."""
     campaign_id = pc.get_campaign_id(cfg["experiment"], cfg["campaign_name"])
     data, status = pc.make_poms_call(
         method="running_submissions",
@@ -133,14 +127,7 @@ def get_active_submission_count(pc, cfg, campaign_stage_id):
 
 
 def can_submit_next_slice(cfg, progress, active_count):
-    """How many new slices to submit this run (0, 1, or 2).
-
-    Target pipeline depth is 2 if submit_two_slices is set, else 1. A Running
-    submission counts as "ready" once its pct_complete crosses
-    pct_complete_threshold. Submitting tops the pipeline back up to target,
-    minus however many currently-Running submissions haven't reached the
-    threshold yet (those still occupy a slot).
-    """
+    """Decide how many new slices to submit this run (0, 1, or 2)."""
     target = 2 if cfg["submit_two_slices"] else 1
 
     if active_count is None:
@@ -181,23 +168,12 @@ def get_stage_params(pc, cfg):
 
 
 def update_stage_params(pc, cfg, campaign_stage_id, updates):
-    """Apply param changes if any were decided on above.
-
-    `updates` is a dict of param_overrides key/value pairs. POMS merges
-    these into the stage's existing param_overrides: a truthy value
-    sets/replaces that key, a falsy value (e.g. "") deletes it. No-op if
-    `updates` is empty.
-    """
+    """Apply param_overrides updates to a campaign stage, if any."""
     if not updates:
         logging.info("no stage param updates to apply")
         return
 
     logging.info("updating stage params: %s", updates)
-    # requests' form-encoder treats a dict *value* as iterable and flattens
-    # it down to just its keys, silently dropping the values -- confirmed
-    # live (a raw dict here gets a 400 back). The server parses this field
-    # with ast.literal_eval(), so it must be sent pre-serialized as a
-    # Python-literal string.
     param_overrides = str(list(updates.items()))
     data = pc.update_stage_param_overrides(
         cfg["experiment"], campaign_stage_id, param_overrides=param_overrides
@@ -213,10 +189,7 @@ PRO_ELIGIBLE_ROLE = "production"
 
 
 def has_pro_subgroup(param_overrides):
-    """Whether a stage's param_overrides (as returned by get_stage_params)
-    currently sets subgroup=pro -- i.e. the pro-priority slot is/was in use
-    by the last-submitted slice.
-    """
+    """Whether a stage's param_overrides currently sets subgroup=pro."""
     return any(
         k == SUBGROUP_OVERRIDE_KEY and v == PRO_SUBGROUP
         for k, v in param_overrides
@@ -224,13 +197,7 @@ def has_pro_subgroup(param_overrides):
 
 
 def plan_subgroups(num_slices, pro_in_use, role):
-    """Which subgroup each of the num_slices new submissions should use.
-
-    Only the production role may hold the subgroup=pro (higher-priority)
-    slot, and only one slice at a time; every other role, and every other
-    concurrent slice, must run at the standard subgroup (no override).
-    Returns a list of bools (True = pro), one per slice.
-    """
+    """Decide which subgroup each of the num_slices new submissions should use."""
     if role != PRO_ELIGIBLE_ROLE:
         return [False] * num_slices
     if num_slices == 2:
@@ -239,17 +206,7 @@ def plan_subgroups(num_slices, pro_in_use, role):
 
 
 def submit_next_slice(pc, cfg, campaign_stage_id):
-    """Launch a new submission for the campaign stage.
-
-    Calls make_poms_call() directly instead of poms_client.py's
-    launch_campaign_stage_jobs() wrapper: the wrapper assumes the response
-    body ends in "_<digits>" and does int(data[data.rfind("_") + 1:]) to
-    extract the submission id, but the real response is a URL --
-    ".../list_launch_file/<experiment>/<role>?campaign_stage_id=...&submission_id=NNN"
-    -- so rfind("_") lands inside "campaign_stage_id" and int() crashes
-    (confirmed live, 2026-08-14). Parse submission_id out of the URL's query
-    string instead.
-    """
+    """Launch a new submission for the campaign stage."""
     data, status = pc.make_poms_call(
         method="launch_jobs",
         campaign_stage_id=campaign_stage_id,
