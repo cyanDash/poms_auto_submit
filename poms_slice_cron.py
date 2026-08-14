@@ -37,6 +37,7 @@ def load_config(path):
         "campaign_name": parser.get("poms", "campaign_name"),
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
+        "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
     }
@@ -131,29 +132,40 @@ def get_active_submission_count(pc, cfg, campaign_stage_id):
 
 
 def can_submit_next_slice(cfg, progress, active_count):
-    """Decide whether a new slice can go out. Structure only —
-    real slice-completion logic to be supplied later.
+    """How many new slices to submit this run (0, 1, or 2).
+
+    Target pipeline depth is 2 if submit_two_slices is set, else 1. A Running
+    submission counts as "ready" once its pct_complete crosses
+    pct_complete_threshold. Submitting tops the pipeline back up to target,
+    minus however many currently-Running submissions haven't reached the
+    threshold yet (those still occupy a slot).
     """
+    target = 2 if cfg["submit_two_slices"] else 1
+
     if active_count is None:
         logging.info("decision: skip (could not determine active submission count)")
-        return False
+        return 0
 
-    if active_count > 0:
-        logging.info("decision: skip (%d submission(s) still active)", active_count)
-        return False
+    if active_count == 0:
+        logging.info("decision: bootstrap (no active submissions), submit %d slice(s)", target)
+        return target
 
-    pct_completes = [s["pct_complete"] for s in progress["submissions"] if s["pct_complete"] is not None]
-    if pct_completes and min(pct_completes) < cfg["pct_complete_threshold"]:
-        logging.info(
-            "decision: skip (pct_complete %.1f < threshold %.1f)",
-            min(pct_completes), cfg["pct_complete_threshold"],
-        )
-        return False
+    running = progress["submissions"]
+    ready_count = sum(
+        1 for s in running
+        if s["pct_complete"] is not None and s["pct_complete"] > cfg["pct_complete_threshold"]
+    )
+    if ready_count == 0:
+        logging.info("decision: skip (no running submission past pct_complete_threshold)")
+        return 0
 
-    # TODO(user): real "is the next slice ready" logic goes here.
-
-    logging.info("decision: submit next slice")
-    return True
+    not_ready_count = len(running) - ready_count
+    num_slices = max(0, target - not_ready_count)
+    logging.info(
+        "decision: submit %d slice(s) (ready=%d not_ready=%d target=%d)",
+        num_slices, ready_count, not_ready_count, target,
+    )
+    return num_slices
 
 
 def get_stage_params(pc, cfg):
@@ -206,19 +218,21 @@ def run(cfg, dry_run):
     campaign_stage_id = progress["campaign_stage_id"]
     active_count = get_active_submission_count(pc, cfg, campaign_stage_id)
 
-    if not can_submit_next_slice(cfg, progress, active_count):
+    num_slices = can_submit_next_slice(cfg, progress, active_count)
+    if num_slices == 0:
         return
 
     # TODO(user): decide what, if anything, needs to change before the next
-    # slice goes out and populate this dict accordingly.
+    # slice(s) go out and populate this dict accordingly.
     updates = {}
 
     if dry_run:
-        logging.info("dry-run: would apply updates=%s and submit next slice", updates)
+        logging.info("dry-run: would apply updates=%s and submit %d slice(s)", updates, num_slices)
         return
 
     update_stage_params(pc, cfg, campaign_stage_id, updates)
-    submit_next_slice(pc, cfg, campaign_stage_id)
+    for _ in range(num_slices):
+        submit_next_slice(pc, cfg, campaign_stage_id)
 
 
 def main():
