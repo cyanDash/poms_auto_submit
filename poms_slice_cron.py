@@ -71,7 +71,9 @@ def check_auth(pc, cfg):
 
 
 def get_progress(pc, cfg):
-    """Block 1: what percentage of the campaign stage's latest submission is processed."""
+    """Status/pct_complete of the submission(s) that matter right now: all
+    still-Running submissions if any are running, otherwise just the latest.
+    """
     campaign_stage_id = pc.get_campaign_stage_id(
         cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"]
     )
@@ -82,32 +84,25 @@ def get_progress(pc, cfg):
     submissions = resp.get("data", {}).get("submissions", []) if ok else []
     if not submissions:
         logging.info("no submissions found yet for %s/%s", cfg["campaign_name"], cfg["campaign_stage_name"])
-        return {
-            "campaign_stage_id": campaign_stage_id,
-            "submission_id": None,
-            "pct_complete": None,
-            "status": None,
-        }
+        return {"campaign_stage_id": campaign_stage_id, "submissions": []}
 
-    latest = sorted(submissions, key=lambda s: s.get("submission_id", 0))[-1]
-    submission_id = latest.get("submission_id")
-    status = latest.get("status")
+    submissions = sorted(submissions, key=lambda s: s.get("submission_id", 0))
+    running = [s for s in submissions if s.get("status") == "Running"]
+    target = running if running else [submissions[-1]]
 
-    ok, details = pc.submission_details(
-        cfg["experiment"], cfg["role"], submission_id
-    )
-    pct_complete = details.get("submission", {}).get("pct_complete") if ok else None
+    result = []
+    for s in target:
+        submission_id = s.get("submission_id")
+        ok, details = pc.submission_details(cfg["experiment"], cfg["role"], submission_id)
+        pct_complete = details.get("submission", {}).get("pct_complete") if ok else None
+        entry = {"submission_id": submission_id, "status": s.get("status"), "pct_complete": pct_complete}
+        logging.info(
+            "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s",
+            campaign_stage_id, submission_id, entry["status"], pct_complete,
+        )
+        result.append(entry)
 
-    logging.info(
-        "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s",
-        campaign_stage_id, submission_id, status, pct_complete,
-    )
-    return {
-        "campaign_stage_id": campaign_stage_id,
-        "submission_id": submission_id,
-        "pct_complete": pct_complete,
-        "status": status,
-    }
+    return {"campaign_stage_id": campaign_stage_id, "submissions": result}
 
 
 def get_active_submission_count(pc, cfg, campaign_stage_id):
@@ -136,7 +131,7 @@ def get_active_submission_count(pc, cfg, campaign_stage_id):
 
 
 def can_submit_next_slice(cfg, progress, active_count):
-    """Block 2: decide whether a new slice can go out. Structure only —
+    """Decide whether a new slice can go out. Structure only —
     real slice-completion logic to be supplied later.
     """
     if active_count is None:
@@ -147,10 +142,11 @@ def can_submit_next_slice(cfg, progress, active_count):
         logging.info("decision: skip (%d submission(s) still active)", active_count)
         return False
 
-    if progress["pct_complete"] is not None and progress["pct_complete"] < cfg["pct_complete_threshold"]:
+    pct_completes = [s["pct_complete"] for s in progress["submissions"] if s["pct_complete"] is not None]
+    if pct_completes and min(pct_completes) < cfg["pct_complete_threshold"]:
         logging.info(
             "decision: skip (pct_complete %.1f < threshold %.1f)",
-            progress["pct_complete"], cfg["pct_complete_threshold"],
+            min(pct_completes), cfg["pct_complete_threshold"],
         )
         return False
 
