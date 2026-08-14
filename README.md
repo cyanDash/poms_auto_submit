@@ -15,11 +15,16 @@ submits them via POMS. Every decision is written to a log file.
    slices to top the pipeline back up to that target, counting a Running
    submission as done occupying its slot once its `pct_complete` crosses
    `pct_complete_threshold`. Returns 0 if nothing is ready yet.
-3. **Read/update stage params** — fetches the current stage parameters, and
-   applies any overrides you configure.
-4. **Submit** — launches as many new slices as step 2 decided on.
+3. **Decide subgroup, submit** — only the `production` role may hold the
+   higher-priority `pro` subgroup, and only one slice at a time; every other
+   role, and every other concurrent slice, runs at the standard subgroup.
+   Reads the stage's current `param_overrides` to see whether `pro` is
+   already in use, then for each new slice sets (or deletes) the
+   `-Osubmit.subgroup=` override accordingly before launching it. When 2
+   slices go out in the same run, one is submitted `pro` and the other
+   standard (production role only).
 
-`--dry-run` runs steps 1–3 and logs what step 3/4 *would* do, without calling
+`--dry-run` runs steps 1–2 and logs what step 3 *would* do, without calling
 POMS to update params or submit anything.
 
 ## Setup
@@ -89,6 +94,16 @@ pytest test/
 
 Tests cover the progress-check, stage-param, and submit blocks against
 fakes built from real `poms_client.py` response shapes — no network calls.
-`test/verify_real_campaign.py` and `test/debug_raw_call.py` are separate,
-read-only manual tools for checking live behavior against the real POMS
-server (not part of the pytest suite).
+
+`test/test_live_campaign.py` is a read-only regression suite against a real
+campaign stage — resolving stage ids, `get_progress()`, `get_stage_params()`,
+etc. against the actual server, to catch fake/reality drift the unit tests
+above can't. It's marked `live` and excluded by default; run it explicitly:
+
+```bash
+pytest test/ -m live
+```
+
+`test/debug_raw_call.py` is a separate one-off manual tool for making raw
+POST calls and inspecting the real response body (not part of the pytest
+suite).

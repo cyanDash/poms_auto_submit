@@ -169,7 +169,7 @@ def can_submit_next_slice(cfg, progress, active_count):
 
 
 def get_stage_params(pc, cfg):
-    """Block 3 (read): current params for the target campaign stage."""
+    """Read the current params for the target campaign stage."""
     ok, resp = pc.show_campaign_stages(campaign_name=cfg["campaign_name"])
     if not ok:
         raise RuntimeError("show_campaign_stages failed")
@@ -180,24 +180,65 @@ def get_stage_params(pc, cfg):
 
 
 def update_stage_params(pc, cfg, campaign_stage_id, updates):
-    """Block 3 (write): apply param changes if any were decided on above.
+    """Apply param changes if any were decided on above.
 
-    `updates` is a dict of param_overrides key/value pairs. No-op if empty.
+    `updates` is a dict of param_overrides key/value pairs. POMS merges
+    these into the stage's existing param_overrides: a truthy value
+    sets/replaces that key, a falsy value (e.g. "") deletes it. No-op if
+    `updates` is empty.
     """
     if not updates:
         logging.info("no stage param updates to apply")
         return
 
     logging.info("updating stage params: %s", updates)
-    ok, data = pc.update_stage_param_overrides(
-        cfg["experiment"], campaign_stage_id, param_overrides=updates
+    # requests' form-encoder treats a dict *value* as iterable and flattens
+    # it down to just its keys, silently dropping the values -- confirmed
+    # live (a raw dict here gets a 400 back). The server parses this field
+    # with ast.literal_eval(), so it must be sent pre-serialized as a
+    # Python-literal string.
+    param_overrides = str(list(updates.items()))
+    data = pc.update_stage_param_overrides(
+        cfg["experiment"], campaign_stage_id, param_overrides=param_overrides
     )
-    if not ok:
-        raise RuntimeError(f"update_stage_param_overrides failed: {data}")
+    if data is None:
+        raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={campaign_stage_id}")
+    logging.info("update_stage_param_overrides response: %s", data)
+
+
+SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
+PRO_SUBGROUP = "pro"
+PRO_ELIGIBLE_ROLE = "production"
+
+
+def has_pro_subgroup(param_overrides):
+    """Whether a stage's param_overrides (as returned by get_stage_params)
+    currently sets subgroup=pro -- i.e. the pro-priority slot is/was in use
+    by the last-submitted slice.
+    """
+    return any(
+        k == SUBGROUP_OVERRIDE_KEY and v == PRO_SUBGROUP
+        for k, v in param_overrides
+    )
+
+
+def plan_subgroups(num_slices, pro_in_use, role):
+    """Which subgroup each of the num_slices new submissions should use.
+
+    Only the production role may hold the subgroup=pro (higher-priority)
+    slot, and only one slice at a time; every other role, and every other
+    concurrent slice, must run at the standard subgroup (no override).
+    Returns a list of bools (True = pro), one per slice.
+    """
+    if role != PRO_ELIGIBLE_ROLE:
+        return [False] * num_slices
+    if num_slices == 2:
+        return [True, False]
+    return [not pro_in_use]
 
 
 def submit_next_slice(pc, cfg, campaign_stage_id):
-    """Block 4: launch a new submission for the campaign stage."""
+    """Launch a new submission for the campaign stage."""
     data, status, submission_id = pc.launch_campaign_stage_jobs(
         campaign_stage_id, experiment=cfg["experiment"], role=cfg["role"]
     )
@@ -222,16 +263,21 @@ def run(cfg, dry_run):
     if num_slices == 0:
         return
 
-    # TODO(user): decide what, if anything, needs to change before the next
-    # slice(s) go out and populate this dict accordingly.
-    updates = {}
+    stage_params = get_stage_params(pc, cfg)
+    pro_in_use = has_pro_subgroup(stage_params.get("param_overrides", []))
+    want_pro = plan_subgroups(num_slices, pro_in_use, cfg["role"])
 
     if dry_run:
-        logging.info("dry-run: would apply updates=%s and submit %d slice(s)", updates, num_slices)
+        plan = ["pro" if p else "standard" for p in want_pro]
+        logging.info(
+            "dry-run: would submit %d slice(s) with subgroup plan=%s (pro_in_use=%s)",
+            num_slices, plan, pro_in_use,
+        )
         return
 
-    update_stage_params(pc, cfg, campaign_stage_id, updates)
-    for _ in range(num_slices):
+    for use_pro in want_pro:
+        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
+        update_stage_params(pc, cfg, campaign_stage_id, updates)
         submit_next_slice(pc, cfg, campaign_stage_id)
 
 
