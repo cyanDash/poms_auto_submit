@@ -61,15 +61,22 @@ def check_auth(pc, cfg):
     options = types.SimpleNamespace(
         test=None, experiment=cfg["experiment"], verbose=False
     )
+    # suppress poms_client's noisy traceback-on-failure inside check_stale_*()
+    root_logger = logging.getLogger()
+    previous_level = root_logger.level
+    root_logger.setLevel(logging.CRITICAL)
     try:
         if pc.auth_token():
             stale = pc.check_stale_token(options)
         else:
             stale = pc.check_stale_proxy(options)
-        if stale:
-            logging.warning("POMS auth (proxy/token) looks stale — renew before relying on this run")
     except Exception:
+        root_logger.setLevel(previous_level)
         logging.exception("could not check auth staleness, continuing anyway")
+        return
+    root_logger.setLevel(previous_level)
+    if stale:
+        logging.warning("POMS auth (proxy/token) looks stale — renew before relying on this run")
 
 
 def get_progress(pc, cfg):
