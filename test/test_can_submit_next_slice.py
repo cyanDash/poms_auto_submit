@@ -1,4 +1,4 @@
-import poms_slice_cron as psc
+import poms_auto_submit as psc
 from helpers import make_cfg, make_progress, sub
 
 

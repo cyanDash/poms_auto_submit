@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Read-only sanity check of poms_slice_cron's block-1/block-3 logic against a
+"""Read-only sanity check of poms_auto_submit's block-1/block-3 logic against a
 real campaign. Makes no launch_jobs or param-update calls -- safe to run
 against production.
 
@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(poms_client_dir, "python"))
 sys.path.insert(0, PARENT_DIR)
 
 import poms_client as pc
-import poms_slice_cron as psc
+import poms_auto_submit as psc
 
 EXPERIMENT = "sbnd"
 ROLE = "production"
@@ -49,7 +49,7 @@ def main():
     print(f"campaign_name={campaign_name!r} stage_name={stage_name!r}")
 
     # sanity check: does the id->name we're trusting round-trip back to the same id
-    # via the function poms_slice_cron.py actually depends on (name->id)?
+    # via the function poms_auto_submit.py actually depends on (name->id)?
     resolved_stage_id = pc.get_campaign_stage_id(EXPERIMENT, campaign_name, stage_name)
     print(
         f"get_campaign_stage_id({campaign_name!r}, {stage_name!r}) = {resolved_stage_id} "

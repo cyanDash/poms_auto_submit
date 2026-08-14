@@ -3,7 +3,7 @@
 slice of a POMS campaign stage, update stage params if needed, and submit.
 
 Intended to run from crontab, e.g.:
-    0 * * * * /path/to/poms_slice_cron.py --config /path/to/config.ini >> /path/to/cron.out 2>&1
+    0 * * * * /path/to/poms_auto_submit.py --config /path/to/config.ini >> /path/to/cron.out 2>&1
 """
 
 import argparse
@@ -257,7 +257,7 @@ def main():
     try:
         run(cfg, args.dry_run)
     except Exception:
-        logging.exception("poms_slice_cron run failed")
+        logging.exception("poms_auto_submit run failed")
         return 1
     finally:
         fcntl.flock(lock_fh, fcntl.LOCK_UN)

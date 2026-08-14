@@ -48,8 +48,8 @@ pct_complete_threshold = 80
 submit_two_slices = 0
 
 [paths]
-log_file = poms_slice_cron.log
-lock_file = poms_slice_cron.lock
+log_file = poms_auto_submit.log
+lock_file = poms_auto_submit.lock
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own. This
@@ -61,23 +61,23 @@ Validate against a real campaign before trusting it unattended:
 
 ```bash
 source setup.sh
-./poms_slice_cron.py --config config.ini --dry-run
+./poms_auto_submit.py --config config.ini --dry-run
 ```
 
-Check `poms_slice_cron.log` and confirm the logged progress/status/decision
+Check `poms_auto_submit.log` and confirm the logged progress/status/decision
 match what you'd expect for that stage's current state.
 
 Once that looks right, run it for real once and confirm exactly one
 submission goes out:
 
 ```bash
-./poms_slice_cron.py --config config.ini
+./poms_auto_submit.py --config config.ini
 ```
 
 Then wire it into cron:
 
 ```cron
-0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./poms_slice_cron.py --config config.ini >> cron.out 2>&1
+0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./poms_auto_submit.py --config config.ini >> cron.out 2>&1
 ```
 
 ## Tests
