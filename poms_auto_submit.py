@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import types
+from urllib.parse import parse_qs, urlparse
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -238,12 +239,26 @@ def plan_subgroups(num_slices, pro_in_use, role):
 
 
 def submit_next_slice(pc, cfg, campaign_stage_id):
-    """Launch a new submission for the campaign stage."""
-    data, status, submission_id = pc.launch_campaign_stage_jobs(
-        campaign_stage_id, experiment=cfg["experiment"], role=cfg["role"]
+    """Launch a new submission for the campaign stage.
+
+    Calls make_poms_call() directly instead of poms_client.py's
+    launch_campaign_stage_jobs() wrapper: the wrapper assumes the response
+    body ends in "_<digits>" and does int(data[data.rfind("_") + 1:]) to
+    extract the submission id, but the real response is a URL --
+    ".../list_launch_file/<experiment>/<role>?campaign_stage_id=...&submission_id=NNN"
+    -- so rfind("_") lands inside "campaign_stage_id" and int() crashes
+    (confirmed live, 2026-08-14). Parse submission_id out of the URL's query
+    string instead.
+    """
+    data, status = pc.make_poms_call(
+        method="launch_jobs",
+        campaign_stage_id=campaign_stage_id,
+        experiment=cfg["experiment"],
+        role=cfg["role"],
     )
     if status != 303:
-        raise RuntimeError(f"launch_campaign_stage_jobs failed: status={status} data={data}")
+        raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
+    submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
     logging.info("submitted new slice: submission_id=%s", submission_id)
     return submission_id
 
