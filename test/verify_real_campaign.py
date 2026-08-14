@@ -67,7 +67,6 @@ def main():
         "role": ROLE,
         "campaign_name": campaign_name,
         "campaign_stage_name": stage_name,
-        "test_client": None,
         "pct_complete_threshold": 80,
     }
 

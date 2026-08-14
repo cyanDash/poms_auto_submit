@@ -36,7 +36,6 @@ def load_config(path):
         "role": parser.get("poms", "role"),
         "campaign_name": parser.get("poms", "campaign_name"),
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
-        "test_client": parser.get("poms", "test_client", fallback="") or None,
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
@@ -58,7 +57,7 @@ def acquire_lock(lock_path):
 def check_auth(pc, cfg):
     """Best-effort warning if the proxy/token uploaded to POMS looks stale."""
     options = types.SimpleNamespace(
-        test=cfg["test_client"], experiment=cfg["experiment"], verbose=False
+        test=None, experiment=cfg["experiment"], verbose=False
     )
     try:
         if pc.auth_token():
@@ -74,12 +73,11 @@ def check_auth(pc, cfg):
 def get_progress(pc, cfg):
     """Block 1: what percentage of the campaign stage's latest submission is processed."""
     campaign_stage_id = pc.get_campaign_stage_id(
-        cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"], test=cfg["test_client"]
+        cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"]
     )
 
     ok, resp = pc.campaign_stage_submissions(
         cfg["experiment"], cfg["role"], cfg["campaign_name"], cfg["campaign_stage_name"],
-        test=cfg["test_client"],
     )
     submissions = resp.get("data", {}).get("submissions", []) if ok else []
     if not submissions:
@@ -96,7 +94,7 @@ def get_progress(pc, cfg):
     status = latest.get("status")
 
     ok, details = pc.submission_details(
-        cfg["experiment"], cfg["role"], submission_id, test=cfg["test_client"]
+        cfg["experiment"], cfg["role"], submission_id
     )
     pct_complete = details.get("submission", {}).get("pct_complete") if ok else None
 
@@ -118,14 +116,13 @@ def get_active_submission_count(pc, cfg, campaign_stage_id):
     running_submissions isn't wrapped in poms_client.py, so this goes through
     make_poms_call directly.
     """
-    campaign_id = pc.get_campaign_id(cfg["experiment"], cfg["campaign_name"], test=cfg["test_client"])
+    campaign_id = pc.get_campaign_id(cfg["experiment"], cfg["campaign_name"])
     data, status = pc.make_poms_call(
         method="running_submissions",
         fmt="json",
         campaign_id_list=str(campaign_id),
         experiment=cfg["experiment"],
         role=cfg["role"],
-        test=cfg["test_client"],
     )
     if status not in (200, 201):
         logging.warning("running_submissions call failed with status %s, assuming active", status)
@@ -165,7 +162,7 @@ def can_submit_next_slice(cfg, progress, active_count):
 
 def get_stage_params(pc, cfg):
     """Block 3 (read): current params for the target campaign stage."""
-    ok, resp = pc.show_campaign_stages(campaign_name=cfg["campaign_name"], test=cfg["test_client"])
+    ok, resp = pc.show_campaign_stages(campaign_name=cfg["campaign_name"])
     if not ok:
         raise RuntimeError("show_campaign_stages failed")
     for stage in resp.get("campaign_stages", []):
@@ -185,7 +182,7 @@ def update_stage_params(pc, cfg, campaign_stage_id, updates):
 
     logging.info("updating stage params: %s", updates)
     ok, data = pc.update_stage_param_overrides(
-        cfg["experiment"], campaign_stage_id, param_overrides=updates, test=cfg["test_client"]
+        cfg["experiment"], campaign_stage_id, param_overrides=updates
     )
     if not ok:
         raise RuntimeError(f"update_stage_param_overrides failed: {data}")
@@ -194,7 +191,7 @@ def update_stage_params(pc, cfg, campaign_stage_id, updates):
 def submit_next_slice(pc, cfg, campaign_stage_id):
     """Block 4: launch a new submission for the campaign stage."""
     data, status, submission_id = pc.launch_campaign_stage_jobs(
-        campaign_stage_id, experiment=cfg["experiment"], role=cfg["role"], test=cfg["test_client"]
+        campaign_stage_id, experiment=cfg["experiment"], role=cfg["role"]
     )
     if status != 303:
         raise RuntimeError(f"launch_campaign_stage_jobs failed: status={status} data={data}")
@@ -205,8 +202,8 @@ def submit_next_slice(pc, cfg, campaign_stage_id):
 def run(cfg, dry_run):
     import poms_client as pc
 
-    pc.update_session_experiment(cfg["experiment"], test_client=cfg["test_client"])
-    pc.update_session_role(cfg["role"], test_client=cfg["test_client"])
+    pc.update_session_experiment(cfg["experiment"])
+    pc.update_session_role(cfg["role"])
     check_auth(pc, cfg)
 
     progress = get_progress(pc, cfg)
