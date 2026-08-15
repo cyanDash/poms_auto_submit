@@ -12,8 +12,8 @@ import fcntl
 import logging
 import os
 import sys
-import types
-from urllib.parse import parse_qs, urlparse
+
+from poms_session import PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -56,84 +56,7 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def check_auth(pc, cfg):
-    """Best-effort warning if the proxy/token uploaded to POMS looks stale."""
-    options = types.SimpleNamespace(
-        test=None, experiment=cfg["experiment"], verbose=False
-    )
-    # suppress poms_client's noisy traceback-on-failure inside check_stale_*()
-    root_logger = logging.getLogger()
-    previous_level = root_logger.level
-    root_logger.setLevel(logging.CRITICAL)
-    try:
-        if pc.auth_token():
-            stale = pc.check_stale_token(options)
-        else:
-            stale = pc.check_stale_proxy(options)
-    except Exception:
-        root_logger.setLevel(previous_level)
-        logging.exception("could not check auth staleness, continuing anyway")
-        return
-    root_logger.setLevel(previous_level)
-    if stale:
-        logging.warning("POMS auth (proxy/token) looks stale — renew before relying on this run")
-
-
-def get_progress(pc, cfg):
-    """Get status/pct_complete of the currently relevant submission(s)."""
-    campaign_stage_id = pc.get_campaign_stage_id(
-        cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"]
-    )
-
-    ok, resp = pc.campaign_stage_submissions(
-        cfg["experiment"], cfg["role"], cfg["campaign_name"], cfg["campaign_stage_name"],
-    )
-    submissions = resp.get("data", {}).get("submissions", []) if ok else []
-    if not submissions:
-        logging.info("no submissions found yet for %s/%s", cfg["campaign_name"], cfg["campaign_stage_name"])
-        return {"campaign_stage_id": campaign_stage_id, "submissions": []}
-
-    submissions = sorted(submissions, key=lambda s: s.get("submission_id", 0))
-    running = [s for s in submissions if s.get("status") == "Running"]
-    target = running if running else [submissions[-1]]
-
-    result = []
-    for s in target:
-        submission_id = s.get("submission_id")
-        ok, details = pc.submission_details(cfg["experiment"], cfg["role"], submission_id)
-        pct_complete = details.get("submission", {}).get("pct_complete") if ok else None
-        entry = {"submission_id": submission_id, "status": s.get("status"), "pct_complete": pct_complete}
-        logging.info(
-            "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s",
-            campaign_stage_id, submission_id, entry["status"], pct_complete,
-        )
-        result.append(entry)
-
-    return {"campaign_stage_id": campaign_stage_id, "submissions": result}
-
-
-def get_active_submission_count(pc, cfg, campaign_stage_id):
-    """Count submissions for this campaign stage still in New/Idle/Running."""
-    campaign_id = pc.get_campaign_id(cfg["experiment"], cfg["campaign_name"])
-    data, status = pc.make_poms_call(
-        method="running_submissions",
-        fmt="json",
-        campaign_id_list=str(campaign_id),
-        experiment=cfg["experiment"],
-        role=cfg["role"],
-    )
-    if status not in (200, 201):
-        logging.warning("running_submissions call failed with status %s, assuming active", status)
-        return None
-
-    import json
-    counts = json.loads(data)
-    active = counts.get(str(campaign_id), 0) if isinstance(counts, dict) else 0
-    logging.info("active_submission_count=%s", active)
-    return active
-
-
-def can_submit_next_slice(cfg, progress, active_count):
+def can_submit_next_slice(cfg, submissions, active_count):
     """Decide how many new slices to submit this run (0, 1, or 2)."""
     target = 2 if cfg["submit_two_slices"] else 1
 
@@ -145,49 +68,21 @@ def can_submit_next_slice(cfg, progress, active_count):
         logging.info("decision: bootstrap (no active submissions), submit %d slice(s)", target)
         return target
 
-    running = progress["submissions"]
     ready_count = sum(
-        1 for s in running
+        1 for s in submissions
         if s["pct_complete"] is not None and s["pct_complete"] > cfg["pct_complete_threshold"]
     )
     if ready_count == 0:
         logging.info("decision: skip (no running submission past pct_complete_threshold)")
         return 0
 
-    not_ready_count = len(running) - ready_count
+    not_ready_count = len(submissions) - ready_count
     num_slices = max(0, target - not_ready_count)
     logging.info(
         "decision: submit %d slice(s) (ready=%d not_ready=%d target=%d)",
         num_slices, ready_count, not_ready_count, target,
     )
     return num_slices
-
-
-def get_stage_params(pc, cfg):
-    """Read the current params for the target campaign stage."""
-    ok, resp = pc.show_campaign_stages(campaign_name=cfg["campaign_name"])
-    if not ok:
-        raise RuntimeError("show_campaign_stages failed")
-    for stage in resp.get("campaign_stages", []):
-        if stage.get("name") == cfg["campaign_stage_name"]:
-            return stage
-    raise RuntimeError(f"stage {cfg['campaign_stage_name']!r} not found in campaign {cfg['campaign_name']!r}")
-
-
-def update_stage_params(pc, cfg, campaign_stage_id, updates):
-    """Apply param_overrides updates to a campaign stage, if any."""
-    if not updates:
-        logging.info("no stage param updates to apply")
-        return
-
-    logging.info("updating stage params: %s", updates)
-    param_overrides = str(list(updates.items()))
-    data = pc.update_stage_param_overrides(
-        cfg["experiment"], campaign_stage_id, param_overrides=param_overrides
-    )
-    if data is None:
-        raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={campaign_stage_id}")
-    logging.info("update_stage_param_overrides response: %s", data)
 
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
@@ -212,37 +107,20 @@ def plan_subgroups(num_slices, pro_in_use, role):
     return [not pro_in_use]
 
 
-def submit_next_slice(pc, cfg, campaign_stage_id):
-    """Launch a new submission for the campaign stage."""
-    data, status = pc.make_poms_call(
-        method="launch_jobs",
-        campaign_stage_id=campaign_stage_id,
-        experiment=cfg["experiment"],
-        role=cfg["role"],
-    )
-    if status != 303:
-        raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
-    submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
-    logging.info("submitted new slice: submission_id=%s", submission_id)
-    return submission_id
-
-
 def run(cfg, dry_run):
     import poms_client as pc
 
-    pc.update_session_experiment(cfg["experiment"])
-    pc.update_session_role(cfg["role"])
-    check_auth(pc, cfg)
+    session = PomsSession(pc, cfg)
+    session.check_auth()
 
-    progress = get_progress(pc, cfg)
-    campaign_stage_id = progress["campaign_stage_id"]
-    active_count = get_active_submission_count(pc, cfg, campaign_stage_id)
+    submissions = session.get_progress()
+    active_count = session.get_active_submission_count()
 
-    num_slices = can_submit_next_slice(cfg, progress, active_count)
+    num_slices = can_submit_next_slice(cfg, submissions, active_count)
     if num_slices == 0:
         return
 
-    stage_params = get_stage_params(pc, cfg)
+    stage_params = session.get_stage_params()
     pro_in_use = has_pro_subgroup(stage_params.get("param_overrides", []))
     want_pro = plan_subgroups(num_slices, pro_in_use, cfg["role"])
 
@@ -256,8 +134,8 @@ def run(cfg, dry_run):
 
     for use_pro in want_pro:
         updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
-        update_stage_params(pc, cfg, campaign_stage_id, updates)
-        submit_next_slice(pc, cfg, campaign_stage_id)
+        session.update_stage_params(updates)
+        session.submit_next_slice()
 
 
 def main():

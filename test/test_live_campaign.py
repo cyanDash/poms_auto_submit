@@ -5,10 +5,9 @@ default) since these need POMS_CLIENT_DIR + a valid auth token and hit the
 network. Run explicitly with: `source setup.sh && pytest -m live`.
 
 Makes no launch_jobs or param-update calls -- purely read APIs, safe to run
-against production. This exists because the unit tests' hand-written fakes
-have drifted from the real poms_client.py response shapes before (nested
-response fields, an (ok, data) vs. bare-string return) without anything
-catching it; these tests pin the real shapes down.
+against production. This is PomsSession's own contract test: it pins real
+poms_client.py response shapes down against the live server, so a fake `pc`
+drifting from reality gets caught here instead of only in production.
 """
 import os
 import sys
@@ -24,7 +23,7 @@ if not poms_client_dir:
 sys.path.insert(0, os.path.join(poms_client_dir, "python"))
 
 import poms_client as pc  # noqa: E402
-import poms_auto_submit as psc  # noqa: E402
+from poms_session import PomsSession  # noqa: E402
 
 pytestmark = pytest.mark.live
 
@@ -43,11 +42,9 @@ KNOWN_SUBMISSIONS = {
 
 
 @pytest.fixture(scope="module")
-def cfg():
-    pc.update_session_experiment(EXPERIMENT)
-    pc.update_session_role(ROLE)
+def session():
     campaign_name = pc.get_campaign_name(EXPERIMENT, CAMPAIGN_ID)
-    return {
+    cfg = {
         "experiment": EXPERIMENT,
         "role": ROLE,
         "campaign_name": campaign_name,
@@ -55,16 +52,13 @@ def cfg():
         "pct_complete_threshold": 80,
         "submit_two_slices": False,
     }
+    return PomsSession(pc, cfg)
 
 
-def test_campaign_stage_id_round_trips(cfg):
+def test_campaign_stage_id_round_trips(session):
     # sanity check: does the id->name we're trusting round-trip back to the
-    # same id via the function poms_auto_submit.py actually depends on
-    # (name->id)?
-    resolved = pc.get_campaign_stage_id(
-        cfg["experiment"], cfg["campaign_name"], cfg["campaign_stage_name"]
-    )
-    assert resolved == CAMPAIGN_STAGE_ID
+    # same id via the lookup PomsSession actually depends on (name->id)?
+    assert session.campaign_stage_id == CAMPAIGN_STAGE_ID
 
 
 @pytest.mark.parametrize("submission_id", KNOWN_SUBMISSIONS)
@@ -74,24 +68,24 @@ def test_submission_details_shape(submission_id):
     assert "pct_complete" in details.get("submission", {})
 
 
-def test_get_progress_returns_expected_shape(cfg):
-    progress = psc.get_progress(pc, cfg)
-    assert set(progress) == {"campaign_stage_id", "submissions"}
-    assert progress["campaign_stage_id"] == CAMPAIGN_STAGE_ID
-    for s in progress["submissions"]:
+def test_get_progress_returns_expected_shape(session):
+    submissions = session.get_progress()
+    for s in submissions:
         assert set(s) == {"submission_id", "status", "pct_complete"}
 
 
-def test_get_stage_params_returns_named_stage(cfg):
-    stage = psc.get_stage_params(pc, cfg)
+def test_get_stage_params_returns_named_stage(session):
+    stage = session.get_stage_params()
     assert stage["name"] == CAMPAIGN_STAGE_NAME
     assert isinstance(stage.get("param_overrides"), list)
     for entry in stage["param_overrides"]:
         assert len(entry) == 2
 
 
-def test_has_pro_subgroup_reads_real_param_overrides(cfg):
-    stage = psc.get_stage_params(pc, cfg)
+def test_has_pro_subgroup_reads_real_param_overrides(session):
+    import poms_auto_submit as psc
+
+    stage = session.get_stage_params()
     # Just needs to not blow up on the real shape -- either bool is valid,
     # this isn't asserting a specific pro/standard state.
     assert psc.has_pro_subgroup(stage["param_overrides"]) in (True, False)

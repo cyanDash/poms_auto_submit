@@ -11,8 +11,8 @@ def make_cfg(**overrides):
     return cfg
 
 
-def make_progress(*submissions):
-    return {"campaign_stage_id": 42, "submissions": list(submissions)}
+def make_submissions(*submissions):
+    return list(submissions)
 
 
 def sub(submission_id, pct_complete):
