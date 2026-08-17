@@ -39,8 +39,12 @@ Requires a UPS environment with `poms_client` available on CVMFS.
 git clone https://github.com/cyanDash/poms_auto_submit.git
 cd poms_auto_submit
 git checkout v1.0
-source setup.sh
+source setup.sh --role production
 ```
+
+`--role` is passed through as htgettoken's `-r` flag when fetching the bearer
+token; use whatever role your `config.ini`'s `role` is set to. Omit it to
+fetch a token without a role.
 
 ## Configure
 
@@ -72,7 +76,7 @@ this is all you need to configure.
 Validate against a real campaign before trusting it unattended:
 
 ```bash
-source setup.sh
+source setup.sh --role production
 ./poms_auto_submit.py --config config.ini --dry-run
 ```
 
@@ -99,5 +103,5 @@ And in the crontab:
 
 ```cron
 SHELL=/bin/bash
-0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh && ./poms_auto_submit.py --config config.ini >> cron.out 2>&1
+0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini >> cron.out 2>&1
 ```
