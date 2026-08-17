@@ -39,10 +39,34 @@ def load_config(path):
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
+        "max_splits": parser.getint("decision", "max_splits"),
+        "last_split": parser.getint("decision", "last_split"),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
+        "config_path": os.path.abspath(path),
     }
     return cfg
+
+
+def persist_last_split(config_path, last_split):
+    """Write the updated last_split counter back to config.ini in place, leaving comments and everything else untouched."""
+    with open(config_path) as f:
+        lines = f.readlines()
+
+    section = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1]
+            continue
+        if section == "decision" and stripped.split("=", 1)[0].strip() == "last_split":
+            lines[i] = f"last_split = {last_split}\n"
+            break
+    else:
+        raise RuntimeError(f"last_split key not found in [decision] section of {config_path}")
+
+    with open(config_path, "w") as f:
+        f.writelines(lines)
 
 
 def acquire_lock(lock_path):
@@ -56,21 +80,29 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def can_submit_next_slice(cfg, submissions, active_count):
+def next_slice_count(cfg, submissions, active_count):
     """Decide how many new slices to submit this run (0, 1, or 2)."""
-    target = 2 if cfg["submit_two_slices"] else 1
+    remaining_splits = cfg["max_splits"] - cfg["last_split"]
+    if remaining_splits <= 0:
+        logging.info(
+            "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
+            cfg["last_split"], cfg["max_splits"],
+        )
+        return 0
+
+    target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
 
     if active_count is None:
         logging.info("decision: skip (could not determine active submission count)")
         return 0
 
     if active_count == 0:
-        logging.info("decision: bootstrap (no active submissions), submit %d slice(s)", target)
+        logging.info("decision: No active submissions: submit %d slice(s)", target)
         return target
 
     ready_count = sum(
         1 for s in submissions
-        if s["pct_complete"] is not None and s["pct_complete"] > cfg["pct_complete_threshold"]
+        if s["pct_complete"] is not None and s["pct_complete"] >= cfg["pct_complete_threshold"]
     )
     if ready_count == 0:
         logging.info("decision: skip (no running submission past pct_complete_threshold)")
@@ -116,7 +148,7 @@ def run(cfg, dry_run):
     submissions = session.get_progress()
     active_count = session.get_active_submission_count()
 
-    num_slices = can_submit_next_slice(cfg, submissions, active_count)
+    num_slices = next_slice_count(cfg, submissions, active_count)
     if num_slices == 0:
         return
 
@@ -136,6 +168,8 @@ def run(cfg, dry_run):
         updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
         session.update_stage_params(updates)
         session.submit_next_slice()
+        cfg["last_split"] += 1
+        persist_last_split(cfg["config_path"], cfg["last_split"])
 
 
 def main():

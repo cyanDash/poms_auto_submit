@@ -6,6 +6,8 @@ def make_cfg(**overrides):
         "campaign_stage_name": "test_stage",
         "pct_complete_threshold": 80,
         "submit_two_slices": False,
+        "max_splits": 5,
+        "last_split": 0,
     }
     cfg.update(overrides)
     return cfg

@@ -12,10 +12,13 @@ can be run as an hourly cronjob.
    status + `pct_complete` (percentage of the total jobs that have
    finished) for every currently-`Running` submission (or the
    latest one, if none are running).
-2. **Decide** — `can_submit_next_slice()` how many new slices to run.
+2. **Decide** — `next_slice_count()` how many new slices to run.
    A new slice is ready to be submitted to the last run slices'
    `pct_complete` have crossed `pct_complete_threshold`. Returns 0 
-   if nothing is ready yet.
+   if nothing is ready yet. Submission stops for good once `last_split`
+   reaches `max_splits` — `last_split` is a counter the script maintains
+   itself, incrementing it and writing it back to `config.ini` after each
+   slice it successfully submits.
 3. **Decide subgroup, submit** — only the `production` role may hold the
    higher-priority `pro` subgroup, and only one pro slice at a time; every
    other role, and every other concurrent slice, runs at the standard subgroup.
@@ -53,6 +56,8 @@ campaign_stage_name = CHANGE_ME
 [decision]
 pct_complete_threshold = 80
 submit_two_slices = 0
+max_splits = 5
+last_split = 0
 
 [paths]
 log_file = poms_auto_submit.log
