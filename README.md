@@ -14,9 +14,10 @@ logged.
    at a time. Stops for good once `last_split` reaches `max_splits`;
    `last_split` is a counter the script maintains itself in `config.ini`.
 3. **Decide subgroup, submit** — only the `production` role may hold the
-   higher-priority `pro` subgroup, and only one pro slice at a time; every
-   other slice runs standard. When 2 slices go out in the same run, one is
-   `pro` and the other standard (production role only).
+   higher-priority `pro` subgroup. A lone slice always takes `pro` (nothing
+   else from this run to contend with it); when 2 slices go out in the same
+   run, one is `pro` and the other standard, since both can't hold it at
+   once. Every other role always runs standard.
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 

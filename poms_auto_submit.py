@@ -120,21 +120,21 @@ def next_slice_count(cfg, submissions, active_count):
 PRO_ELIGIBLE_ROLE = "production"
 
 
-def plan_subgroups(num_slices, pro_in_use, role):
-    """Decide which subgroup each of the num_slices new submissions should use."""
+def plan_subgroups(num_slices, role):
+    """Decide which subgroup each of the num_slices new submissions should use
+    (see docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md)."""
     if role != PRO_ELIGIBLE_ROLE:
         return [False] * num_slices
     if num_slices == 2:
         return [True, False]
-    return [not pro_in_use]
+    return [True]
 
 
 def plan_next_slices(cfg, session):
     """Decide how many new slices to submit this run and which subgroup each gets.
 
     Returns a list with one entry per slice to submit (True = pro subgroup,
-    False = standard), possibly empty. Only fetches pro_subgroup_in_use (a real
-    POMS call) when something will actually be submitted.
+    False = standard), possibly empty.
     """
     submissions = session.get_progress()
     active_count = session.get_active_submission_count()
@@ -143,9 +143,7 @@ def plan_next_slices(cfg, session):
     if num_slices == 0:
         return []
 
-    pro_in_use = session.pro_subgroup_in_use()
-    logging.info("pro_in_use=%s", pro_in_use)
-    return plan_subgroups(num_slices, pro_in_use, cfg["role"])
+    return plan_subgroups(num_slices, cfg["role"])
 
 
 def run(cfg, dry_run):
