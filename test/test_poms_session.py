@@ -95,6 +95,32 @@ def test_get_progress_returns_all_running_submissions():
     ]
 
 
+def test_get_progress_treats_held_as_active_alongside_running():
+    # A Submission flips Running -> Held as soon as any job is held, even if
+    # most of it is still progressing fine -- still in-flight, not dropped.
+    submissions = [
+        {"submission_id": 100, "status": "Held"},
+        {"submission_id": 101, "status": "Running"},
+        {"submission_id": 102, "status": "Located"},
+    ]
+    details_by_id = {
+        100: {"submission_id": "100", "submission": {"pct_complete": 92.0}},
+        101: {"submission_id": "101", "submission": {"pct_complete": 55.0}},
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
+    )
+
+    assert session.get_progress() == [
+        {"submission_id": 100, "status": "Held", "pct_complete": 92.0},
+        {"submission_id": 101, "status": "Running", "pct_complete": 55.0},
+    ]
+
+
 def test_get_stage_params_finds_named_stage():
     stages = [
         {"name": "other_stage", "dataset": "other_dataset"},

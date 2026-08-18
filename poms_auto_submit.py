@@ -105,7 +105,7 @@ def next_slice_count(cfg, submissions, active_count):
         if s["pct_complete"] is not None and s["pct_complete"] >= cfg["pct_complete_threshold"]
     )
     if ready_count == 0:
-        logging.info("decision: skip (no running submission past pct_complete_threshold)")
+        logging.info("decision: skip (no active submission past pct_complete_threshold)")
         return 0
 
     not_ready_count = len(submissions) - ready_count
