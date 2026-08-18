@@ -93,7 +93,7 @@ Open the crontab:
 crontab -e
 ```
 
-And aste the following script:
+And paste the following script:
 ```cron
 SHELL=/bin/bash
 0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini 2>&1
