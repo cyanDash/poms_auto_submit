@@ -39,10 +39,34 @@ def load_config(path):
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
+        "max_splits": parser.getint("decision", "max_splits"),
+        "last_split": parser.getint("decision", "last_split"),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
+        "config_path": os.path.abspath(path),
     }
     return cfg
+
+
+def persist_last_split(config_path, last_split):
+    """Write the updated last_split counter back to config.ini in place, leaving comments and everything else untouched."""
+    with open(config_path) as f:
+        lines = f.readlines()
+
+    section = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1]
+            continue
+        if section == "decision" and stripped.split("=", 1)[0].strip() == "last_split":
+            lines[i] = f"last_split = {last_split}\n"
+            break
+    else:
+        raise RuntimeError(f"last_split key not found in [decision] section of {config_path}")
+
+    with open(config_path, "w") as f:
+        f.writelines(lines)
 
 
 def acquire_lock(lock_path):
@@ -56,21 +80,29 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def can_submit_next_slice(cfg, submissions, active_count):
+def next_slice_count(cfg, submissions, active_count):
     """Decide how many new slices to submit this run (0, 1, or 2)."""
-    target = 2 if cfg["submit_two_slices"] else 1
+    remaining_splits = cfg["max_splits"] - cfg["last_split"]
+    if remaining_splits <= 0:
+        logging.info(
+            "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
+            cfg["last_split"], cfg["max_splits"],
+        )
+        return 0
+
+    target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
 
     if active_count is None:
         logging.info("decision: skip (could not determine active submission count)")
         return 0
 
     if active_count == 0:
-        logging.info("decision: bootstrap (no active submissions), submit %d slice(s)", target)
+        logging.info("decision: No active submissions: submit %d slice(s)", target)
         return target
 
     ready_count = sum(
         1 for s in submissions
-        if s["pct_complete"] is not None and s["pct_complete"] > cfg["pct_complete_threshold"]
+        if s["pct_complete"] is not None and s["pct_complete"] >= cfg["pct_complete_threshold"]
     )
     if ready_count == 0:
         logging.info("decision: skip (no running submission past pct_complete_threshold)")
@@ -85,26 +117,33 @@ def can_submit_next_slice(cfg, submissions, active_count):
     return num_slices
 
 
-SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
-PRO_SUBGROUP = "pro"
 PRO_ELIGIBLE_ROLE = "production"
 
 
-def has_pro_subgroup(param_overrides):
-    """Whether a stage's param_overrides currently sets subgroup=pro."""
-    return any(
-        k == SUBGROUP_OVERRIDE_KEY and v == PRO_SUBGROUP
-        for k, v in param_overrides
-    )
-
-
-def plan_subgroups(num_slices, pro_in_use, role):
-    """Decide which subgroup each of the num_slices new submissions should use."""
+def plan_subgroups(num_slices, role):
+    """Decide which subgroup each of the num_slices new submissions should use
+    (see docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md)."""
     if role != PRO_ELIGIBLE_ROLE:
         return [False] * num_slices
     if num_slices == 2:
         return [True, False]
-    return [not pro_in_use]
+    return [True]
+
+
+def plan_next_slices(cfg, session):
+    """Decide how many new slices to submit this run and which subgroup each gets.
+
+    Returns a list with one entry per slice to submit (True = pro subgroup,
+    False = standard), possibly empty.
+    """
+    submissions = session.get_progress()
+    active_count = session.get_active_submission_count()
+
+    num_slices = next_slice_count(cfg, submissions, active_count)
+    if num_slices == 0:
+        return []
+
+    return plan_subgroups(num_slices, cfg["role"])
 
 
 def run(cfg, dry_run):
@@ -113,29 +152,20 @@ def run(cfg, dry_run):
     session = PomsSession(pc, cfg)
     session.check_auth()
 
-    submissions = session.get_progress()
-    active_count = session.get_active_submission_count()
-
-    num_slices = can_submit_next_slice(cfg, submissions, active_count)
-    if num_slices == 0:
+    plan = plan_next_slices(cfg, session)
+    if not plan:
         return
-
-    stage_params = session.get_stage_params()
-    pro_in_use = has_pro_subgroup(stage_params.get("param_overrides", []))
-    want_pro = plan_subgroups(num_slices, pro_in_use, cfg["role"])
 
     if dry_run:
-        plan = ["pro" if p else "standard" for p in want_pro]
-        logging.info(
-            "dry-run: would submit %d slice(s) with subgroup plan=%s (pro_in_use=%s)",
-            num_slices, plan, pro_in_use,
-        )
+        subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
+        logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    for use_pro in want_pro:
-        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
-        session.update_stage_params(updates)
+    for use_pro in plan:
+        session.set_subgroup(use_pro)
         session.submit_next_slice()
+        cfg["last_split"] += 1
+        persist_last_split(cfg["config_path"], cfg["last_split"])
 
 
 def main():

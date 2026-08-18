@@ -9,6 +9,9 @@ import logging
 import types
 from urllib.parse import parse_qs, urlparse
 
+SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
+PRO_SUBGROUP = "pro"
+
 
 class PomsSession:
     def __init__(self, pc, cfg):
@@ -79,12 +82,8 @@ class PomsSession:
         return result
 
     def get_active_submission_count(self):
-        """Count Submissions across the whole Campaign still in New/Idle/Running.
-
-        Scoped to the Campaign, not this Campaign Stage, so that a busy stage
-        elsewhere in the same Campaign holds back this stage's next slice too
-        (see docs/adr/0001-cap-submission-concurrency-per-campaign.md).
-        """
+        """Count Submissions across the whole Campaign still in New/Idle/Running
+        (see docs/adr/0001-cap-submission-concurrency-per-campaign.md)."""
         campaign_id = self.pc.get_campaign_id(self.cfg["experiment"], self.cfg["campaign_name"])
         data, status = self.pc.make_poms_call(
             method="running_submissions",
@@ -111,6 +110,11 @@ class PomsSession:
             if stage.get("name") == self.cfg["campaign_stage_name"]:
                 return stage
         raise RuntimeError(f"stage {self.cfg['campaign_stage_name']!r} not found in campaign {self.cfg['campaign_name']!r}")
+
+    def set_subgroup(self, use_pro):
+        """Set or clear the pro subgroup override for the Campaign Stage's next submission."""
+        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
+        self.update_stage_params(updates)
 
     def update_stage_params(self, updates):
         """Apply param_overrides updates to the Campaign Stage, if any."""
