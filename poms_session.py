@@ -9,6 +9,9 @@ import logging
 import types
 from urllib.parse import parse_qs, urlparse
 
+SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
+PRO_SUBGROUP = "pro"
+
 
 class PomsSession:
     def __init__(self, pc, cfg):
@@ -111,6 +114,19 @@ class PomsSession:
             if stage.get("name") == self.cfg["campaign_stage_name"]:
                 return stage
         raise RuntimeError(f"stage {self.cfg['campaign_stage_name']!r} not found in campaign {self.cfg['campaign_name']!r}")
+
+    def pro_subgroup_in_use(self):
+        """Whether the Campaign Stage's param_overrides currently sets subgroup=pro."""
+        stage_params = self.get_stage_params()
+        return any(
+            k == SUBGROUP_OVERRIDE_KEY and v == PRO_SUBGROUP
+            for k, v in stage_params.get("param_overrides", [])
+        )
+
+    def set_subgroup(self, use_pro):
+        """Set or clear the pro subgroup override for the Campaign Stage's next submission."""
+        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
+        self.update_stage_params(updates)
 
     def update_stage_params(self, updates):
         """Apply param_overrides updates to the Campaign Stage, if any."""

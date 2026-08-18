@@ -184,6 +184,45 @@ def test_update_stage_params_handles_real_recorded_response():
     session.update_stage_params(updates={"-Oglobal.neventsperjob=": "10"})
 
 
+def test_pro_subgroup_in_use_true_when_present():
+    stages = [{"name": "test_stage", "param_overrides": [["-Osubmit.subgroup=", "pro"], ["-Oglobal.sample=", "x"]]}]
+    session = make_session(show_campaign_stages=lambda campaign_name: (True, {"campaign_stages": stages}))
+
+    assert session.pro_subgroup_in_use() is True
+
+
+def test_pro_subgroup_in_use_false_when_absent():
+    stages = [{"name": "test_stage", "param_overrides": [["-Oglobal.sample=", "x"]]}]
+    session = make_session(show_campaign_stages=lambda campaign_name: (True, {"campaign_stages": stages}))
+
+    assert session.pro_subgroup_in_use() is False
+
+
+def test_pro_subgroup_in_use_false_when_subgroup_is_not_pro():
+    stages = [{"name": "test_stage", "param_overrides": [["-Osubmit.subgroup=", "standard"]]}]
+    session = make_session(show_campaign_stages=lambda campaign_name: (True, {"campaign_stages": stages}))
+
+    assert session.pro_subgroup_in_use() is False
+
+
+def test_set_subgroup_true_sets_pro_override():
+    calls = []
+    session = make_session(update_stage_param_overrides=lambda *a, **kw: calls.append(kw) or "(ok, None)")
+
+    session.set_subgroup(True)
+
+    assert calls == [{"param_overrides": "[('-Osubmit.subgroup=', 'pro')]"}]
+
+
+def test_set_subgroup_false_clears_override():
+    calls = []
+    session = make_session(update_stage_param_overrides=lambda *a, **kw: calls.append(kw) or "(ok, None)")
+
+    session.set_subgroup(False)
+
+    assert calls == [{"param_overrides": "[('-Osubmit.subgroup=', '')]"}]
+
+
 def test_submit_next_slice_returns_submission_id_on_success():
     session = make_session(make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303))
 

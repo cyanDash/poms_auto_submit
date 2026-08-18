@@ -117,17 +117,7 @@ def next_slice_count(cfg, submissions, active_count):
     return num_slices
 
 
-SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
-PRO_SUBGROUP = "pro"
 PRO_ELIGIBLE_ROLE = "production"
-
-
-def has_pro_subgroup(param_overrides):
-    """Whether a stage's param_overrides currently sets subgroup=pro."""
-    return any(
-        k == SUBGROUP_OVERRIDE_KEY and v == PRO_SUBGROUP
-        for k, v in param_overrides
-    )
 
 
 def plan_subgroups(num_slices, pro_in_use, role):
@@ -139,34 +129,42 @@ def plan_subgroups(num_slices, pro_in_use, role):
     return [not pro_in_use]
 
 
+def plan_next_slices(cfg, session):
+    """Decide how many new slices to submit this run and which subgroup each gets.
+
+    Returns a list with one entry per slice to submit (True = pro subgroup,
+    False = standard), possibly empty. Only fetches pro_subgroup_in_use (a real
+    POMS call) when something will actually be submitted.
+    """
+    submissions = session.get_progress()
+    active_count = session.get_active_submission_count()
+
+    num_slices = next_slice_count(cfg, submissions, active_count)
+    if num_slices == 0:
+        return []
+
+    pro_in_use = session.pro_subgroup_in_use()
+    logging.info("pro_in_use=%s", pro_in_use)
+    return plan_subgroups(num_slices, pro_in_use, cfg["role"])
+
+
 def run(cfg, dry_run):
     import poms_client as pc
 
     session = PomsSession(pc, cfg)
     session.check_auth()
 
-    submissions = session.get_progress()
-    active_count = session.get_active_submission_count()
-
-    num_slices = next_slice_count(cfg, submissions, active_count)
-    if num_slices == 0:
+    plan = plan_next_slices(cfg, session)
+    if not plan:
         return
-
-    stage_params = session.get_stage_params()
-    pro_in_use = has_pro_subgroup(stage_params.get("param_overrides", []))
-    want_pro = plan_subgroups(num_slices, pro_in_use, cfg["role"])
 
     if dry_run:
-        plan = ["pro" if p else "standard" for p in want_pro]
-        logging.info(
-            "dry-run: would submit %d slice(s) with subgroup plan=%s (pro_in_use=%s)",
-            num_slices, plan, pro_in_use,
-        )
+        subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
+        logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    for use_pro in want_pro:
-        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
-        session.update_stage_params(updates)
+    for use_pro in plan:
+        session.set_subgroup(use_pro)
         session.submit_next_slice()
         cfg["last_split"] += 1
         persist_last_split(cfg["config_path"], cfg["last_split"])
