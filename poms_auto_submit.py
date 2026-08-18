@@ -80,7 +80,7 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def next_slice_count(cfg, submissions, active_count):
+def next_slice_count(cfg, submissions):
     """Decide how many new slices to submit this run (0, 1, or 2)."""
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     if remaining_splits <= 0:
@@ -92,11 +92,7 @@ def next_slice_count(cfg, submissions, active_count):
 
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
 
-    if active_count is None:
-        logging.info("decision: skip (could not determine active submission count)")
-        return 0
-
-    if active_count == 0:
+    if not submissions:
         logging.info("decision: No active submissions: submit %d slice(s)", target)
         return target
 
@@ -137,9 +133,8 @@ def plan_next_slices(cfg, session):
     False = standard), possibly empty.
     """
     submissions = session.get_progress()
-    active_count = session.get_active_submission_count()
 
-    num_slices = next_slice_count(cfg, submissions, active_count)
+    num_slices = next_slice_count(cfg, submissions)
     if num_slices == 0:
         return []
 
