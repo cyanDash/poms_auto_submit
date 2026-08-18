@@ -12,6 +12,12 @@ from urllib.parse import parse_qs, urlparse
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
 
+# A Submission flips from Running to Held as soon as any of its jobs get held
+# (e.g. asked for more grid resources than allowed) -- even if only ~5% of a
+# 10k-job Submission is held and the rest are still running fine. Treated as
+# still active/in-flight, not as done or ignorable.
+ACTIVE_SUBMISSION_STATUSES = {"Running", "Held"}
+
 
 class PomsSession:
     def __init__(self, pc, cfg):
@@ -64,8 +70,8 @@ class PomsSession:
             return []
 
         submissions = sorted(submissions, key=lambda s: s.get("submission_id", 0))
-        running = [s for s in submissions if s.get("status") == "Running"]
-        target = running if running else [submissions[-1]]
+        active = [s for s in submissions if s.get("status") in ACTIVE_SUBMISSION_STATUSES]
+        target = active if active else [submissions[-1]]
 
         result = []
         for s in target:
