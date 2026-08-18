@@ -46,6 +46,7 @@ campaign_name = CHANGE_ME
 campaign_stage_name = CHANGE_ME
 
 [decision]
+switch = 1
 pct_complete_threshold = 80
 submit_two_slices = 0
 max_splits = CHANGE_ME
@@ -57,7 +58,8 @@ lock_file = poms_auto_submit.lock
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own. `submit_two_slices` = 1 implies a pro and a non-pro submission can be 
-simultaneously run. ``
+simultaneously run. `switch = 0` is a kill switch: the script just logs that
+it's off and exits, without checking progress or submitting anything.
 
 ## Example workflow
 
