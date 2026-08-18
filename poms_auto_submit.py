@@ -37,6 +37,7 @@ def load_config(path):
         "role": parser.get("poms", "role"),
         "campaign_name": parser.get("poms", "campaign_name"),
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
+        "enabled": parser.getboolean("decision", "enabled", fallback=True),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
         "max_splits": parser.getint("decision", "max_splits"),
@@ -176,6 +177,10 @@ def main():
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=[logging.FileHandler(cfg["log_file"]), logging.StreamHandler()],
     )
+
+    if not cfg["enabled"]:
+        logging.info("switch is off (enabled=0 in config), skipping this run")
+        return 0
 
     lock_fh = acquire_lock(cfg["lock_file"])
     if lock_fh is None:
