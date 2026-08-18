@@ -4,7 +4,6 @@ returns -- callers never see a raw (ok, data) tuple, bare string, or redirect
 URL.
 """
 
-import json
 import logging
 import types
 from urllib.parse import parse_qs, urlparse
@@ -86,26 +85,6 @@ class PomsSession:
             result.append(entry)
 
         return result
-
-    def get_active_submission_count(self):
-        """Count Submissions across the whole Campaign still in New/Idle/Running
-        (see docs/adr/0001-cap-submission-concurrency-per-campaign.md)."""
-        campaign_id = self.pc.get_campaign_id(self.cfg["experiment"], self.cfg["campaign_name"])
-        data, status = self.pc.make_poms_call(
-            method="running_submissions",
-            fmt="json",
-            campaign_id_list=str(campaign_id),
-            experiment=self.cfg["experiment"],
-            role=self.cfg["role"],
-        )
-        if status not in (200, 201):
-            logging.warning("running_submissions call failed with status %s, assuming active", status)
-            return None
-
-        counts = json.loads(data)
-        active = counts.get(str(campaign_id), 0) if isinstance(counts, dict) else 0
-        logging.info("active_submission_count=%s", active)
-        return active
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""

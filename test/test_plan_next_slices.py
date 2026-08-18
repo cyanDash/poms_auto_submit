@@ -3,19 +3,15 @@ from helpers import make_cfg, make_submissions, sub
 
 
 class FakeSession:
-    def __init__(self, submissions=None, active_count=0):
+    def __init__(self, submissions=None):
         self._submissions = submissions or []
-        self._active_count = active_count
 
     def get_progress(self):
         return self._submissions
 
-    def get_active_submission_count(self):
-        return self._active_count
-
 
 def test_plan_next_slices_returns_empty_when_nothing_to_submit():
-    session = FakeSession(submissions=make_submissions(sub(1, 40.0)), active_count=1)
+    session = FakeSession(submissions=make_submissions(sub(1, 40.0)))
 
     plan = psc.plan_next_slices(make_cfg(), session)
 
@@ -23,7 +19,7 @@ def test_plan_next_slices_returns_empty_when_nothing_to_submit():
 
 
 def test_plan_next_slices_bootstraps_with_subgroup_plan():
-    session = FakeSession(active_count=0)
+    session = FakeSession()
 
     plan = psc.plan_next_slices(make_cfg(role="production"), session)
 
@@ -31,7 +27,7 @@ def test_plan_next_slices_bootstraps_with_subgroup_plan():
 
 
 def test_plan_next_slices_respects_max_splits_cap():
-    session = FakeSession(active_count=0)
+    session = FakeSession()
 
     plan = psc.plan_next_slices(make_cfg(submit_two_slices=True, last_split=4, max_splits=5), session)
 
