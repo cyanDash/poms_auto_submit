@@ -10,7 +10,7 @@ campaign_name = test_campaign
 campaign_stage_name = test_stage
 
 [decision]
-enabled = {enabled}
+switch = {switch}
 pct_complete_threshold = 80
 submit_two_slices = 0
 max_splits = 5
@@ -22,25 +22,25 @@ lock_file = test.lock
 """
 
 
-def make_config_file(tmp_path, enabled):
+def make_config_file(tmp_path, switch):
     config_path = tmp_path / "config.ini"
-    config_path.write_text(CONFIG_TEMPLATE.format(enabled=enabled))
+    config_path.write_text(CONFIG_TEMPLATE.format(switch=switch))
     return config_path
 
 
-def test_load_config_enabled_defaults_true_when_missing(tmp_path, monkeypatch):
+def test_load_config_switch_defaults_true_when_missing(tmp_path, monkeypatch):
     monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
     config_path = tmp_path / "config.ini"
-    config_path.write_text(CONFIG_TEMPLATE.replace("enabled = {enabled}\n", "").format(enabled=""))
+    config_path.write_text(CONFIG_TEMPLATE.replace("switch = {switch}\n", "").format(switch=""))
 
     cfg = psc.load_config(str(config_path))
 
-    assert cfg["enabled"] is True
+    assert cfg["switch"] is True
 
 
-def test_main_skips_run_when_disabled(tmp_path, monkeypatch, caplog):
+def test_main_skips_run_when_switch_off(tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
-    config_path = make_config_file(tmp_path, enabled=0)
+    config_path = make_config_file(tmp_path, switch=0)
 
     def fail_if_called(cfg, dry_run):
         raise AssertionError("run() should not be called when switch is off")
@@ -55,9 +55,9 @@ def test_main_skips_run_when_disabled(tmp_path, monkeypatch, caplog):
     assert "switch is off" in caplog.text
 
 
-def test_main_calls_run_when_enabled(tmp_path, monkeypatch):
+def test_main_calls_run_when_switch_on(tmp_path, monkeypatch):
     monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
-    config_path = make_config_file(tmp_path, enabled=1)
+    config_path = make_config_file(tmp_path, switch=1)
 
     calls = []
     monkeypatch.setattr(psc, "run", lambda cfg, dry_run: calls.append((cfg, dry_run)))
