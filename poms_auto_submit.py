@@ -148,7 +148,15 @@ def run(cfg, dry_run):
     session = PomsSession(pc, cfg)
     session.check_auth()
 
-    plan = plan_next_slices(cfg, session)
+    try:
+        plan = plan_next_slices(cfg, session)
+    except RuntimeError:
+        # poms_client raises RuntimeError on non-2xx HTTP (e.g. a proxy/token that
+        # expired between the stale-auth warning above and this call, HTTP 403).
+        # Treat as a skip for this cycle rather than a hard failure -- the next
+        # hourly run will pick up cleanly once the token is renewed.
+        logging.exception("could not fetch POMS progress -- skipping this run")
+        return
     if not plan:
         return
 
