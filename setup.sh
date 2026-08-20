@@ -11,7 +11,9 @@
 #
 # --role <role>: passed through as htgettoken's -r flag when fetching the
 # bearer token (e.g. --role production). Omit it to fetch a token without a
-# role, same as running htgettoken with no -r.
+# role, same as running htgettoken with no -r. Also passed to upload_file
+# below as --poms_role, so the refreshed vault token lands under the same
+# role POMS checks staleness for.
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "setup.sh must be sourced, not executed: 'source setup.sh'" >&2
@@ -62,4 +64,23 @@ if [[ -n "$_poms_auto_submit_role" ]]; then
 else
     htgettoken -v -a htvaultprod.fnal.gov -i sbnd
 fi
+
+# Separately, keep POMS's own copy of the vault token fresh. This is what
+# PomsSession.check_auth()'s "looks stale" warning checks (>3 days old) --
+# unrelated to the local vt_/bt_ files htgettoken just refreshed above, and
+# not something that gets updated as a side effect of API calls.
+#
+# Deliberately omitting --refresh: it runs poms_client's check_stale_token()
+# first to skip the upload if POMS's copy isn't stale yet, but that check's
+# own GET to POMS fails to parse as JSON on this bearer-token auth path
+# (json.JSONDecodeError, swallowed and logged as an ERROR traceback by
+# poms_client), so --refresh always treats it as stale and uploads anyway --
+# just with a spurious traceback on every run. Uploading unconditionally
+# every hour is a cheap POST and skips that broken pre-check entirely.
+#
+# upload_file reads $WEB_CONFIG unconditionally even though we only exercise
+# the --vaulttoken path here, so give it a harmless placeholder if unset.
+export WEB_CONFIG="${WEB_CONFIG:-/dev/null}"
+upload_file --vaulttoken --experiment sbnd --poms_role "${_poms_auto_submit_role:-analysis}"
+
 unset _poms_auto_submit_role
