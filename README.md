@@ -73,9 +73,14 @@ log_file = poms_auto_submit.log
 lock_file = poms_auto_submit.lock
 ```
 
-Set `campaign_name`/`campaign_stage_name` to a campaign stage you own. `submit_two_slices` = 1 implies a pro and a non-pro submission can be 
-simultaneously run. `switch = 0` is a kill switch: the script just logs that
-it's off and exits, without checking progress or submitting anything.
+Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
+
+Set `role` to be production/analysis.
+
+`submit_two_slices` = 1 implies a pro and a non-pro submission can be 
+simultaneously run.
+
+`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
 
 ## Example workflow
 
@@ -119,4 +124,8 @@ And paste the following script:
 SHELL=/bin/bash
 0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini
 ```
-Make appropriate changes for the file paths and the user/hostname. You now have a crontab installed that runs at the first minute of every hour. Make sure to delete the crontab at the end of your campaign.
+Make appropriate changes for the file paths and the user/hostname. You now have a crontab installed that runs at the first minute of every hour.
+
+Check the logs on a daily basis during the campaign to notice errors. Sometimes the certificate expires and has to be renewed by running the setup script.
+
+Make sure to delete the crontab at the end of your campaign.
