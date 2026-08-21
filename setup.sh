@@ -68,6 +68,6 @@ fi
 # checks). No --refresh: its staleness pre-check errors out on the
 # bearer-token path and always re-uploads anyway, just noisier.
 export WEB_CONFIG="${WEB_CONFIG:-/dev/null}"  # upload_file requires this set, even unused here
-upload_file --vaulttoken --experiment sbnd --poms_role "${_poms_auto_submit_role:-analysis}"
+$POMS_CLIENT_DIR/bin/upload_file --vaulttoken --experiment sbnd --poms_role "${_poms_auto_submit_role:-analysis}"
 
 unset _poms_auto_submit_role
