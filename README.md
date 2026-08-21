@@ -126,6 +126,6 @@ SHELL=/bin/bash
 ```
 Make appropriate changes for the file paths and the user/hostname. You now have a crontab installed that runs at the first minute of every hour.
 
-Check the logs on a daily basis during the campaign to notice errors. Sometimes the certificate expires and has to be renewed by running the setup script.
+Check the logs on a daily basis during the campaign to notice errors. The certificate expires in 3 days and has to be renewed by running the setup script and following the prompts.
 
 Make sure to delete the crontab at the end of your campaign.
