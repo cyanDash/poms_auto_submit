@@ -28,6 +28,7 @@ Requires a UPS environment with `poms_client` available on CVMFS.
 ```bash
 git clone https://github.com/cyanDash/poms_auto_submit.git
 cd poms_auto_submit
+# Optional but good practice: make a new branch for running your specific campaign at this point
 source setup.sh --role production
 ```
 
@@ -42,17 +43,32 @@ Copy/edit `config.ini`:
 [poms]
 experiment = sbnd
 role = production
-campaign_name = CHANGE_ME
-campaign_stage_name = CHANGE_ME
+campaign_name = override_me
+campaign_stage_name = override_me
 
 [decision]
+; master on/off switch; when false, the script just logs and exits without
+; checking progress or submitting. Useful in case you want to pause submitting
+; new jobs but do not want to delete and rewrite the crontab
 switch = 1
-pct_complete_threshold = 80
+
+; what percentage of the total number of jobs must be completed before the
+; next slice is submitted; 0-100
+pct_complete_threshold = 70
+
+; 0: keep 1 slice in flight at a time. 1: keep 2 slices in flight at a time.
 submit_two_slices = 0
-max_splits = CHANGE_ME
+
+; total number of slices this campaign stage needs; submission stops once
+; last_split reaches max_splits
+max_splits = 5
+
+; counter of slices successfully submitted so far
+; updated by the script after each run, don't hand-edit while cron is active
 last_split = 0
 
 [paths]
+; path to the log and log files
 log_file = poms_auto_submit.log
 lock_file = poms_auto_submit.lock
 ```
@@ -69,9 +85,12 @@ Validate against a real campaign before trusting it unattended:
 source setup.sh --role production
 ./poms_auto_submit.py --config config.ini --dry-run
 ```
+A dry run fetches information about the currently active submissions and prints out
+what it would do given this information. It does not submit a new slice, nor does it
+update the parameters for a stage.
 
 Check `poms_auto_submit.log` for the logged progress/status/decision, then run
-for real once and confirm that the submission goes out:
+for real once manually and confirm that the submission goes out:
 
 ```bash
 ./poms_auto_submit.py --config config.ini
@@ -98,5 +117,6 @@ crontab -e
 And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini 2>&1
+0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini
 ```
+Make appropriate changes for the file paths and the user/hostname. You now have a crontab installed that runs at the first minute of every hour. Make sure to delete the crontab at the end of your campaign.
