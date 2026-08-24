@@ -56,12 +56,9 @@ echo "poms_auto_submit environment ready (POMS_CLIENT_DIR=${POMS_CLIENT_DIR})"
 unset _poms_auto_submit_dir _poms_auto_submit_venv _poms_auto_submit_requirements
 
 # Get token for poms_client
-[[ -z "$BEARER_TOKEN_FILE" ]] && export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)
-if [[ -n "$_poms_auto_submit_role" ]]; then
-    htgettoken -v -a htvaultprod.fnal.gov -i sbnd -r "$_poms_auto_submit_role"
-else
-    htgettoken -v -a htvaultprod.fnal.gov -i sbnd
-fi
+export HTGETTOKENOPTS="--credkey=sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production --nooidc --nokerberos --nossh -a htvaultprod.fnal.gov -i sbnd"
+export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_production
+htgettoken
 
 # Refresh POMS's own copy of the vault token (separate from the local
 # vt_/bt_ files above; this is what check_auth's "looks stale" warning
