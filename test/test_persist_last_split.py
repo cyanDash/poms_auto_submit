@@ -15,7 +15,6 @@ last_split = 0
 
 [paths]
 log_file = poms_auto_submit.log
-lock_file = poms_auto_submit.lock
 """
 
 

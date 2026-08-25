@@ -3,7 +3,7 @@
 slice of a POMS campaign stage, update stage params if needed, and submit.
 
 Intended to run from crontab, e.g.:
-    0 * * * * /path/to/poms_auto_submit.py --config /path/to/config.ini >> /path/to/cron.out 2>&1
+    0 * * * * /path/to/scripts/poms_auto_submit.py -c /path/to/configs/config.ini >> /path/to/cron.out 2>&1
 """
 
 import argparse
@@ -16,6 +16,11 @@ import sys
 from poms_session import PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+
+# Fixed at the repo root, not configurable via config.ini -- every run must
+# contend for the same lock file regardless of which config it's using.
+LOCK_FILE = os.path.join(REPO_ROOT, "poms_auto_submit.lock")
 
 
 def load_config(path):
@@ -43,7 +48,6 @@ def load_config(path):
         "max_splits": parser.getint("decision", "max_splits"),
         "last_split": parser.getint("decision", "last_split"),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
-        "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
     }
     return cfg
@@ -174,7 +178,7 @@ def run(cfg, dry_run):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default=os.path.join(SCRIPT_DIR, "config.ini"))
+    parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"))
     parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
     args = parser.parse_args()
 
@@ -190,7 +194,7 @@ def main():
         logging.info("switch is off (switch=0 in config), skipping this run")
         return 0
 
-    lock_fh = acquire_lock(cfg["lock_file"])
+    lock_fh = acquire_lock(LOCK_FILE)
     if lock_fh is None:
         logging.info("previous run still active (lock held), skipping this run")
         return 0

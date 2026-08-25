@@ -21,6 +21,19 @@ logged.
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 
+## Layout
+
+```
+setup.sh   sourced from the repo root to set up the environment
+scripts/   poms_auto_submit.py, poms_session.py
+configs/   config.ini, pytest.ini
+log/       poms_auto_submit.log (created on first run)
+test/      pytest suite
+```
+
+The lock file (`poms_auto_submit.lock`) is not configurable and always lives
+at the repo root — see [Example workflow](#example-workflow).
+
 ## Setup
 
 Requires a UPS environment with `poms_client` available on CVMFS.
@@ -29,15 +42,16 @@ Requires a UPS environment with `poms_client` available on CVMFS.
 git clone https://github.com/cyanDash/poms_auto_submit.git
 cd poms_auto_submit
 # Optional but good practice: make a new branch for running your specific campaign at this point
-source setup.sh --role production
+source setup.sh
 ```
 
-`--role` is passed through as htgettoken's `-r` flag (use your `config.ini`'s
-`role`); omit it to fetch a token without one.
+Must be run as the `sbndpro` user — it has managed tokens configured, so
+`setup.sh` can fetch a bearer token with `htgettoken` alone, no `kinit`
+needed.
 
 ## Configure
 
-Copy/edit `config.ini`:
+Copy/edit `configs/config.ini`:
 
 ```ini
 [poms]
@@ -68,9 +82,8 @@ max_splits = 5
 last_split = 0
 
 [paths]
-; path to the log and log files
-log_file = poms_auto_submit.log
-lock_file = poms_auto_submit.lock
+; path to the log file, relative to this config file's directory
+log_file = ../log/poms_auto_submit.log
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
@@ -87,32 +100,26 @@ simultaneously run.
 Validate against a real campaign before trusting it unattended:
 
 ```bash
-source setup.sh --role production
-./poms_auto_submit.py --config config.ini --dry-run
+source setup.sh
+./scripts/poms_auto_submit.py -c configs/config.ini --dry-run
 ```
-A dry run fetches information about the currently active submissions and prints out
-what it would do given this information. It does not submit a new slice, nor does it
+`-c`/`--config` point at the config file to use. A dry run fetches
+information about the currently active submissions and prints out what it
+would do given this information. It does not submit a new slice, nor does it
 update the parameters for a stage.
 
-Check `poms_auto_submit.log` for the logged progress/status/decision, then run
-for real once manually and confirm that the submission goes out:
+Check `log/poms_auto_submit.log` for the logged progress/status/decision,
+then run for real once manually and confirm that the submission goes out:
 
 ```bash
-./poms_auto_submit.py --config config.ini
+./scripts/poms_auto_submit.py -c configs/config.ini
 ```
 
-Then wire it into cron with a dedicated keytab.
+Then wire it into cron.
 
-**NOTE**: The cronjob cannot be run as an `sbndpro` user. Login
-with your own id instead. Ex. `ssh sdas1@sbndgpvm03.fnal.gov`
-
-Cron doesn't inherit your
-login session's Kerberos ticket. So generate one.
-
-```bash
-kcroninit  # generates /path/to/cron.keytab for <user>/cron/<host>@FNAL.GOV
-```
-
+**NOTE**: The cronjob must be run as the `sbndpro` user. `sbndpro` has
+managed tokens configured, so `setup.sh` can fetch a bearer token with
+`htgettoken` alone — no `kinit`, no cron keytab needed.
 
 Open the crontab:
 ```bash
@@ -122,10 +129,10 @@ crontab -e
 And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * kinit -kt /path/to/cron.keytab <user>/cron/<host>@FNAL.GOV && cd /path/to/poms_auto_submit && source setup.sh --role production && ./poms_auto_submit.py --config config.ini
+0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c configs/config.ini
 ```
-Make appropriate changes for the file paths and the user/hostname. You now have a crontab installed that runs at the first minute of every hour.
+Make appropriate changes for the file paths. You now have a crontab installed that runs at the first minute of every hour.
 
-Check the logs on a daily basis during the campaign to notice errors. The certificate expires in 3 days and has to be renewed by running the setup script and following the prompts.
+Check the logs on a daily basis during the campaign to notice errors.
 
 Make sure to delete the crontab at the end of your campaign.
