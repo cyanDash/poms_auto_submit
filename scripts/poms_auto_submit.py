@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""Hourly cron entry point: check progress, decide whether to submit the next
+"""Check progress, decide whether to submit the next
 slice of a POMS campaign stage, update stage params if needed, and submit.
 
 Intended to run from crontab, e.g.:
-    0 * * * * /path/to/scripts/poms_auto_submit.py -c /path/to/configs/config.ini >> /path/to/cron.out 2>&1
+    0 * * * * /path/to/scripts/poms_auto_submit.py -c /path/to/configs/config.ini 2>&1
 """
 
 import argparse
