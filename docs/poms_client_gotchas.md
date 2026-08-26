@@ -23,6 +23,11 @@ actually returns. Confirmed live against production POMS:
   alongside `pct_complete`. `details["submission"]["submission_params"]["test"]`
   is `1` when the submission was a Test Launch (see CONTEXT.md's "Test
   Launch" entry) — confirmed against real Test Launch submissions.
+- `submission_details()` → there's no flat `subgroup` field, and it isn't in
+  `submission_params` either. It only shows up inside
+  `details["submission"]["command_executed"]`, the literal jobsub command
+  POMS ran, as a `--subgroup=<value>` flag — see "Where `subgroup` actually
+  lives" below for why this is the field to read, not `param_overrides`.
 - `show_campaign_stages()` → the stage list is nested at
   `resp["campaign_stages"]`, not the top-level list its docstring implies.
 
@@ -144,3 +149,44 @@ snapshots:
 That `statusmap` is the authoritative list of Submission `Status` values —
 CONTEXT.md's "Status" entry is sourced from it (note: `Completed`, not
 `Finished`, for status id `7000`).
+
+The full, untrimmed response this excerpt came from (a different submission,
+3135404, captured 2026-08-26) is saved verbatim at
+`docs/raw/submission_details_3135404.json` — treat that file as the source
+of truth; this excerpt is commentary on top of it, not a replacement (see
+[[feedback_save_full_api_responses]] in memory for why the earlier trimmed
+excerpt above cost us the finding below).
+
+## Where `subgroup` actually lives
+
+`subgroup` shows up in three places in the full response, and they can
+disagree:
+
+1. `submission.campaign_stage_obj.param_overrides` — the stage's **current**
+   `param_overrides`. Unreliable for the same reason ADR-0002 already found:
+   a later run's `set_subgroup()` call overwrites it, so by the time you read
+   it back it may no longer reflect what this particular submission launched
+   with (in the captured example, it has no `subgroup` key at all anymore).
+2. `submission.campaign_stage_snapshot_obj.param_overrides` — a snapshot of
+   the *general* `param_overrides` frozen at the moment this submission
+   launched. Immune to (1)'s staleness, but only reflects what would have
+   been used for a *regular* (non-Test) launch.
+3. `submission.command_executed` — the literal jobsub command POMS actually
+   ran, containing a `--subgroup=<value>` flag. This is the one immutable,
+   per-submission ground truth, valid for both regular and Test Launches.
+
+(2) and (3) can disagree: in the captured example, `command_executed` has
+`--subgroup=test` while the snapshot's `param_overrides` has
+`-Osubmit.subgroup=pro`, because the submission was a Test Launch
+(`submission_params.test == 1`). Test Launches use `test_param_overrides`
+server-side instead of `param_overrides` (see CONTEXT.md's "Test Launch"
+entry) — so whatever `PomsSession.set_subgroup()` set on the general
+override that run had **no effect** on the actual submitted job; POMS used
+the stage's `test_param_overrides` (in the example, hardcoded to
+`subgroup=test`) instead. Concretely: while `[decision] test_launch = 1`,
+every submission gets whatever subgroup `test_param_overrides` says — never
+`pro`, regardless of what the script requested.
+
+`PomsSession.get_progress()` therefore parses `subgroup` out of
+`command_executed` (`SUBGROUP_COMMAND_PATTERN` in `poms_session.py`), not
+out of either `param_overrides` variant.

@@ -83,7 +83,7 @@ def test_get_progress_picks_latest_submission_when_none_running():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 102, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov"}
+        {"submission_id": 102, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov", "subgroup": None}
     ]
 
 
@@ -106,8 +106,8 @@ def test_get_progress_returns_all_running_submissions():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Running", "pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov"},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov"},
+        {"submission_id": 100, "status": "Running", "pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": None},
+        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
     ]
 
 
@@ -132,8 +132,8 @@ def test_get_progress_treats_held_as_active_alongside_running():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None},
+        {"submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None, "subgroup": None},
+        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None, "subgroup": None},
     ]
 
 
@@ -156,7 +156,7 @@ def test_get_progress_treats_new_as_active_alongside_running_and_held():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None},
+        {"submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None, "subgroup": None},
     ]
 
 
@@ -179,8 +179,47 @@ def test_get_progress_treats_idle_as_active_alongside_running_and_held():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None},
+        {"submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None, "subgroup": None},
     ]
+
+
+def test_get_progress_parses_subgroup_from_command_executed():
+    # subgroup isn't a flat field -- it only shows up inside the literal
+    # jobsub command POMS actually ran (confirmed live 2026-08-26, see
+    # docs/poms_client_gotchas.md). The stage's *current* param_overrides
+    # get overwritten by later runs and can't be trusted for this.
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    details = {
+        "submission_id": "100",
+        "submission": {
+            "pct_complete": 10.0,
+            "jobsub_job_id": "100@jobsub01.fnal.gov",
+            "command_executed": "jobsub_submit ... --group=sbnd --subgroup=pro --role=production ...",
+        },
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details),
+    )
+
+    assert session.get_progress()[0]["subgroup"] == "pro"
+
+
+def test_get_progress_subgroup_is_none_when_command_executed_is_missing():
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    details = {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": None}}
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details),
+    )
+
+    assert session.get_progress()[0]["subgroup"] is None
 
 
 def test_get_stage_params_finds_named_stage():

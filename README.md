@@ -7,16 +7,19 @@ logged.
 
 ## What it does, each run
 
-1. **Check progress** — reads back status + `pct_complete` for every
-   currently-`Running` submission (or the latest one, if none are running).
-2. **Decide how many** — a new slice goes out once the last run's slices'
-   `pct_complete` crossed `pct_complete_threshold`, up to `submit_two_slices`
-   at a time. Stops for good once `last_split` reaches `max_splits`;
-   `last_split` is a counter the script maintains itself in `config.ini`.
-3. **Decide subgroup, submit** — a lone slice always takes the higher-priority
-   `pro` subgroup (nothing else from this run to contend with it); when 2
-   slices go out in the same run, one is `pro` and the other standard, since
-   both can't hold it at once.
+1. **Check progress** — reads back status, `pct_complete`, and `subgroup` for
+   every currently-active submission (or the latest one, if none are active).
+2. **Decide how many** — submits enough new slices to bring the number of
+   **in-flight** submissions (active and still under `pct_complete_threshold`)
+   up to target (1, or 2 with `submit_two_slices`), capped by remaining
+   `max_splits`. A submission that's crossed `pct_complete_threshold` no
+   longer counts as in-flight, freeing its slot for a replacement even before
+   it finishes. `last_split` is a counter the script maintains itself in
+   `config.ini`.
+3. **Decide subgroup, submit** — only one submission may hold the
+   higher-priority `pro` subgroup at a time. A new slice takes it if no
+   in-flight submission already does; when 2 slices go out in the same run,
+   at most one of them gets `pro`.
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 
