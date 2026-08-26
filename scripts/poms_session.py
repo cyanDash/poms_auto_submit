@@ -108,6 +108,8 @@ class PomsSession:
             return
 
         logging.info("updating stage params: %s", updates)
+        # requests' form-encoder flattens a dict value to just its keys, dropping
+        # the values -- must pre-serialize (see docs/poms_client_gotchas.md)
         param_overrides = str(list(updates.items()))
         data = self.pc.update_stage_param_overrides(
             self.cfg["experiment"], self.campaign_stage_id, param_overrides=param_overrides
@@ -118,6 +120,8 @@ class PomsSession:
 
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage."""
+        # launch_jobs returns a 303 redirect (submission_id in the query string),
+        # not (ok, data) -- no wrapper surfaces that, so call make_poms_call directly
         data, status = self.pc.make_poms_call(
             method="launch_jobs",
             campaign_stage_id=self.campaign_stage_id,
