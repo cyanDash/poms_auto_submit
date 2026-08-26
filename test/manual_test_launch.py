@@ -18,7 +18,7 @@ submission id, but the real response for this call is a URL --
 crashes (confirmed live, 2026-08-14). Parse submission_id out of the URL's
 query string instead.
 
-Usage: source setup.sh && ./manual_test_launch.py
+Usage: source setup.sh && ./test/manual_test_launch.py
 """
 
 import os
