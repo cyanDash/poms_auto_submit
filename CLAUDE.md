@@ -30,8 +30,9 @@ changes a live campaign stage's params. Always validate with `--dry-run`
 first when testing against a real campaign, per the README's example
 workflow.
 
-## Convention: campaign branches never merge back into main
+## Convention: campaign-specific ini files and logs are never tracked
 
-Each real production campaign runs off its own branch carrying a
-campaign-specific `configs/config.ini` (different `campaign_name`,
-`max_splits`, etc.). Those branches are never merged into `main`.
+Each real production campaign runs off its own config file carrying 
+campaign-specific parameters (different `campaign_name`,
+`max_splits`, etc.). They are never tracked. The logs are also not
+never tracked.
