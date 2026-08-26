@@ -14,7 +14,7 @@ import os
 import sys
 
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import PomsSession
+from poms_session import PRO_SUBGROUP, PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -85,8 +85,17 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
+def in_flight_submissions(cfg, submissions):
+    """Active submissions still under pct_complete_threshold -- i.e. occupying
+    a slot this run hasn't freed up yet (see CONTEXT.md's Status entry and
+    docs/adr/0005-in-flight-slot-based-decision.md)."""
+    threshold = cfg["pct_complete_threshold"]
+    return [s for s in submissions if s["pct_complete"] is None or s["pct_complete"] < threshold]
+
+
 def next_slice_count(cfg, submissions):
-    """Decide how many new slices to submit this run (0, 1, or 2)."""
+    """Decide how many new slices to submit this run (0, 1, or 2): enough to
+    bring the in-flight count up to target, capped by remaining_splits."""
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     if remaining_splits <= 0:
         logging.info(
@@ -96,36 +105,31 @@ def next_slice_count(cfg, submissions):
         return 0
 
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
-
-    if not submissions:
-        logging.info("decision: No active submissions: submit %d slice(s)", target)
-        return target
-
-    ready_count = sum(
-        1 for s in submissions
-        if s["pct_complete"] is not None and s["pct_complete"] >= cfg["pct_complete_threshold"]
-    )
-    if ready_count == 0:
-        logging.info("decision: skip (no active submission past pct_complete_threshold)")
-        return 0
-
-    not_ready_count = len(submissions) - ready_count
-    num_slices = max(0, target - not_ready_count)
+    in_flight = in_flight_submissions(cfg, submissions)
+    num_slices = max(0, target - len(in_flight))
     logging.info(
-        "decision: submit %d slice(s) (ready=%d not_ready=%d target=%d)",
-        num_slices, ready_count, not_ready_count, target,
+        "decision: submit %d slice(s) (in_flight=%d target=%d)",
+        num_slices, len(in_flight), target,
     )
     return num_slices
 
 
-def plan_subgroups(num_slices, role):
+def pro_available(in_flight):
+    """Whether the campaign's single pro slot is free -- no in-flight
+    submission already holds it (see CONTEXT.md's Subgroup entry: only one
+    slice may hold pro at a time)."""
+    return not any(s.get("subgroup") == PRO_SUBGROUP for s in in_flight)
+
+
+def plan_subgroups(num_slices, role, pro_available):
     """Decide which subgroup each of the num_slices new submissions should use
-    (see docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md)."""
-    if role != PRO_ELIGIBLE_ROLE:
+    (see docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md and
+    docs/adr/0005-in-flight-slot-based-decision.md)."""
+    if num_slices == 0:
+        return []
+    if role != PRO_ELIGIBLE_ROLE or not pro_available:
         return [False] * num_slices
-    if num_slices == 2:
-        return [True, False]
-    return [True]
+    return [True] + [False] * (num_slices - 1)
 
 
 def plan_next_slices(cfg, session):
@@ -140,7 +144,8 @@ def plan_next_slices(cfg, session):
     if num_slices == 0:
         return []
 
-    return plan_subgroups(num_slices, cfg["role"])
+    in_flight = in_flight_submissions(cfg, submissions)
+    return plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
 
 
 def run(cfg, dry_run):

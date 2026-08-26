@@ -5,12 +5,21 @@ URL.
 """
 
 import logging
+import re
 import time
 import types
 from urllib.parse import parse_qs, urlparse
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
+
+# The stage's current param_overrides (what SUBGROUP_OVERRIDE_KEY writes to)
+# gets overwritten by later runs and doesn't reflect what a past submission
+# actually launched with -- and for a Test Launch it's not even consulted,
+# since POMS substitutes test_param_overrides server-side instead (see
+# docs/poms_client_gotchas.md). command_executed is the one per-submission,
+# immutable record of the --subgroup= flag POMS actually launched jobs with.
+SUBGROUP_COMMAND_PATTERN = re.compile(r"--subgroup=(\S+)")
 
 # POMS doesn't assign a Submission's jobsub_job_id synchronously with
 # launch_jobs -- observed live 2026-08-26 as still None ~immediately after a
@@ -87,19 +96,26 @@ class PomsSession:
             submission = details.get("submission", {}) if ok else {}
             pct_complete = submission.get("pct_complete")
             jobsub_job_id = submission.get("jobsub_job_id")
+            subgroup = self._parse_subgroup(submission.get("command_executed"))
             entry = {
                 "submission_id": submission_id,
                 "status": s.get("status"),
                 "pct_complete": pct_complete,
                 "jobsub_job_id": jobsub_job_id,
+                "subgroup": subgroup,
             }
             logging.info(
-                "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s",
-                self.campaign_stage_id, submission_id, entry["status"], pct_complete, jobsub_job_id,
+                "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s subgroup=%s",
+                self.campaign_stage_id, submission_id, entry["status"], pct_complete, jobsub_job_id, subgroup,
             )
             result.append(entry)
 
         return result
+
+    @staticmethod
+    def _parse_subgroup(command_executed):
+        match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
+        return match.group(1) if match else None
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""
