@@ -56,15 +56,15 @@ echo "poms_auto_submit environment ready (POMS_CLIENT_DIR=${POMS_CLIENT_DIR})"
 unset _poms_auto_submit_dir _poms_auto_submit_venv _poms_auto_submit_requirements
 
 # Get token for poms_client
-export HTGETTOKENOPTS="--credkey=sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production --nooidc --nokerberos --nossh -a htvaultprod.fnal.gov -i sbnd"
-export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_production
-htgettoken
+# export HTGETTOKENOPTS="--credkey=sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production --nooidc --nokerberos --nossh -a htvaultprod.fnal.gov -i sbnd"
+# export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_production
+# htgettoken
 
 # Refresh POMS's own copy of the vault token (separate from the local
 # vt_/bt_ files above; this is what check_auth's "looks stale" warning
 # checks). No --refresh: its staleness pre-check errors out on the
 # bearer-token path and always re-uploads anyway, just noisier.
-export WEB_CONFIG="${WEB_CONFIG:-/dev/null}"  # upload_file requires this set, even unused here
-$POMS_CLIENT_DIR/bin/upload_file --vaulttoken --experiment sbnd --poms_role "${_poms_auto_submit_role:-analysis}"
+# export WEB_CONFIG="${WEB_CONFIG:-/dev/null}"  # upload_file requires this set, even unused here
+# $POMS_CLIENT_DIR/bin/upload_file --vaulttoken --experiment sbnd --poms_role "${_poms_auto_submit_role:-analysis}"
 
 unset _poms_auto_submit_role
