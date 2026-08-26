@@ -3,11 +3,12 @@ __pycache__/
 .pytest_cache/
 *.log
 *.lock
-cron.out
+*.json
+*.out
 .claude/
 
 # campaign-specific config files (e.g. configs/detvar3.ini) are real
-# production values that live on their own campaign branch, not tracked --
+# production values that are not tracked --
 # only the generic template config.ini and pytest.ini are
 configs/*.ini
 !configs/config.ini
