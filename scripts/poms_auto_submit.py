@@ -191,6 +191,11 @@ def main():
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=[logging.FileHandler(cfg["log_file"]), logging.StreamHandler()],
     )
+    # urllib3 logs this on every reused-but-dropped connection to POMS -- never
+    # actionable, just noise from a long-lived process making many requests.
+    logging.getLogger("urllib3.connectionpool").addFilter(
+        lambda record: "Resetting dropped connection" not in record.getMessage()
+    )
 
     if not cfg["switch"]:
         logging.info("switch is off (switch=0 in config), skipping this run")
