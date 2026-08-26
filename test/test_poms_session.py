@@ -9,8 +9,9 @@ from poms_session import PomsSession
 
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
-    # submit_next_slice() waits JOBSUB_ID_WAIT_SECONDS for POMS to assign a
-    # jobsub_job_id -- don't actually block the test suite on that.
+    # submit_next_slice() polls, sleeping JOBSUB_ID_POLL_SECONDS between
+    # attempts, until POMS assigns a jobsub_job_id -- don't actually block
+    # the test suite on that.
     monkeypatch.setattr(poms_session.time, "sleep", lambda seconds: None)
 
 
@@ -28,7 +29,7 @@ def make_session(cfg=None, **pc_overrides):
     pc_overrides.setdefault("get_campaign_stage_id", lambda experiment, campaign_name, stage_name: 42)
     pc_overrides.setdefault(
         "submission_details",
-        lambda experiment, role, submission_id: (True, {"submission": {"jobsub_job_id": None}}),
+        lambda experiment, role, submission_id: (True, {"submission": {"jobsub_job_id": "default-job-id"}}),
     )
     fake_pc = types.SimpleNamespace(**pc_overrides)
     return PomsSession(fake_pc, cfg or make_cfg())
@@ -336,7 +337,7 @@ def test_submit_next_slice_waits_before_looking_up_jobsub_job_id(monkeypatch):
 
     session.submit_next_slice()
 
-    assert calls == [("sleep", poms_session.JOBSUB_ID_WAIT_SECONDS), ("submission_details",)]
+    assert calls == [("sleep", poms_session.JOBSUB_ID_POLL_SECONDS), ("submission_details",)]
 
 
 def test_submit_next_slice_looks_up_jobsub_job_id():
@@ -352,10 +353,35 @@ def test_submit_next_slice_looks_up_jobsub_job_id():
     assert calls == ["555"]
 
 
-def test_submit_next_slice_jobsub_job_id_lookup_failure_does_not_raise():
+def test_submit_next_slice_polls_until_jobsub_job_id_is_assigned():
+    # First two lookups come back with no job id yet (not assigned), the
+    # third has it -- submit_next_slice should keep polling rather than
+    # giving up after the first miss.
+    responses = [
+        (True, {"submission": {"jobsub_job_id": None}}),
+        (True, {"submission": {"jobsub_job_id": None}}),
+        (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
+    ]
+    calls = []
     session = make_session(
         make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303),
-        submission_details=lambda experiment, role, submission_id: (False, {}),
+        submission_details=lambda experiment, role, submission_id: calls.append(1) or responses[len(calls) - 1],
     )
 
     assert session.submit_next_slice() == "555"
+    assert len(calls) == 3
+
+
+def test_submit_next_slice_keeps_polling_through_lookup_failures():
+    # A failed submission_details() call (ok=False, or an exception) doesn't
+    # end the poll -- it's treated as "not assigned yet", same as a bare
+    # None, and polling continues until a real job id shows up.
+    responses = [(False, {}), (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}})]
+    calls = []
+    session = make_session(
+        make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303),
+        submission_details=lambda experiment, role, submission_id: calls.append(1) or responses[len(calls) - 1],
+    )
+
+    assert session.submit_next_slice() == "555"
+    assert len(calls) == 2

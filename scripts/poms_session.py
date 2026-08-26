@@ -14,8 +14,8 @@ PRO_SUBGROUP = "pro"
 
 # POMS doesn't assign a Submission's jobsub_job_id synchronously with
 # launch_jobs -- observed live 2026-08-26 as still None ~immediately after a
-# successful submit. Give it time to show up before looking it up.
-JOBSUB_ID_WAIT_SECONDS = 20
+# successful submit. Poll for it instead of a single fixed wait.
+JOBSUB_ID_POLL_SECONDS = 5
 
 # A Submission flips from Running to Held as soon as any of its jobs get held
 # (e.g. asked for more grid resources than allowed) -- even if only ~5% of a
@@ -149,8 +149,10 @@ class PomsSession:
         submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
         logging.info("submitted new slice: submission_id=%s", submission_id)
         logging.info("Getting job id...")
-        time.sleep(JOBSUB_ID_WAIT_SECONDS)
-        jobsub_job_id = self._get_jobsub_job_id(submission_id)
+        jobsub_job_id = None
+        while jobsub_job_id is None:
+            time.sleep(JOBSUB_ID_POLL_SECONDS)
+            jobsub_job_id = self._get_jobsub_job_id(submission_id)
         logging.info("jobsub_job_id=%s", jobsub_job_id)
         return submission_id
 
