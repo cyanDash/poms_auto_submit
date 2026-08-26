@@ -9,18 +9,14 @@ against production. This is PomsSession's own contract test: it pins real
 poms_client.py response shapes down against the live server, so a fake `pc`
 drifting from reality gets caught here instead of only in production.
 """
-import os
-import sys
-
 import pytest
 
-poms_client_dir = os.environ.get("POMS_CLIENT_DIR")
-if not poms_client_dir:
-    pytest.skip(
-        "POMS_CLIENT_DIR not set; source setup.sh before running live tests",
-        allow_module_level=True,
-    )
-sys.path.insert(0, os.path.join(poms_client_dir, "python"))
+from poms_client_bootstrap import setup_poms_client_path
+
+try:
+    setup_poms_client_path()
+except RuntimeError as e:
+    pytest.skip(str(e), allow_module_level=True)
 
 import poms_client as pc  # noqa: E402
 from poms_session import PomsSession  # noqa: E402

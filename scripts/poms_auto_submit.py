@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 
+from poms_client_bootstrap import setup_poms_client_path
 from poms_session import PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,14 +34,7 @@ def load_config(path):
     if not parser.read(path):
         raise FileNotFoundError(f"could not read config file: {path}")
 
-    poms_client_dir = os.environ.get("POMS_CLIENT_DIR")
-    if not poms_client_dir:
-        raise RuntimeError(
-            "POMS_CLIENT_DIR is not set. Set up UPS and poms_client first:\n"
-            "  source /cvmfs/fermilab.opensciencegrid.org/products/common/etc/setups.sh\n"
-            "  setup poms_client"
-        )
-    sys.path.insert(0, os.path.join(poms_client_dir, "python"))
+    setup_poms_client_path()
 
     cfg = {
         "experiment": parser.get("poms", "experiment"),
