@@ -186,15 +186,22 @@ def main():
 
     cfg = load_config(args.config)
 
+    handlers = [logging.FileHandler(cfg["log_file"]), logging.StreamHandler()]
+    # poms_client pulls in requests v2.9.1, whose vendored
+    # requests.packages.urllib3.connectionpool logs this at INFO on every
+    # reused-but-dropped connection to POMS -- never actionable, just noise
+    # from a long-lived process making many requests. Filtering on the
+    # handlers (rather than that logger by name) also covers the real
+    # urllib3.connectionpool, in case a future upgrade switches which one
+    # actually opens the connection.
+    for handler in handlers:
+        handler.addFilter(
+            lambda record: "Resetting dropped connection" not in record.getMessage()
+        )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(cfg["log_file"]), logging.StreamHandler()],
-    )
-    # urllib3 logs this on every reused-but-dropped connection to POMS -- never
-    # actionable, just noise from a long-lived process making many requests.
-    logging.getLogger("urllib3.connectionpool").addFilter(
-        lambda record: "Resetting dropped connection" not in record.getMessage()
+        handlers=handlers,
     )
 
     if not cfg["switch"]:
