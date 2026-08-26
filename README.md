@@ -25,22 +25,21 @@ logged.
 
 ## Setup
 
-Requires a UPS environment with `poms_client` available on CVMFS.
+Must be run as the `sbndpro` user — it has managed tokens configured, so
+the setup script can fetch a bearer token with `htgettoken` alone, no `kinit`
+needed. Also the repo already exists in the sbndpro APP area, so no need to
+clone it unless you have the need to.
 
 ```bash
 git clone https://github.com/cyanDash/poms_auto_submit.git
 cd poms_auto_submit
-# Optional but good practice: make a new branch for running your specific campaign at this point
 source setup.sh
 ```
 
-Must be run as the `sbndpro` user — it has managed tokens configured, so
-`setup.sh` can fetch a bearer token with `htgettoken` alone, no `kinit`
-needed.
-
 ## Configure
 
-Copy/edit `configs/config.ini`:
+Copy the `configs/config.ini` template to your own ini file to make changes
+according to your campaign.
 
 ```ini
 [poms]
@@ -75,7 +74,7 @@ test_launch = 0
 
 [paths]
 ; path to the log file, relative to this config file's directory
-log_file = ../log/poms_auto_submit.log
+log_file = ../log/<your log>.log
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
@@ -91,7 +90,7 @@ Validate against a real campaign before trusting it unattended:
 
 ```bash
 source setup.sh
-./scripts/poms_auto_submit.py -c configs/config.ini --dry-run
+./scripts/poms_auto_submit.py -c configs/<config file> --dry-run
 ```
 `-c`/`--config` point at the config file to use. A dry run fetches
 information about the currently active submissions and prints out what it
@@ -99,19 +98,13 @@ would do given this information. It does not submit a new slice, nor does it
 update the parameters for a stage.
 
 Check `log/poms_auto_submit.log` for the logged progress/status/decision,
-then run for real once manually and confirm that the submission goes out:
+then run for real once manually and confirm in the POMS page that the submission goes out:
 
 ```bash
 ./scripts/poms_auto_submit.py -c configs/config.ini
 ```
 
-Then wire it into cron.
-
-**NOTE**: The cronjob must be run as the `sbndpro` user. `sbndpro` has
-managed tokens configured, so `setup.sh` can fetch a bearer token with
-`htgettoken` alone — no `kinit`, no cron keytab needed.
-
-Open the crontab:
+Then wire it into cron. Open the crontab:
 ```bash
 crontab -e
 ```
@@ -119,7 +112,7 @@ crontab -e
 And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c configs/config.ini
+0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
 ```
 Make appropriate changes for the file paths. You now have a crontab installed that runs at the first minute of every hour.
 
