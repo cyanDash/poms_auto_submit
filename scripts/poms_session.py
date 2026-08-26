@@ -141,5 +141,18 @@ class PomsSession:
         if status != 303:
             raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
         submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
-        logging.info("submitted new slice: submission_id=%s", submission_id)
+        jobsub_job_id = self._get_jobsub_job_id(submission_id)
+        logging.info(
+            "submitted new slice: submission_id=%s jobsub_job_id=%s", submission_id, jobsub_job_id
+        )
         return submission_id
+
+    def _get_jobsub_job_id(self, submission_id):
+        """Best-effort lookup of the grid job id for a just-submitted Submission."""
+        try:
+            ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
+        except Exception:
+            return None
+        if not ok:
+            return None
+        return details.get("submission", {}).get("jobsub_job_id")
