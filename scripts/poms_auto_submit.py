@@ -22,6 +22,11 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 # contend for the same lock file regardless of which config it's using.
 LOCK_FILE = os.path.join(REPO_ROOT, "poms_auto_submit.lock")
 
+# Not configurable via config.ini: setup.sh only ever authenticates via
+# sbndpro's production-role managed-token credkey, so this is the only role
+# any POMS call from this script could succeed with anyway.
+PRO_ELIGIBLE_ROLE = "production"
+
 
 def load_config(path):
     parser = configparser.ConfigParser()
@@ -39,7 +44,7 @@ def load_config(path):
 
     cfg = {
         "experiment": parser.get("poms", "experiment"),
-        "role": parser.get("poms", "role"),
+        "role": PRO_ELIGIBLE_ROLE,
         "campaign_name": parser.get("poms", "campaign_name"),
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
         "switch": parser.getboolean("decision", "switch", fallback=True),
@@ -116,9 +121,6 @@ def next_slice_count(cfg, submissions):
         num_slices, ready_count, not_ready_count, target,
     )
     return num_slices
-
-
-PRO_ELIGIBLE_ROLE = "production"
 
 
 def plan_subgroups(num_slices, role):

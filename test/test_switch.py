@@ -5,7 +5,6 @@ import poms_auto_submit as psc
 
 CONFIG_TEMPLATE = """[poms]
 experiment = sbnd
-role = production
 campaign_name = test_campaign
 campaign_stage_name = test_stage
 

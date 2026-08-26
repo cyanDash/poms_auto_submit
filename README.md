@@ -13,11 +13,10 @@ logged.
    `pct_complete` crossed `pct_complete_threshold`, up to `submit_two_slices`
    at a time. Stops for good once `last_split` reaches `max_splits`;
    `last_split` is a counter the script maintains itself in `config.ini`.
-3. **Decide subgroup, submit** — only the `production` role may hold the
-   higher-priority `pro` subgroup. A lone slice always takes `pro` (nothing
-   else from this run to contend with it); when 2 slices go out in the same
-   run, one is `pro` and the other standard, since both can't hold it at
-   once. Every other role always runs standard.
+3. **Decide subgroup, submit** — a lone slice always takes the higher-priority
+   `pro` subgroup (nothing else from this run to contend with it); when 2
+   slices go out in the same run, one is `pro` and the other standard, since
+   both can't hold it at once.
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 
@@ -43,7 +42,6 @@ Copy/edit `configs/config.ini`:
 ```ini
 [poms]
 experiment = sbnd
-role = production
 campaign_name = override_me
 campaign_stage_name = override_me
 
@@ -74,8 +72,6 @@ log_file = ../log/poms_auto_submit.log
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
-
-Set `role` to be production/analysis.
 
 `submit_two_slices` = 1 implies a pro and a non-pro submission can be 
 simultaneously run.
