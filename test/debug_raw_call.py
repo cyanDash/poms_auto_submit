@@ -12,14 +12,13 @@ Example: ./debug_raw_call.py get_campaign_stage_name campaign_stage_id=26646
 import os
 import sys
 
-poms_client_dir = os.environ.get("POMS_CLIENT_DIR")
-if not poms_client_dir:
-    sys.exit(
-        "POMS_CLIENT_DIR is not set. Set up UPS and poms_client first:\n"
-        "  source /cvmfs/fermilab.opensciencegrid.org/products/common/etc/setups.sh\n"
-        "  setup poms_client"
-    )
-sys.path.insert(0, os.path.join(poms_client_dir, "python"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+from poms_client_bootstrap import setup_poms_client_path
+
+try:
+    setup_poms_client_path()
+except RuntimeError as e:
+    sys.exit(str(e))
 
 import poms_client as pc
 

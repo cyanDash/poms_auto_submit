@@ -14,8 +14,10 @@ PRO_SUBGROUP = "pro"
 # A Submission flips from Running to Held as soon as any of its jobs get held
 # (e.g. asked for more grid resources than allowed) -- even if only ~5% of a
 # 10k-job Submission is held and the rest are still running fine. Treated as
-# still active/in-flight, not as done or ignorable.
-ACTIVE_SUBMISSION_STATUSES = {"Running", "Held"}
+# still active/in-flight, not as done or ignorable. New and Idle are included
+# too: neither has started progressing yet, but both are still in-flight, not
+# abandoned.
+ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
 
 
 class PomsSession:
@@ -76,11 +78,18 @@ class PomsSession:
         for s in target:
             submission_id = s.get("submission_id")
             ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
-            pct_complete = details.get("submission", {}).get("pct_complete") if ok else None
-            entry = {"submission_id": submission_id, "status": s.get("status"), "pct_complete": pct_complete}
+            submission = details.get("submission", {}) if ok else {}
+            pct_complete = submission.get("pct_complete")
+            jobsub_job_id = submission.get("jobsub_job_id")
+            entry = {
+                "submission_id": submission_id,
+                "status": s.get("status"),
+                "pct_complete": pct_complete,
+                "jobsub_job_id": jobsub_job_id,
+            }
             logging.info(
-                "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s",
-                self.campaign_stage_id, submission_id, entry["status"], pct_complete,
+                "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s",
+                self.campaign_stage_id, submission_id, entry["status"], pct_complete, jobsub_job_id,
             )
             result.append(entry)
 
@@ -108,6 +117,8 @@ class PomsSession:
             return
 
         logging.info("updating stage params: %s", updates)
+        # requests' form-encoder flattens a dict value to just its keys, dropping
+        # the values -- must pre-serialize (see docs/poms_client_gotchas.md)
         param_overrides = str(list(updates.items()))
         data = self.pc.update_stage_param_overrides(
             self.cfg["experiment"], self.campaign_stage_id, param_overrides=param_overrides
@@ -118,11 +129,14 @@ class PomsSession:
 
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage."""
+        # launch_campaign_stage_jobs() wraps this but crashes on success (see
+        # docs/poms_client_gotchas.md) -- call make_poms_call directly instead
         data, status = self.pc.make_poms_call(
             method="launch_jobs",
             campaign_stage_id=self.campaign_stage_id,
             experiment=self.cfg["experiment"],
             role=self.cfg["role"],
+            test_launch=1 if self.cfg.get("test_launch") else None,
         )
         if status != 303:
             raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
