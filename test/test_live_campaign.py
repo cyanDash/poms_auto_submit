@@ -73,7 +73,7 @@ def test_submission_details_shape(submission_id):
 def test_get_progress_returns_expected_shape(session):
     submissions = session.get_progress()
     for s in submissions:
-        assert set(s) == {"submission_id", "status", "pct_complete"}
+        assert set(s) == {"submission_id", "status", "pct_complete", "jobsub_job_id"}
 
 
 def test_get_stage_params_returns_named_stage(session):

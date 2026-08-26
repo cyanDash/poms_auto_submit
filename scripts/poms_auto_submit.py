@@ -52,6 +52,7 @@ def load_config(path):
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
         "max_splits": parser.getint("decision", "max_splits"),
         "last_split": parser.getint("decision", "last_split"),
+        "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "config_path": os.path.abspath(path),
     }

@@ -54,32 +54,11 @@ def test_get_progress_with_no_submissions_returns_empty_list():
 def test_get_progress_picks_latest_submission_when_none_running():
     submissions = [
         {"submission_id": 100, "status": "Located"},
-        {"submission_id": 102, "status": "Finished"},
+        {"submission_id": 102, "status": "Completed"},
         {"submission_id": 101, "status": "Located"},
     ]
     details_by_id = {
-        102: {"submission_id": "102", "submission": {"pct_complete": 100.0}},
-    }
-    session = make_session(
-        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
-            True,
-            {"data": {"submissions": submissions}},
-        ),
-        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
-    )
-
-    assert session.get_progress() == [{"submission_id": 102, "status": "Finished", "pct_complete": 100.0}]
-
-
-def test_get_progress_returns_all_running_submissions():
-    submissions = [
-        {"submission_id": 100, "status": "Running"},
-        {"submission_id": 102, "status": "Located"},
-        {"submission_id": 101, "status": "Running"},
-    ]
-    details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": 10.0}},
-        101: {"submission_id": "101", "submission": {"pct_complete": 55.0}},
+        102: {"submission_id": "102", "submission": {"pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov"}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -90,8 +69,31 @@ def test_get_progress_returns_all_running_submissions():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Running", "pct_complete": 10.0},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0},
+        {"submission_id": 102, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov"}
+    ]
+
+
+def test_get_progress_returns_all_running_submissions():
+    submissions = [
+        {"submission_id": 100, "status": "Running"},
+        {"submission_id": 102, "status": "Located"},
+        {"submission_id": 101, "status": "Running"},
+    ]
+    details_by_id = {
+        100: {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov"}},
+        101: {"submission_id": "101", "submission": {"pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov"}},
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
+    )
+
+    assert session.get_progress() == [
+        {"submission_id": 100, "status": "Running", "pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov"},
+        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov"},
     ]
 
 
@@ -104,8 +106,8 @@ def test_get_progress_treats_held_as_active_alongside_running():
         {"submission_id": 102, "status": "Located"},
     ]
     details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": 92.0}},
-        101: {"submission_id": "101", "submission": {"pct_complete": 55.0}},
+        100: {"submission_id": "100", "submission": {"pct_complete": 92.0, "jobsub_job_id": None}},
+        101: {"submission_id": "101", "submission": {"pct_complete": 55.0, "jobsub_job_id": None}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -116,8 +118,54 @@ def test_get_progress_treats_held_as_active_alongside_running():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Held", "pct_complete": 92.0},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0},
+        {"submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None},
+        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None},
+    ]
+
+
+def test_get_progress_treats_new_as_active_alongside_running_and_held():
+    # New hasn't started progressing yet, but it's still in-flight (a slice
+    # already queued), not idle/abandoned -- shouldn't be skipped over.
+    submissions = [
+        {"submission_id": 100, "status": "New"},
+        {"submission_id": 101, "status": "Located"},
+    ]
+    details_by_id = {
+        100: {"submission_id": "100", "submission": {"pct_complete": None, "jobsub_job_id": None}},
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
+    )
+
+    assert session.get_progress() == [
+        {"submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None},
+    ]
+
+
+def test_get_progress_treats_idle_as_active_alongside_running_and_held():
+    # Idle hasn't started progressing yet either, but it's queued and
+    # in-flight -- same reasoning as New, shouldn't be skipped over.
+    submissions = [
+        {"submission_id": 100, "status": "Idle"},
+        {"submission_id": 101, "status": "Located"},
+    ]
+    details_by_id = {
+        100: {"submission_id": "100", "submission": {"pct_complete": None, "jobsub_job_id": None}},
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
+    )
+
+    assert session.get_progress() == [
+        {"submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None},
     ]
 
 
@@ -239,3 +287,26 @@ def test_submit_next_slice_raises_on_non_303_status():
 
     with pytest.raises(RuntimeError):
         session.submit_next_slice()
+
+
+def test_submit_next_slice_omits_test_launch_by_default():
+    calls = []
+    session = make_session(
+        make_poms_call=lambda **kw: calls.append(kw) or (REAL_LAUNCH_JOBS_URL, 303)
+    )
+
+    session.submit_next_slice()
+
+    assert calls[0]["test_launch"] is None
+
+
+def test_submit_next_slice_passes_test_launch_when_enabled():
+    calls = []
+    session = make_session(
+        cfg=make_cfg(test_launch=True),
+        make_poms_call=lambda **kw: calls.append(kw) or (REAL_LAUNCH_JOBS_URL, 303),
+    )
+
+    session.submit_next_slice()
+
+    assert calls[0]["test_launch"] == 1
