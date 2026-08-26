@@ -5,7 +5,6 @@ import poms_auto_submit as psc
 
 CONFIG_TEMPLATE = """[poms]
 experiment = sbnd
-role = production
 campaign_name = test_campaign
 campaign_stage_name = test_stage
 
@@ -18,7 +17,6 @@ last_split = 0
 
 [paths]
 log_file = test.log
-lock_file = test.lock
 """
 
 
@@ -58,6 +56,7 @@ def test_main_skips_run_when_switch_off(tmp_path, monkeypatch, caplog):
 def test_main_calls_run_when_switch_on(tmp_path, monkeypatch):
     monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
     config_path = make_config_file(tmp_path, switch=1)
+    monkeypatch.setattr(psc, "LOCK_FILE", str(tmp_path / "test.lock"))
 
     calls = []
     monkeypatch.setattr(psc, "run", lambda cfg, dry_run: calls.append((cfg, dry_run)))

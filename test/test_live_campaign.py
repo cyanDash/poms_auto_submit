@@ -1,8 +1,8 @@
 """Read-only regression tests against a real, live POMS campaign stage.
 
-Excluded from normal `pytest` runs (see pytest.ini's `-m "not live"`
+Excluded from normal `pytest` runs (see configs/pytest.ini's `-m "not live"`
 default) since these need POMS_CLIENT_DIR + a valid auth token and hit the
-network. Run explicitly with: `source setup.sh && pytest -m live`.
+network. Run explicitly with: `source setup.sh && pytest -c configs/pytest.ini -m live`.
 
 Makes no launch_jobs or param-update calls -- purely read APIs, safe to run
 against production. This is PomsSession's own contract test: it pins real

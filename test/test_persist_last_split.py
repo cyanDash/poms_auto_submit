@@ -2,7 +2,6 @@ import poms_auto_submit as psc
 
 CONFIG_TEXT = """[poms]
 experiment = sbnd
-role = analysis
 campaign_name = test_campaign
 campaign_stage_name = test_stage
 
@@ -15,7 +14,6 @@ last_split = 0
 
 [paths]
 log_file = poms_auto_submit.log
-lock_file = poms_auto_submit.lock
 """
 
 
