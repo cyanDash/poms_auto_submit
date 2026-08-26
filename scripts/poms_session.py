@@ -5,11 +5,17 @@ URL.
 """
 
 import logging
+import time
 import types
 from urllib.parse import parse_qs, urlparse
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
+
+# POMS doesn't assign a Submission's jobsub_job_id synchronously with
+# launch_jobs -- observed live 2026-08-26 as still None ~immediately after a
+# successful submit. Give it time to show up before looking it up.
+JOBSUB_ID_WAIT_SECONDS = 20
 
 # A Submission flips from Running to Held as soon as any of its jobs get held
 # (e.g. asked for more grid resources than allowed) -- even if only ~5% of a
@@ -141,10 +147,11 @@ class PomsSession:
         if status != 303:
             raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
         submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
+        logging.info("submitted new slice: submission_id=%s", submission_id)
+        logging.info("Getting job id...")
+        time.sleep(JOBSUB_ID_WAIT_SECONDS)
         jobsub_job_id = self._get_jobsub_job_id(submission_id)
-        logging.info(
-            "submitted new slice: submission_id=%s jobsub_job_id=%s", submission_id, jobsub_job_id
-        )
+        logging.info("jobsub_job_id=%s", jobsub_job_id)
         return submission_id
 
     def _get_jobsub_job_id(self, submission_id):

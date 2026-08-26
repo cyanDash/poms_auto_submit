@@ -2,8 +2,17 @@ import types
 
 import pytest
 
+import poms_session
 from helpers import make_cfg
 from poms_session import PomsSession
+
+
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch):
+    # submit_next_slice() waits JOBSUB_ID_WAIT_SECONDS for POMS to assign a
+    # jobsub_job_id -- don't actually block the test suite on that.
+    monkeypatch.setattr(poms_session.time, "sleep", lambda seconds: None)
+
 
 # Real response shape for a launch_jobs call (confirmed live, 2026-08-14):
 # a redirect URL with submission_id in the query string, not "..._<digits>".
@@ -314,6 +323,20 @@ def test_submit_next_slice_passes_test_launch_when_enabled():
     session.submit_next_slice()
 
     assert calls[0]["test_launch"] == 1
+
+
+def test_submit_next_slice_waits_before_looking_up_jobsub_job_id(monkeypatch):
+    calls = []
+    monkeypatch.setattr(poms_session.time, "sleep", lambda seconds: calls.append(("sleep", seconds)))
+    session = make_session(
+        make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303),
+        submission_details=lambda experiment, role, submission_id: calls.append(("submission_details",))
+        or (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
+    )
+
+    session.submit_next_slice()
+
+    assert calls == [("sleep", poms_session.JOBSUB_ID_WAIT_SECONDS), ("submission_details",)]
 
 
 def test_submit_next_slice_looks_up_jobsub_job_id():
