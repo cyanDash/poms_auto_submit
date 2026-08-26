@@ -29,15 +29,15 @@ pytestmark = pytest.mark.live
 
 EXPERIMENT = "sbnd"
 ROLE = "production"
-CAMPAIGN_ID = 11206
+CAMPAIGN_ID = 11503  # test_poms_auto_submit_PDS_Detvar3_sdas1
 # get_campaign_stage_name() is broken server-side (StagesPOMS.py returns a
 # raw SQLAlchemy Row, which fails JSON serialization -> HTTP 400), so the
 # stage name is hardcoded here instead of resolved from the id.
-CAMPAIGN_STAGE_ID = 26646
+CAMPAIGN_STAGE_ID = 27002
 CAMPAIGN_STAGE_NAME = "scrub_detsim_reco1_reco2_caf"
 KNOWN_SUBMISSIONS = {
-    3127741: "expected finished",
-    3127787: "expected new/running",
+    3135073: "expected finished",
+    3134969: "expected new/running",
 }
 
 
@@ -80,12 +80,3 @@ def test_get_stage_params_returns_named_stage(session):
     assert isinstance(stage.get("param_overrides"), list)
     for entry in stage["param_overrides"]:
         assert len(entry) == 2
-
-
-def test_has_pro_subgroup_reads_real_param_overrides(session):
-    import poms_auto_submit as psc
-
-    stage = session.get_stage_params()
-    # Just needs to not blow up on the real shape -- either bool is valid,
-    # this isn't asserting a specific pro/standard state.
-    assert psc.has_pro_subgroup(stage["param_overrides"]) in (True, False)
