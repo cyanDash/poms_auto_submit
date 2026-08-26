@@ -21,19 +21,6 @@ logged.
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 
-## Layout
-
-```
-setup.sh   sourced from the repo root to set up the environment
-scripts/   poms_auto_submit.py, poms_session.py
-configs/   config.ini, pytest.ini
-log/       poms_auto_submit.log (created on first run)
-test/      pytest suite
-```
-
-The lock file (`poms_auto_submit.lock`) is not configurable and always lives
-at the repo root — see [Example workflow](#example-workflow).
-
 ## Setup
 
 Requires a UPS environment with `poms_client` available on CVMFS.
