@@ -19,10 +19,6 @@ from poms_session import PRO_SUBGROUP, PomsSession
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
-# Fixed at the repo root, not configurable via config.ini -- every run must
-# contend for the same lock file regardless of which config it's using.
-LOCK_FILE = os.path.join(REPO_ROOT, "poms_auto_submit.lock")
-
 # Not configurable via config.ini: setup.sh only ever authenticates via
 # sbndpro's production-role managed-token credkey, so this is the only role
 # any POMS call from this script could succeed with anyway.
@@ -48,6 +44,7 @@ def load_config(path):
         "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
+        "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
     }
     return cfg
@@ -212,7 +209,7 @@ def main():
             logging.info("switch is off (switch=0 in config), skipping this run")
             return 0
 
-        lock_fh = acquire_lock(LOCK_FILE)
+        lock_fh = acquire_lock(cfg["lock_file"])
         if lock_fh is None:
             logging.info("previous run still active (lock held), skipping this run")
             return 0
