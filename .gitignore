@@ -5,3 +5,10 @@ __pycache__/
 *.lock
 cron.out
 .claude/
+
+# campaign-specific config files (e.g. configs/detvar3.ini) are real
+# production values that live on their own campaign branch, not tracked --
+# only the generic template config.ini and pytest.ini are
+configs/*.ini
+!configs/config.ini
+!configs/pytest.ini
