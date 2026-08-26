@@ -17,6 +17,10 @@ def make_session(cfg=None, **pc_overrides):
     pc_overrides.setdefault("update_session_experiment", lambda experiment: None)
     pc_overrides.setdefault("update_session_role", lambda role: None)
     pc_overrides.setdefault("get_campaign_stage_id", lambda experiment, campaign_name, stage_name: 42)
+    pc_overrides.setdefault(
+        "submission_details",
+        lambda experiment, role, submission_id: (True, {"submission": {"jobsub_job_id": None}}),
+    )
     fake_pc = types.SimpleNamespace(**pc_overrides)
     return PomsSession(fake_pc, cfg or make_cfg())
 
@@ -310,3 +314,25 @@ def test_submit_next_slice_passes_test_launch_when_enabled():
     session.submit_next_slice()
 
     assert calls[0]["test_launch"] == 1
+
+
+def test_submit_next_slice_looks_up_jobsub_job_id():
+    calls = []
+    session = make_session(
+        make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303),
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id)
+        or (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
+    )
+
+    session.submit_next_slice()
+
+    assert calls == ["555"]
+
+
+def test_submit_next_slice_jobsub_job_id_lookup_failure_does_not_raise():
+    session = make_session(
+        make_poms_call=lambda **kw: (REAL_LAUNCH_JOBS_URL, 303),
+        submission_details=lambda experiment, role, submission_id: (False, {}),
+    )
+
+    assert session.submit_next_slice() == "555"
