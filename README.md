@@ -78,7 +78,7 @@ log_file = ../log/<your log>.log
 
 ; path to the lock file, relative to this config file's directory. Give each
 ; campaign stage's config its own lock file.
-lock_file = ../log/<your lock>.lock
+lock_file = ../<your lock>.lock
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
