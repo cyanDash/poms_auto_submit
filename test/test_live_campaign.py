@@ -43,7 +43,9 @@ KNOWN_SUBMISSIONS = {
 
 @pytest.fixture(scope="module")
 def session():
-    campaign_name = pc.get_campaign_name(EXPERIMENT, CAMPAIGN_ID)
+    # get_campaign_name() silently returns '' instead of the real name when
+    # called without role= -- see docs/poms_client_gotchas.md.
+    campaign_name = pc.get_campaign_name(EXPERIMENT, CAMPAIGN_ID, role=ROLE)
     cfg = {
         "experiment": EXPERIMENT,
         "role": ROLE,

@@ -29,6 +29,17 @@ actually returns. Confirmed live against production POMS:
   requests) 400s with "Object of type Row is not JSON serializable". Avoid
   calling it; resolve stage names some other way (e.g. the reverse
   `get_campaign_stage_id()`, which works fine).
+- **`get_campaign_name(experiment, campaign_id)`** was observed silently
+  returning `''` instead of the real name when called without `role=`, under
+  the `sbndpro` managed-token identity — passing `role="production"`
+  explicitly fixed it there. Oddly, the same no-`role=` call worked fine
+  under a different (personal, non-`sbndpro`) identity, so the exact
+  mechanism looks identity/session-scope dependent, not purely about the
+  kwarg. Either way: always pass `role=` explicitly, it doesn't raise when
+  it's silently wrong. A downstream symptom if you don't: passing that empty
+  `campaign_name` into `get_campaign_stage_id()` doesn't raise either — the
+  server returns the literal string `"null"`, which crashes `int("null")`
+  inside `poms_client.py`.
 - **Client**: `make_poms_call()` has `if res.find("Traceback"):` — `str.find`
   returns `-1` (truthy) when the substring isn't found, so this branch is
   taken on *every* error response, not just tracebacks, and mangles the real
