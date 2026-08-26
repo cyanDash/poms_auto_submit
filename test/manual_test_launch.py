@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """One-off manual verification: fires a real POMS test launch
-(launch_jobs with test_launch=1) against the HNL campaign stage. POMS
+(launch_jobs with test_launch=1) against the test_PDS_detVar3 campaign stage. POMS
 launches using the stage's test_param_overrides instead of its regular
-param_overrides -- for campaign_stage_id=26938 that's already set to a
-single small job (-Osubmit.N=1, -Oglobal.productiontype=test_sdas1), so
-this queues one real, cheap, test-tagged grid job. Not a pytest test since
+param_overrides -- for campaign_stage_id=27002 that's already set to a
+single small job (-Osubmit.N=1), so this queues one real, cheap, test-tagged
+grid job. Not a pytest test since
 it has a real side effect -- run it deliberately, once, when you want to
 confirm the launch codepath actually works end-to-end before trusting
 poms_auto_submit.py's automated production launches.
@@ -13,7 +13,7 @@ Calls make_poms_call() directly instead of poms_client.py's
 launch_campaign_stage_jobs() wrapper: the wrapper assumes the response body
 ends in "_<digits>" and does int(data[data.rfind("_") + 1:]) to extract the
 submission id, but the real response for this call is a URL --
-".../list_launch_file/sbnd/analysis?campaign_stage_id=26938&submission_id=NNN"
+".../list_launch_file/sbnd/production?campaign_stage_id=27002&submission_id=NNN"
 -- so rfind("_") lands inside "campaign_stage_id" and the int() conversion
 crashes (confirmed live, 2026-08-14). Parse submission_id out of the URL's
 query string instead.
@@ -36,8 +36,8 @@ except RuntimeError as e:
 import poms_client as pc
 
 EXPERIMENT = "sbnd"
-ROLE = "analysis"
-CAMPAIGN_STAGE_ID = 26938
+ROLE = "production"
+CAMPAIGN_STAGE_ID = 27002
 
 
 def main():
