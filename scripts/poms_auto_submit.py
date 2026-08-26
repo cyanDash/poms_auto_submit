@@ -107,9 +107,11 @@ def next_slice_count(cfg, submissions):
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
     in_flight = in_flight_submissions(cfg, submissions)
     num_slices = max(0, target - len(in_flight))
+    subgroup_plan = plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
+    subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
     logging.info(
-        "decision: submit %d slice(s) (in_flight=%d target=%d)",
-        num_slices, len(in_flight), target,
+        "decision: submit %d slice(s) (in_flight=%d target=%d) subgroup=%s",
+        num_slices, len(in_flight), target, subgroup_plan,
     )
     return num_slices
 
@@ -204,25 +206,29 @@ def main():
         handlers=handlers,
     )
 
-    if not cfg["switch"]:
-        logging.info("switch is off (switch=0 in config), skipping this run")
-        return 0
-
-    lock_fh = acquire_lock(LOCK_FILE)
-    if lock_fh is None:
-        logging.info("previous run still active (lock held), skipping this run")
-        return 0
-
+    logging.info("===== poms_auto_submit run start =====")
     try:
-        run(cfg, args.dry_run)
-    except Exception:
-        logging.exception("poms_auto_submit run failed")
-        return 1
-    finally:
-        fcntl.flock(lock_fh, fcntl.LOCK_UN)
-        lock_fh.close()
+        if not cfg["switch"]:
+            logging.info("switch is off (switch=0 in config), skipping this run")
+            return 0
 
-    return 0
+        lock_fh = acquire_lock(LOCK_FILE)
+        if lock_fh is None:
+            logging.info("previous run still active (lock held), skipping this run")
+            return 0
+
+        try:
+            run(cfg, args.dry_run)
+        except Exception:
+            logging.exception("poms_auto_submit run failed")
+            return 1
+        finally:
+            fcntl.flock(lock_fh, fcntl.LOCK_UN)
+            lock_fh.close()
+
+        return 0
+    finally:
+        logging.info("===== poms_auto_submit run end =====")
 
 
 if __name__ == "__main__":

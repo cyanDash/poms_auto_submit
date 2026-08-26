@@ -147,7 +147,6 @@ class PomsSession:
         )
         if data is None:
             raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={self.campaign_stage_id}")
-        logging.info("update_stage_param_overrides response: %s", data)
 
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage."""
