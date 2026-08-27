@@ -74,7 +74,7 @@ test_launch = 0
 
 [paths]
 ; path to the log file, relative to this config file's directory
-log_file = ../log/<your log>.log
+log_file = ../logs/<your log>.log
 
 ; path to the lock file, relative to this config file's directory. Give each
 ; campaign stage's config its own lock file.
@@ -101,7 +101,7 @@ information about the currently active submissions and prints out what it
 would do given this information. It does not submit a new slice, nor does it
 update the parameters for a stage.
 
-Check `log/poms_auto_submit.log` for the logged progress/status/decision,
+Check `logs/poms_auto_submit.log` for the logged progress/status/decision,
 then run for real once manually and confirm in the POMS page that the submission goes out:
 
 ```bash

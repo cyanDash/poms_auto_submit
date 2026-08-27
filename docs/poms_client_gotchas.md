@@ -102,7 +102,7 @@ docstring for the full story.
 `pc.make_poms_call(method="launch_jobs", ...)` directly (the same endpoint
 both wrappers post to) and parses `submission_id` out of the redirect URL's
 query string itself — the correct way, already proven against real
-production launches (see `log/` history). It also passes `test_launch=1`
+production launches (see `logs/` history). It also passes `test_launch=1`
 straight to that same `make_poms_call` when `config.ini`'s
 `[decision] test_launch` is enabled, rather than routing through either
 broken wrapper.
