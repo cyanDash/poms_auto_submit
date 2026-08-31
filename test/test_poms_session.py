@@ -1,3 +1,4 @@
+import json
 import types
 from datetime import datetime
 
@@ -300,6 +301,127 @@ def test_get_progress_last_status_change_and_file_counts_are_none_when_absent():
     assert entry["last_status_change"] is None
     assert entry["files_submitted"] is None
     assert entry["files_pending"] is None
+
+
+# --- static-field cache -- see docs/adr/0008-cache-static-submission-fields.md ---
+
+def test_get_progress_uses_cache_and_skips_submission_details(tmp_path):
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    (tmp_path / "42.json").write_text(
+        json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": "pro"}})
+    )
+    calls = []
+    session = make_session(
+        cfg=make_cfg(cache_dir=str(tmp_path)),
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True, {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id) or (True, {}),
+    )
+
+    entry = session.get_progress()[0]
+
+    assert calls == []
+    assert entry["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
+    assert entry["subgroup"] == "pro"
+    assert entry["pct_complete"] is None
+    assert entry["last_status_change"] is None
+    assert entry["files_submitted"] is None
+    assert entry["files_pending"] is None
+
+
+def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    details = {
+        "submission_id": "100",
+        "submission": {
+            "pct_complete": 10.0,
+            "jobsub_job_id": "100@jobsub01.fnal.gov",
+            "command_executed": "jobsub_submit ... --subgroup=pro ...",
+        },
+    }
+    session = make_session(
+        cfg=make_cfg(cache_dir=str(tmp_path)),
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True, {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details),
+    )
+
+    entry = session.get_progress()[0]
+
+    assert entry["jobsub_job_id"] == "100@jobsub01.fnal.gov"
+    assert entry["subgroup"] == "pro"
+    assert entry["pct_complete"] == 10.0
+
+    written = json.loads((tmp_path / "42.json").read_text())
+    assert written == {"100": {"jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": "pro"}}
+
+
+def test_get_progress_only_fetches_uncached_submissions(tmp_path):
+    submissions = [
+        {"submission_id": 100, "status": "Running"},
+        {"submission_id": 101, "status": "Running"},
+    ]
+    (tmp_path / "42.json").write_text(
+        json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None}})
+    )
+    calls = []
+    details = {"submission_id": "101", "submission": {"pct_complete": 5.0, "jobsub_job_id": "101@jobsub01.fnal.gov"}}
+    session = make_session(
+        cfg=make_cfg(cache_dir=str(tmp_path)),
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True, {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id) or (True, details),
+    )
+
+    result = session.get_progress()
+
+    assert calls == [101]
+    assert result[0]["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
+    assert result[1]["jobsub_job_id"] == "101@jobsub01.fnal.gov"
+
+    written = json.loads((tmp_path / "42.json").read_text())
+    assert written == {
+        "100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None},
+        "101": {"jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
+    }
+
+
+def test_get_jobsub_job_id_writes_cache_on_success(tmp_path):
+    session = make_session(
+        cfg=make_cfg(cache_dir=str(tmp_path)),
+        submission_details=lambda experiment, role, submission_id: (
+            True,
+            {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "command_executed": "... --subgroup=standard ..."}},
+        ),
+    )
+
+    session._get_jobsub_job_id("555")
+
+    written = json.loads((tmp_path / "42.json").read_text())
+    assert written == {"555": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "subgroup": "standard"}}
+
+
+def test_cache_is_noop_without_cache_dir():
+    # make_cfg() sets no cache_dir -- every existing test relies on this:
+    # submission_details() is always called fresh, nothing is written to disk.
+    calls = []
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True, {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id)
+        or (True, {"submission": {"pct_complete": 1.0, "jobsub_job_id": "x"}}),
+    )
+
+    session.get_progress()
+    session.get_progress()
+
+    assert calls == [100, 100]
+    assert session.cache_file is None
 
 
 def test_get_stage_params_finds_named_stage():

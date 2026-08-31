@@ -42,6 +42,25 @@ def test_effective_pct_complete_is_rounded_to_two_decimal_places(caplog):
     assert "pct_complete=99.98 " in caplog.text
 
 
+def test_condor_pct_complete_resolves_even_when_pct_complete_is_none():
+    # A cache-hit submission (see docs/adr/0008-cache-static-submission-fields.md)
+    # has jobsub_job_id but no pct_complete -- condor_q must still be tried,
+    # not skipped in favor of an unconditional "still in-flight".
+    submissions = make_submissions(sub(1, None, subgroup=None))
+    submissions[0]["jobsub_job_id"] = "100@jobsub01.fnal.gov"
+    num = psc.next_slice_count(make_cfg(), submissions, now=NOW, get_condor_pct_complete=lambda e, j: 97.0)
+    assert num == 1
+
+
+def test_no_condor_and_no_pct_complete_stays_in_flight():
+    # Neither signal is available at all -- conservative default, same as
+    # the old pct_complete-is-None shortcut, just reached via a different path.
+    submissions = make_submissions(sub(1, None, subgroup=None))
+    submissions[0]["jobsub_job_id"] = "100@jobsub01.fnal.gov"
+    num = psc.next_slice_count(make_cfg(), submissions, now=NOW, get_condor_pct_complete=no_condor)
+    assert num == 0
+
+
 # --- layer 2: stale-status statuses-array proxy, only when condor_q is None ---
 
 def test_stale_submission_past_threshold_by_proxy_frees_slot():

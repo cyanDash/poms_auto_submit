@@ -53,6 +53,11 @@ def load_config(path):
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
     }
+    # PomsSession caches static per-submission fields at
+    # <cache_dir>/<campaign_stage_id>.json -- see
+    # docs/adr/0008-cache-static-submission-fields.md. Reuses log_file's
+    # directory rather than adding a new [paths] key.
+    cfg["cache_dir"] = os.path.dirname(cfg["log_file"])
     return cfg
 
 
@@ -118,13 +123,25 @@ def _log_progress(s, pct_complete, source):
 
 
 def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
-    """3-layer fallback chain -- see docs/adr/0007-condor-q-primary-progress-source.md."""
+    """3-layer fallback chain -- see docs/adr/0007-condor-q-primary-progress-source.md.
+
+    condor_q is tried whenever jobsub_job_id is present, regardless of
+    whether pct_complete itself is known -- a submission whose static fields
+    came from the local cache (see
+    docs/adr/0008-cache-static-submission-fields.md) always has
+    pct_complete=None, but still has a jobsub_job_id condor_q can resolve.
+    Returns None only when neither condor_q nor a POMS-side pct_complete is
+    available at all.
+    """
     get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
     condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
     if condor_pct is not None:
         effective, source = condor_pct, "condor_q"
-    else:
+    elif s.get("pct_complete") is not None:
         effective, source = _stale_status_proxy_pct_complete(s, now), "poms"
+    else:
+        _log_progress(s, None, "none")
+        return None
     effective = round(effective, 2)
     _log_progress(s, effective, source)
     return effective
@@ -133,15 +150,14 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
 def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Active submissions still under pct_complete_threshold -- i.e. occupying
     a slot this run hasn't freed up yet (see CONTEXT.md's Status entry and
-    docs/adr/0005-in-flight-slot-based-decision.md)."""
+    docs/adr/0005-in-flight-slot-based-decision.md). No signal at all (neither
+    condor_q nor POMS) is treated as still in-flight, conservatively."""
     now = now or datetime.now()
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
     for s in submissions:
-        if s["pct_complete"] is None:
-            _log_progress(s, None, "poms")
-            in_flight.append(s)
-        elif _effective_pct_complete(cfg, s, now, get_condor_pct_complete) < threshold:
+        effective = _effective_pct_complete(cfg, s, now, get_condor_pct_complete)
+        if effective is None or effective < threshold:
             in_flight.append(s)
     return in_flight
 

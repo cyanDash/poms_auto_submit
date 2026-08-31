@@ -15,7 +15,7 @@ _Avoid_: "stage" alone when a Campaign Stage's internal Executables are the actu
 One step (`gen`, `g4`, `detsim`, `reco1`, `reco2`, `caf`, ...) run inside a single Campaign Stage under the current one-Campaign-Stage-per-pipeline convention. Configured by one `-Oglobal.fclfileN=` param override per Executable (`fclfile1`..`fclfile6` for a 6-step chain).
 
 **PomsSession**:
-The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns identity setup (`update_session_experiment`/`update_session_role`), resolves and caches `campaign_stage_id`, and normalizes every quirky `poms_client` response shape ((ok, data) tuples, bare strings, redirect URLs with the id in the query string) behind plain method returns. Decision logic never sees `pc` or a raw POMS response.
+The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns identity setup (`update_session_experiment`/`update_session_role`), resolves and caches `campaign_stage_id`, and normalizes every quirky `poms_client` response shape ((ok, data) tuples, bare strings, redirect URLs with the id in the query string) behind plain method returns. Decision logic never sees `pc` or a raw POMS response. Also owns a local on-disk cache (`<cache_dir>/<campaign_stage_id>.json`) of each Submission's immutable `jobsub_job_id`/`subgroup`, so a Submission already seen in a past run never needs a fresh `submission_details()` call for those two fields again (see docs/adr/0008-cache-static-submission-fields.md).
 _Avoid_: PomsGateway, poms_client wrapper.
 
 **Submission**:

@@ -4,7 +4,9 @@ returns -- callers never see a raw (ok, data) tuple, bare string, or redirect
 URL.
 """
 
+import json
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -47,6 +49,7 @@ class PomsSession:
         pc.update_session_experiment(cfg["experiment"])
         pc.update_session_role(cfg["role"])
         self._campaign_stage_id = None
+        self._cache = None
 
     @property
     def campaign_stage_id(self):
@@ -55,6 +58,54 @@ class PomsSession:
                 self.cfg["experiment"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"]
             )
         return self._campaign_stage_id
+
+    @property
+    def cache_file(self):
+        """Where jobsub_job_id/subgroup get cached per submission_id, or None
+        if cfg has no cache_dir (caching becomes a no-op -- see
+        docs/adr/0008-cache-static-submission-fields.md)."""
+        cache_dir = self.cfg.get("cache_dir")
+        if not cache_dir:
+            return None
+        return os.path.join(cache_dir, f"{self.campaign_stage_id}.json")
+
+    @property
+    def cache(self):
+        if self._cache is None:
+            self._cache = self._load_cache()
+        return self._cache
+
+    def _load_cache(self):
+        cache_file = self.cache_file
+        if not cache_file:
+            return {}
+        try:
+            with open(cache_file) as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _cache_submission(self, submission_id, jobsub_job_id, subgroup):
+        cache_file = self.cache_file
+        if not cache_file:
+            return
+        self.cache[str(submission_id)] = {"jobsub_job_id": jobsub_job_id, "subgroup": subgroup}
+        with open(cache_file, "w") as f:
+            json.dump(self.cache, f, indent=2)
+
+    def _fetch_submission_details(self, submission_id):
+        """submission_details(), caching the static jobsub_job_id/subgroup
+        fields on success. Returns (ok, details) exactly like
+        pc.submission_details() -- callers still read the dynamic fields
+        (pct_complete, history, statuses) straight out of details."""
+        ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
+        if ok:
+            submission = details.get("submission", {})
+            jobsub_job_id = submission.get("jobsub_job_id")
+            if jobsub_job_id:
+                subgroup = self._parse_subgroup(submission.get("command_executed"))
+                self._cache_submission(submission_id, jobsub_job_id, subgroup)
+        return ok, details
 
     def get_progress(self):
         """Status/pct_complete of the currently relevant Submission(s)."""
@@ -75,21 +126,30 @@ class PomsSession:
         result = []
         for s in target:
             submission_id = s.get("submission_id")
-            ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
-            submission = details.get("submission", {}) if ok else {}
-            pct_complete = submission.get("pct_complete")
-            jobsub_job_id = submission.get("jobsub_job_id")
-            subgroup = self._parse_subgroup(submission.get("command_executed"))
-            statuses = details.get("statuses", []) if ok else []
+            cached = self.cache.get(str(submission_id))
+            if cached is not None:
+                pct_complete = last_status_change = files_submitted = files_pending = None
+                jobsub_job_id = cached["jobsub_job_id"]
+                subgroup = cached["subgroup"]
+            else:
+                ok, details = self._fetch_submission_details(submission_id)
+                submission = details.get("submission", {}) if ok else {}
+                pct_complete = submission.get("pct_complete")
+                jobsub_job_id = submission.get("jobsub_job_id")
+                subgroup = self._parse_subgroup(submission.get("command_executed"))
+                statuses = details.get("statuses", []) if ok else []
+                last_status_change = self._last_status_change(details.get("history", []) if ok else [])
+                files_submitted = self._status_count(statuses, STATUS_LABEL_SUBMITTED)
+                files_pending = self._status_count(statuses, STATUS_LABEL_PENDING)
             entry = {
                 "submission_id": submission_id,
                 "status": s.get("status"),
                 "pct_complete": pct_complete,
                 "jobsub_job_id": jobsub_job_id,
                 "subgroup": subgroup,
-                "last_status_change": self._last_status_change(details.get("history", []) if ok else []),
-                "files_submitted": self._status_count(statuses, STATUS_LABEL_SUBMITTED),
-                "files_pending": self._status_count(statuses, STATUS_LABEL_PENDING),
+                "last_status_change": last_status_change,
+                "files_submitted": files_submitted,
+                "files_pending": files_pending,
             }
             result.append(entry)
 
@@ -172,9 +232,14 @@ class PomsSession:
         return submission_id
 
     def _get_jobsub_job_id(self, submission_id):
-        """Best-effort lookup of the grid job id for a just-submitted Submission."""
+        """Best-effort lookup of the grid job id for a just-submitted Submission.
+
+        Routes through _fetch_submission_details() so a freshly-launched
+        submission's jobsub_job_id/subgroup land in the cache immediately --
+        get_progress() never has to pay for them again on a later run.
+        """
         try:
-            ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
+            ok, details = self._fetch_submission_details(submission_id)
         except Exception:
             return None
         if not ok:
