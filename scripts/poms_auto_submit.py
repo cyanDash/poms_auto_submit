@@ -21,13 +21,10 @@ from poms_session import PRO_SUBGROUP, PomsSession
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
-# Not configurable via config.ini: setup.sh only ever authenticates via
-# sbndpro's production-role managed-token credkey, so this is the only role
-# any POMS call from this script could succeed with anyway.
+# Only role sbndpro's managed token can auth as; see docs/adr/0004.
 PRO_ELIGIBLE_ROLE = "production"
 
-# Fallback layer 2, only used when condor_q is unavailable -- see
-# docs/adr/0007-condor-q-primary-progress-source.md.
+# Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md.
 STALE_STATUS_HOURS = 2
 
 
@@ -53,16 +50,13 @@ def load_config(path):
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
     }
-    # PomsSession caches static per-submission fields at
-    # <cache_dir>/<campaign_stage_id>.json -- see
-    # docs/adr/0008-cache-static-submission-fields.md. Reuses log_file's
-    # directory rather than adding a new [paths] key.
+    # PomsSession's cache dir; see docs/adr/0008-cache-static-submission-fields.md.
     cfg["cache_dir"] = os.path.dirname(cfg["log_file"])
     return cfg
 
 
 def persist_last_split(config_path, last_split):
-    """Write the updated last_split counter back to config.ini in place, leaving comments and everything else untouched."""
+    """Rewrite config.ini's last_split in place; leaves comments/rest untouched."""
     with open(config_path) as f:
         lines = f.readlines()
 
@@ -94,7 +88,7 @@ def acquire_lock(lock_path):
 
 
 def _stale_status_proxy_pct_complete(s, now):
-    """Fallback layer 2 -- see docs/adr/0007-condor-q-primary-progress-source.md."""
+    """Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md."""
     pct_complete = s["pct_complete"]
     last_status_change = s.get("last_status_change")
     if last_status_change is None or now - last_status_change < timedelta(hours=STALE_STATUS_HOURS):
@@ -116,8 +110,7 @@ def _stale_status_proxy_pct_complete(s, now):
 
 
 def _log_progress(s, pct_complete, source):
-    # A submission past this point is effectively done -- logging it every
-    # run just adds noise once there's nothing left to decide about it.
+    # Past this point it's effectively done; skip the noise.
     if pct_complete is not None and pct_complete > 99:
         return
     logging.info(
@@ -127,16 +120,9 @@ def _log_progress(s, pct_complete, source):
 
 
 def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
-    """3-layer fallback chain -- see docs/adr/0007-condor-q-primary-progress-source.md.
-
-    condor_q is tried whenever jobsub_job_id is present, regardless of
-    whether pct_complete itself is known -- a submission whose static fields
-    came from the local cache (see
-    docs/adr/0008-cache-static-submission-fields.md) always has
-    pct_complete=None, but still has a jobsub_job_id condor_q can resolve.
-    Returns None only when neither condor_q nor a POMS-side pct_complete is
-    available at all.
-    """
+    """3-layer fallback chain; see docs/adr/0007-condor-q-primary-progress-source.md
+    and docs/adr/0008-cache-static-submission-fields.md (why condor_q is tried
+    even when pct_complete is None). None only if nothing is available."""
     get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
     condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
     if condor_pct is not None:
@@ -152,10 +138,9 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
 
 
 def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
-    """Active submissions still under pct_complete_threshold -- i.e. occupying
-    a slot this run hasn't freed up yet (see CONTEXT.md's Status entry and
-    docs/adr/0005-in-flight-slot-based-decision.md). No signal at all (neither
-    condor_q nor POMS) is treated as still in-flight, conservatively."""
+    """Active submissions still under pct_complete_threshold, i.e. still
+    occupying a slot; see docs/adr/0005-in-flight-slot-based-decision.md.
+    No signal at all counts as in-flight, conservatively."""
     now = now or datetime.now()
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
@@ -190,16 +175,15 @@ def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
 
 
 def pro_available(in_flight):
-    """Whether the campaign's single pro slot is free -- no in-flight
-    submission already holds it (see CONTEXT.md's Subgroup entry: only one
-    slice may hold pro at a time)."""
+    """Whether the campaign's single pro slot is free; see CONTEXT.md's
+    Subgroup entry."""
     return not any(s.get("subgroup") == PRO_SUBGROUP for s in in_flight)
 
 
 def plan_subgroups(num_slices, role, pro_available):
-    """Decide which subgroup each of the num_slices new submissions should use
-    (see docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md and
-    docs/adr/0005-in-flight-slot-based-decision.md)."""
+    """Decide which subgroup each new submission gets; see
+    docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md and
+    docs/adr/0005-in-flight-slot-based-decision.md."""
     if num_slices == 0:
         return []
     if role != PRO_ELIGIBLE_ROLE or not pro_available:
@@ -231,10 +215,7 @@ def run(cfg, dry_run):
     try:
         plan = plan_next_slices(cfg, session)
     except RuntimeError:
-        # poms_client raises RuntimeError on non-2xx HTTP (e.g. an expired
-        # proxy/token, HTTP 403). Treat as a skip for this cycle rather than
-        # a hard failure -- the next hourly run will pick up cleanly once
-        # the token is renewed.
+        # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
     if not plan:
@@ -261,13 +242,8 @@ def main():
     cfg = load_config(args.config)
 
     handlers = [logging.FileHandler(cfg["log_file"]), logging.StreamHandler()]
-    # poms_client pulls in requests v2.9.1, whose vendored
-    # requests.packages.urllib3.connectionpool logs this at INFO on every
-    # reused-but-dropped connection to POMS -- never actionable, just noise
-    # from a long-lived process making many requests. Filtering on the
-    # handlers (rather than that logger by name) also covers the real
-    # urllib3.connectionpool, in case a future upgrade switches which one
-    # actually opens the connection.
+    # Silences noisy INFO logs from poms_client's vendored urllib3 on every
+    # reused-but-dropped connection to POMS.
     for handler in handlers:
         handler.addFilter(
             lambda record: "Resetting dropped connection" not in record.getMessage()

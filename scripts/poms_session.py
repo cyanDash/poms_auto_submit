@@ -15,30 +15,19 @@ from urllib.parse import parse_qs, urlparse
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
 
-# statuses[] entries are [label, count, dims_url] triples -- see
+# statuses[] entries are [label, count, dims_url] triples; see
 # docs/poms_client_gotchas.md.
 STATUS_LABEL_SUBMITTED = "Submitted to SAM: "
 STATUS_LABEL_PENDING = "Pending: "
 
-# The stage's current param_overrides (what SUBGROUP_OVERRIDE_KEY writes to)
-# gets overwritten by later runs and doesn't reflect what a past submission
-# actually launched with -- and for a Test Launch it's not even consulted,
-# since POMS substitutes test_param_overrides server-side instead (see
-# docs/poms_client_gotchas.md). command_executed is the one per-submission,
-# immutable record of the --subgroup= flag POMS actually launched jobs with.
+# command_executed is the immutable per-submission record of the actual
+# --subgroup= flag; param_overrides isn't (see docs/poms_client_gotchas.md).
 SUBGROUP_COMMAND_PATTERN = re.compile(r"--subgroup=(\S+)")
 
-# POMS doesn't assign a Submission's jobsub_job_id synchronously with
-# launch_jobs -- observed live 2026-08-26 as still None ~immediately after a
-# successful submit. Poll for it instead of a single fixed wait.
+# jobsub_job_id isn't assigned synchronously with launch_jobs; poll for it.
 JOBSUB_ID_POLL_SECONDS = 5
 
-# A Submission flips from Running to Held as soon as any of its jobs get held
-# (e.g. asked for more grid resources than allowed) -- even if only ~5% of a
-# 10k-job Submission is held and the rest are still running fine. Treated as
-# still active/in-flight, not as done or ignorable. New and Idle are included
-# too: neither has started progressing yet, but both are still in-flight, not
-# abandoned.
+# See CONTEXT.md's Status entry for why Held/New/Idle count as in-flight.
 ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
 
 
@@ -62,8 +51,7 @@ class PomsSession:
     @property
     def cache_file(self):
         """Where jobsub_job_id/subgroup get cached per submission_id, or None
-        if cfg has no cache_dir (caching becomes a no-op -- see
-        docs/adr/0008-cache-static-submission-fields.md)."""
+        if cfg has no cache_dir; see docs/adr/0008-cache-static-submission-fields.md."""
         cache_dir = self.cfg.get("cache_dir")
         if not cache_dir:
             return None
@@ -94,10 +82,8 @@ class PomsSession:
             json.dump(self.cache, f, indent=2)
 
     def _fetch_submission_details(self, submission_id):
-        """submission_details(), caching the static jobsub_job_id/subgroup
-        fields on success. Returns (ok, details) exactly like
-        pc.submission_details() -- callers still read the dynamic fields
-        (pct_complete, history, statuses) straight out of details."""
+        """submission_details(), caching jobsub_job_id/subgroup on success.
+        Returns (ok, details) exactly like pc.submission_details()."""
         ok, details = self.pc.submission_details(self.cfg["experiment"], self.cfg["role"], submission_id)
         if ok:
             submission = details.get("submission", {})
@@ -162,9 +148,8 @@ class PomsSession:
 
     @staticmethod
     def _last_status_change(history):
-        """Most recent history[].created timestamp, or None if there's no
-        history yet. Naive Central-time strings -- see
-        docs/poms_client_gotchas.md."""
+        """Most recent history[].created timestamp, or None if empty. Naive
+        Central-time strings; see docs/poms_client_gotchas.md."""
         created = [entry.get("created") for entry in history if entry.get("created")]
         if not created:
             return None
@@ -199,8 +184,7 @@ class PomsSession:
             return
 
         logging.info("updating stage params: %s", updates)
-        # requests' form-encoder flattens a dict value to just its keys, dropping
-        # the values -- must pre-serialize (see docs/poms_client_gotchas.md)
+        # Must pre-serialize; see docs/poms_client_gotchas.md.
         param_overrides = str(list(updates.items()))
         data = self.pc.update_stage_param_overrides(
             self.cfg["experiment"], self.campaign_stage_id, param_overrides=param_overrides
@@ -210,8 +194,7 @@ class PomsSession:
 
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage."""
-        # launch_campaign_stage_jobs() wraps this but crashes on success (see
-        # docs/poms_client_gotchas.md) -- call make_poms_call directly instead
+        # launch_campaign_stage_jobs() crashes on success; see docs/poms_client_gotchas.md.
         data, status = self.pc.make_poms_call(
             method="launch_jobs",
             campaign_stage_id=self.campaign_stage_id,
@@ -233,11 +216,7 @@ class PomsSession:
 
     def _get_jobsub_job_id(self, submission_id):
         """Best-effort lookup of the grid job id for a just-submitted Submission.
-
-        Routes through _fetch_submission_details() so a freshly-launched
-        submission's jobsub_job_id/subgroup land in the cache immediately --
-        get_progress() never has to pay for them again on a later run.
-        """
+        Routes through _fetch_submission_details() so it's cached immediately."""
         try:
             ok, details = self._fetch_submission_details(submission_id)
         except Exception:

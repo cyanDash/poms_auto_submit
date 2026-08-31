@@ -8,8 +8,7 @@ import subprocess
 
 CONDOR_Q_TIMEOUT_SECONDS = 30
 
-# Order matters: JobStatus's header token is never all-digits (see
-# _parse_data_row()).
+# Order matters: JobStatus's header token is never all-digits; see _parse_data_row().
 ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal"]
 
 
@@ -59,8 +58,8 @@ def get_pct_complete(experiment, jobsub_job_id):
 
 
 def _parse_data_row(stdout):
-    """Find the one real data line among -autoformat:h's (possibly
-    repeated) header lines -- see docs/adr/0007-condor-q-primary-progress-source.md."""
+    """Find the one real data line among -autoformat:h's possibly-repeated
+    header lines; see docs/adr/0007-condor-q-primary-progress-source.md."""
     for line in stdout.splitlines():
         tokens = line.split()
         if len(tokens) == len(ATTRS) and tokens[0].isdigit():
