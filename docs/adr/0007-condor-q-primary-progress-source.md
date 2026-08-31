@@ -91,6 +91,17 @@ token is all-digits, rather than assuming a fixed line position.
 
 ## Other quirks
 
+- The `-G`/`--group` flag `get_pct_complete()` relies on is jobsub_lite's
+  `condor_q` wrapper, not real HTCondor's `condor_q` — the latter rejects it
+  outright (`Error: unrecognized argument -G`, exit 1). An interactive login
+  shell's `$PATH` puts `/opt/jobsub_lite/bin` ahead of `/usr/bin`, so this
+  went unnoticed in dev; cron's minimal `$PATH` doesn't include it and
+  silently resolved `condor_q` to the plain HTCondor binary instead (observed
+  live 2026-08-31, first cron run after this ADR shipped). Fixed by calling
+  the wrapper via its fixed absolute path (`condor_progress.CONDOR_Q_BIN`)
+  rather than trusting `$PATH` — that path is FNAL-wide, not
+  sandbox-specific: it's the same one POMS records in `command_executed` for
+  every `jobsub_submit` call.
 - This wrapper's tracing module throws a `KeyError` on
   `OTEL_EXPORTER_JAEGER_ENDPOINT` and prints a traceback to stderr on
   *every* invocation (observed in this dev sandbox), but still exits `0`

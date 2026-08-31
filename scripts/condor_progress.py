@@ -8,6 +8,13 @@ import subprocess
 
 CONDOR_Q_TIMEOUT_SECONDS = 30
 
+# jobsub_lite's condor_q wrapper adds the -G/--group flag get_pct_complete()
+# depends on; the plain HTCondor condor_q on $PATH doesn't understand it. Not
+# resolved via $PATH because cron's minimal PATH doesn't include this
+# directory even though an interactive login shell's does; see
+# docs/adr/0007-condor-q-primary-progress-source.md.
+CONDOR_Q_BIN = "/opt/jobsub_lite/bin/condor_q"
+
 # Order matters: JobStatus's header token is never all-digits; see _parse_data_row().
 ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal"]
 
@@ -23,7 +30,7 @@ def get_pct_complete(experiment, jobsub_job_id):
 
     try:
         result = subprocess.run(
-            ["condor_q", "-G", experiment, cluster_id, "-autoformat:h", *ATTRS],
+            [CONDOR_Q_BIN, "-G", experiment, cluster_id, "-autoformat:h", *ATTRS],
             capture_output=True, text=True, timeout=CONDOR_Q_TIMEOUT_SECONDS,
         )
     except (subprocess.SubprocessError, OSError):
