@@ -121,7 +121,7 @@ def _log_progress(s, pct_complete, source):
     if pct_complete is not None and pct_complete > 99:
         return
     logging.info(
-        "progress: submission_id=%s status=%s pct_complete=%s (source=%s) jobsub_job_id=%s subgroup=%s",
+        "progress: submission_id=%s status=%s pct_complete=%s (%s) jobsub_job_id=%s subgroup=%s",
         s.get("submission_id"), s.get("status"), pct_complete, source, s.get("jobsub_job_id"), s.get("subgroup"),
     )
 
