@@ -7,11 +7,16 @@ URL.
 import logging
 import re
 import time
-import types
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
+
+# statuses[] entries are [label, count, dims_url] triples -- see
+# docs/poms_client_gotchas.md.
+STATUS_LABEL_SUBMITTED = "Submitted to SAM: "
+STATUS_LABEL_PENDING = "Pending: "
 
 # The stage's current param_overrides (what SUBGROUP_OVERRIDE_KEY writes to)
 # gets overwritten by later runs and doesn't reflect what a past submission
@@ -51,28 +56,6 @@ class PomsSession:
             )
         return self._campaign_stage_id
 
-    def check_auth(self):
-        """Best-effort warning if the proxy/token uploaded to POMS looks stale."""
-        options = types.SimpleNamespace(
-            test=None, experiment=self.cfg["experiment"], verbose=False
-        )
-        # suppress poms_client's noisy traceback-on-failure inside check_stale_*()
-        root_logger = logging.getLogger()
-        previous_level = root_logger.level
-        root_logger.setLevel(logging.CRITICAL)
-        try:
-            if self.pc.auth_token():
-                stale = self.pc.check_stale_token(options)
-            else:
-                stale = self.pc.check_stale_proxy(options)
-        except Exception:
-            root_logger.setLevel(previous_level)
-            logging.exception("could not check auth staleness, continuing anyway")
-            return
-        root_logger.setLevel(previous_level)
-        if stale:
-            logging.warning("POMS auth (proxy/token) looks stale — renew before relying on this run")
-
     def get_progress(self):
         """Status/pct_complete of the currently relevant Submission(s)."""
         ok, resp = self.pc.campaign_stage_submissions(
@@ -97,17 +80,17 @@ class PomsSession:
             pct_complete = submission.get("pct_complete")
             jobsub_job_id = submission.get("jobsub_job_id")
             subgroup = self._parse_subgroup(submission.get("command_executed"))
+            statuses = details.get("statuses", []) if ok else []
             entry = {
                 "submission_id": submission_id,
                 "status": s.get("status"),
                 "pct_complete": pct_complete,
                 "jobsub_job_id": jobsub_job_id,
                 "subgroup": subgroup,
+                "last_status_change": self._last_status_change(details.get("history", []) if ok else []),
+                "files_submitted": self._status_count(statuses, STATUS_LABEL_SUBMITTED),
+                "files_pending": self._status_count(statuses, STATUS_LABEL_PENDING),
             }
-            logging.info(
-                "progress: campaign_stage_id=%s submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s subgroup=%s",
-                self.campaign_stage_id, submission_id, entry["status"], pct_complete, jobsub_job_id, subgroup,
-            )
             result.append(entry)
 
         return result
@@ -116,6 +99,23 @@ class PomsSession:
     def _parse_subgroup(command_executed):
         match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
         return match.group(1) if match else None
+
+    @staticmethod
+    def _last_status_change(history):
+        """Most recent history[].created timestamp, or None if there's no
+        history yet. Naive Central-time strings -- see
+        docs/poms_client_gotchas.md."""
+        created = [entry.get("created") for entry in history if entry.get("created")]
+        if not created:
+            return None
+        return max(datetime.fromisoformat(c) for c in created)
+
+    @staticmethod
+    def _status_count(statuses, label):
+        for entry_label, count, *_ in statuses:
+            if entry_label == label:
+                return count
+        return None
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""

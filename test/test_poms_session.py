@@ -1,4 +1,5 @@
 import types
+from datetime import datetime
 
 import pytest
 
@@ -83,7 +84,11 @@ def test_get_progress_picks_latest_submission_when_none_running():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 102, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov", "subgroup": None}
+        {
+            "submission_id": 102, "status": "Completed", "pct_complete": 100.0,
+            "jobsub_job_id": "111@jobsub01.fnal.gov", "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        }
     ]
 
 
@@ -106,8 +111,16 @@ def test_get_progress_returns_all_running_submissions():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Running", "pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": None},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
+        {
+            "submission_id": 100, "status": "Running", "pct_complete": 10.0,
+            "jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
+        {
+            "submission_id": 101, "status": "Running", "pct_complete": 55.0,
+            "jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
     ]
 
 
@@ -132,8 +145,14 @@ def test_get_progress_treats_held_as_active_alongside_running():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None, "subgroup": None},
-        {"submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None, "subgroup": None},
+        {
+            "submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None, "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
+        {
+            "submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None, "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
     ]
 
 
@@ -156,7 +175,10 @@ def test_get_progress_treats_new_as_active_alongside_running_and_held():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None, "subgroup": None},
+        {
+            "submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None, "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
     ]
 
 
@@ -179,7 +201,10 @@ def test_get_progress_treats_idle_as_active_alongside_running_and_held():
     )
 
     assert session.get_progress() == [
-        {"submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None, "subgroup": None},
+        {
+            "submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None, "subgroup": None,
+            "last_status_change": None, "files_submitted": None, "files_pending": None,
+        },
     ]
 
 
@@ -220,6 +245,61 @@ def test_get_progress_subgroup_is_none_when_command_executed_is_missing():
     )
 
     assert session.get_progress()[0]["subgroup"] is None
+
+
+def test_get_progress_parses_last_status_change_and_file_counts():
+    # history/statuses are siblings of "submission" in the real response
+    # (confirmed live 2026-08-30, submission 3136636 -- see
+    # docs/poms_client_gotchas.md). last_status_change is the max history
+    # timestamp; files_submitted/files_pending come from the statuses[]
+    # [label, count, url] triples -- fallback layer 2 in
+    # docs/adr/0007-condor-q-primary-progress-source.md.
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    details = {
+        "submission_id": "100",
+        "submission": {"pct_complete": 0.04, "jobsub_job_id": None},
+        "history": [
+            {"created": "2026-08-28T09:03:36", "status_id": 4000},
+            {"created": "2026-08-28T11:37:25", "status_id": 4000},
+        ],
+        "statuses": [
+            ["Available output: ", 38804, "url"],
+            ["Submitted to SAM: ", 10000, "url"],
+            ["Consumed by SAM: ", 9982, "url"],
+            ["Pending: ", 299, "url"],
+        ],
+    }
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details),
+    )
+
+    entry = session.get_progress()[0]
+
+    assert entry["last_status_change"] == datetime(2026, 8, 28, 11, 37, 25)
+    assert entry["files_submitted"] == 10000
+    assert entry["files_pending"] == 299
+
+
+def test_get_progress_last_status_change_and_file_counts_are_none_when_absent():
+    submissions = [{"submission_id": 100, "status": "Running"}]
+    details = {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": None}}
+    session = make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True,
+            {"data": {"submissions": submissions}},
+        ),
+        submission_details=lambda experiment, role, submission_id: (True, details),
+    )
+
+    entry = session.get_progress()[0]
+
+    assert entry["last_status_change"] is None
+    assert entry["files_submitted"] is None
+    assert entry["files_pending"] is None
 
 
 def test_get_stage_params_finds_named_stage():

@@ -9,9 +9,6 @@ class RecordingSession:
     def __init__(self):
         self.calls = []
 
-    def check_auth(self):
-        pass
-
     def set_subgroup(self, use_pro):
         self.calls.append(("set_subgroup", use_pro))
 

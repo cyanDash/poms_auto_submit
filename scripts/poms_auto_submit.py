@@ -12,7 +12,9 @@ import fcntl
 import logging
 import os
 import sys
+from datetime import datetime, timedelta
 
+import condor_progress
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import PRO_SUBGROUP, PomsSession
 
@@ -23,6 +25,10 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 # sbndpro's production-role managed-token credkey, so this is the only role
 # any POMS call from this script could succeed with anyway.
 PRO_ELIGIBLE_ROLE = "production"
+
+# Fallback layer 2, only used when condor_q is unavailable -- see
+# docs/adr/0007-condor-q-primary-progress-source.md.
+STALE_STATUS_HOURS = 2
 
 
 def load_config(path):
@@ -82,15 +88,65 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def in_flight_submissions(cfg, submissions):
+def _stale_status_proxy_pct_complete(s, now):
+    """Fallback layer 2 -- see docs/adr/0007-condor-q-primary-progress-source.md."""
+    pct_complete = s["pct_complete"]
+    last_status_change = s.get("last_status_change")
+    if last_status_change is None or now - last_status_change < timedelta(hours=STALE_STATUS_HOURS):
+        return pct_complete
+
+    files_submitted = s.get("files_submitted")
+    files_pending = s.get("files_pending")
+    if not files_submitted:
+        return pct_complete
+
+    proxy = (files_submitted - files_pending) / files_submitted * 100
+    logging.warning(
+        "submission_id=%s: pct_complete=%s stale since %s (>%dh) -- using statuses-array proxy=%.2f "
+        "(files_submitted=%d files_pending=%d)",
+        s.get("submission_id"), pct_complete, last_status_change, STALE_STATUS_HOURS, proxy,
+        files_submitted, files_pending,
+    )
+    return proxy
+
+
+def _log_progress(s, pct_complete, source):
+    logging.info(
+        "progress: submission_id=%s status=%s pct_complete=%s (source=%s) jobsub_job_id=%s subgroup=%s",
+        s.get("submission_id"), s.get("status"), pct_complete, source, s.get("jobsub_job_id"), s.get("subgroup"),
+    )
+
+
+def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
+    """3-layer fallback chain -- see docs/adr/0007-condor-q-primary-progress-source.md."""
+    get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
+    condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
+    if condor_pct is not None:
+        effective, source = condor_pct, "condor_q"
+    else:
+        effective, source = _stale_status_proxy_pct_complete(s, now), "poms"
+    effective = round(effective, 2)
+    _log_progress(s, effective, source)
+    return effective
+
+
+def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Active submissions still under pct_complete_threshold -- i.e. occupying
     a slot this run hasn't freed up yet (see CONTEXT.md's Status entry and
     docs/adr/0005-in-flight-slot-based-decision.md)."""
+    now = now or datetime.now()
     threshold = cfg["pct_complete_threshold"]
-    return [s for s in submissions if s["pct_complete"] is None or s["pct_complete"] < threshold]
+    in_flight = []
+    for s in submissions:
+        if s["pct_complete"] is None:
+            _log_progress(s, None, "poms")
+            in_flight.append(s)
+        elif _effective_pct_complete(cfg, s, now, get_condor_pct_complete) < threshold:
+            in_flight.append(s)
+    return in_flight
 
 
-def next_slice_count(cfg, submissions):
+def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Decide how many new slices to submit this run (0, 1, or 2): enough to
     bring the in-flight count up to target, capped by remaining_splits."""
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
@@ -102,7 +158,7 @@ def next_slice_count(cfg, submissions):
         return 0
 
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
-    in_flight = in_flight_submissions(cfg, submissions)
+    in_flight = in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
     num_slices = max(0, target - len(in_flight))
     subgroup_plan = plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
@@ -131,7 +187,7 @@ def plan_subgroups(num_slices, role, pro_available):
     return [True] + [False] * (num_slices - 1)
 
 
-def plan_next_slices(cfg, session):
+def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     """Decide how many new slices to submit this run and which subgroup each gets.
 
     Returns a list with one entry per slice to submit (True = pro subgroup,
@@ -139,11 +195,11 @@ def plan_next_slices(cfg, session):
     """
     submissions = session.get_progress()
 
-    num_slices = next_slice_count(cfg, submissions)
+    num_slices = next_slice_count(cfg, submissions, now, get_condor_pct_complete)
     if num_slices == 0:
         return []
 
-    in_flight = in_flight_submissions(cfg, submissions)
+    in_flight = in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
     return plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
 
 
@@ -151,15 +207,14 @@ def run(cfg, dry_run):
     import poms_client as pc
 
     session = PomsSession(pc, cfg)
-    session.check_auth()
 
     try:
         plan = plan_next_slices(cfg, session)
     except RuntimeError:
-        # poms_client raises RuntimeError on non-2xx HTTP (e.g. a proxy/token that
-        # expired between the stale-auth warning above and this call, HTTP 403).
-        # Treat as a skip for this cycle rather than a hard failure -- the next
-        # hourly run will pick up cleanly once the token is renewed.
+        # poms_client raises RuntimeError on non-2xx HTTP (e.g. an expired
+        # proxy/token, HTTP 403). Treat as a skip for this cycle rather than
+        # a hard failure -- the next hourly run will pick up cleanly once
+        # the token is renewed.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
     if not plan:

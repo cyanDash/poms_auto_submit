@@ -57,6 +57,52 @@ actually returns. Confirmed live against production POMS:
   what the server actually said, bypass `make_poms_call()` — see
   `test/debug_raw_call.py`, which replicates its auth/POST logic without the
   buggy formatting.
+- **Server**: `pct_complete` can stop being recalculated for a submission
+  while it's still nominally active, leaving it stuck at a stale (often
+  near-zero) value indefinitely. Observed live 2026-08-30 on submission
+  3136636 (campaign_stage_id=26971, `decode_reco1_reco2_caf`), captured with
+  `test/get_submission_progress.py`:
+  ```json
+  {
+    "submission_id": "3136636",
+    "submission": {
+      "files_consumed": 9982,
+      "files_generated": 10000,
+      "pct_complete": 0.043215211754537596
+    },
+    "history": [
+      {"created": "2026-08-28T09:03:36", "status_id": 4000},
+      {"created": "2026-08-28T11:37:25", "status_id": 4000}
+    ],
+    "statuses": [
+      ["Available output: ", 38804, "..."],
+      ["Submitted to SAM: ", 10000, "..."],
+      ["Consumed by SAM: ", 9982, "..."],
+      ["Pending: ", 299, "..."]
+    ]
+  }
+  ```
+  `pct_complete` reads as essentially 0%, but `files_consumed` and the
+  `statuses` array (computed fresh per call from live SAM dimension
+  queries, not cached like `pct_complete`) both show ~97-99% real progress.
+  `history` confirms it's `pct_complete` itself that's stuck: repeated
+  `status_id=4000` ("Running") entries stop dead at `11:37:25` — no new
+  entry in the two days since. But the `statuses` array can *also* be
+  stuck/wrong (observed the same day on a different submission, 3138475 —
+  all four counts read `0` because the dims strings reference
+  `snapshot_for_project_name None`, the submission having never gotten
+  attached to a real SAM project while stuck in `New`). Neither POMS-side
+  signal is trustworthy alone — see
+  `docs/adr/0007-condor-q-primary-progress-source.md` for why `condor_q`
+  (real HTCondor state) is now the primary progress source, with these two
+  as a fallback chain. `history[].created`/`submission.created` are naive
+  strings in Central time (the POMS host and every `poms_auto_submit` cron
+  host are both FNAL/CDT, so a plain `datetime.fromisoformat`/
+  `datetime.now()` comparison is valid without extra timezone handling).
+  `PomsSession.get_progress()` surfaces `last_status_change` (max
+  `history[].created`) and `files_submitted`/`files_pending` (from the
+  `statuses` labels `"Submitted to SAM: "`/`"Pending: "`) for
+  `poms_auto_submit.py`'s fallback chain to use.
 
 ## `param_overrides` must be pre-serialized
 
