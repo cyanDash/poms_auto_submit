@@ -37,9 +37,25 @@ def test_effective_pct_complete_is_rounded_to_two_decimal_places(caplog):
     submissions = make_submissions(sub(1, 0.04))
     with caplog.at_level("INFO"):
         psc.in_flight_submissions(
-            make_cfg(), submissions, now=NOW, get_condor_pct_complete=lambda e, j: 99.98000399920016
+            make_cfg(), submissions, now=NOW, get_condor_pct_complete=lambda e, j: 95.98000399920016
         )
-    assert "pct_complete=99.98 " in caplog.text
+    assert "pct_complete=95.98 " in caplog.text
+
+
+# --- suppress log noise for submissions that are effectively done ---
+
+def test_progress_is_not_logged_when_past_99_percent(caplog):
+    submissions = make_submissions(sub(1, 0.04))
+    with caplog.at_level("INFO"):
+        psc.in_flight_submissions(make_cfg(), submissions, now=NOW, get_condor_pct_complete=lambda e, j: 99.98)
+    assert "submission_id=1" not in caplog.text
+
+
+def test_progress_is_logged_at_exactly_99_percent(caplog):
+    submissions = make_submissions(sub(1, 0.04))
+    with caplog.at_level("INFO"):
+        psc.in_flight_submissions(make_cfg(), submissions, now=NOW, get_condor_pct_complete=lambda e, j: 99.0)
+    assert "pct_complete=99.0 " in caplog.text
 
 
 def test_condor_pct_complete_resolves_even_when_pct_complete_is_none():

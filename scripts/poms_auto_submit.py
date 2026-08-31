@@ -116,6 +116,10 @@ def _stale_status_proxy_pct_complete(s, now):
 
 
 def _log_progress(s, pct_complete, source):
+    # A submission past this point is effectively done -- logging it every
+    # run just adds noise once there's nothing left to decide about it.
+    if pct_complete is not None and pct_complete > 99:
+        return
     logging.info(
         "progress: submission_id=%s status=%s pct_complete=%s (source=%s) jobsub_job_id=%s subgroup=%s",
         s.get("submission_id"), s.get("status"), pct_complete, source, s.get("jobsub_job_id"), s.get("subgroup"),
