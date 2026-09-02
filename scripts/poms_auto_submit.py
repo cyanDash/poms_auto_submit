@@ -151,16 +151,16 @@ def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=No
     return in_flight
 
 
-def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
-    """Decide how many new slices to submit this run (0, 1, or 2): enough to
-    bring the in-flight count up to target, capped by remaining_splits."""
+def _plan(cfg, submissions, now, get_condor_pct_complete):
+    """Shared by next_slice_count() and plan_next_slices() so in_flight_submissions()
+    (and its condor_q queries) only runs once per run. Returns (num_slices, in_flight)."""
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     if remaining_splits <= 0:
         logging.info(
             "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
             cfg["last_split"], cfg["max_splits"],
         )
-        return 0
+        return 0, []
 
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
     in_flight = in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
@@ -171,7 +171,13 @@ def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
         "decision: submit %d slice(s) (in_flight=%d target=%d) subgroup=%s",
         num_slices, len(in_flight), target, subgroup_plan,
     )
-    return num_slices
+    return num_slices, in_flight
+
+
+def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
+    """Decide how many new slices to submit this run (0, 1, or 2): enough to
+    bring the in-flight count up to target, capped by remaining_splits."""
+    return _plan(cfg, submissions, now, get_condor_pct_complete)[0]
 
 
 def pro_available(in_flight):
@@ -199,11 +205,10 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     """
     submissions = session.get_progress()
 
-    num_slices = next_slice_count(cfg, submissions, now, get_condor_pct_complete)
+    num_slices, in_flight = _plan(cfg, submissions, now, get_condor_pct_complete)
     if num_slices == 0:
         return []
 
-    in_flight = in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
     return plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
 
 
@@ -228,7 +233,13 @@ def run(cfg, dry_run):
 
     for use_pro in plan:
         session.set_subgroup(use_pro)
-        session.submit_next_slice()
+        submission_id = session.submit_next_slice()
+        if submission_id is None:
+            logging.info(
+                "submit_next_slice returned no submission (campaign stage exhausted) "
+                "-- stopping further slice submissions this run"
+            )
+            break
         cfg["last_split"] += 1
         persist_last_split(cfg["config_path"], cfg["last_split"])
 

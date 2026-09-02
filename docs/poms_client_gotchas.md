@@ -56,7 +56,9 @@ actually returns. Confirmed live against production POMS:
   error body down to almost nothing before raising `RuntimeError`. To see
   what the server actually said, bypass `make_poms_call()` — see
   `test/debug_raw_call.py`, which replicates its auth/POST logic without the
-  buggy formatting.
+  buggy formatting. `PomsSession.submit_next_slice()` now does this same
+  bypass in production code, not just for manual debugging — see "Distinguishing
+  a genuine campaign end from a real failure" below.
 - **Server**: `pct_complete` can stop being recalculated for a submission
   while it's still nominally active, leaving it stuck at a stale (often
   near-zero) value indefinitely. Observed live 2026-08-30 on submission
@@ -144,14 +146,36 @@ so `rfind("_")` lands inside `"submission_id"` itself and `int()` raises
 call. Confirmed live 2026-08-14, see `test/manual_test_launch.py`'s
 docstring for the full story.
 
-`PomsSession.submit_next_slice()` therefore calls
-`pc.make_poms_call(method="launch_jobs", ...)` directly (the same endpoint
-both wrappers post to) and parses `submission_id` out of the redirect URL's
-query string itself — the correct way, already proven against real
+`PomsSession.submit_next_slice()` therefore posts to the same `launch_jobs`
+endpoint both wrappers use and parses `submission_id` out of the redirect
+URL's query string itself — the correct way, already proven against real
 production launches (see `logs/` history). It also passes `test_launch=1`
-straight to that same `make_poms_call` when `config.ini`'s
-`[decision] test_launch` is enabled, rather than routing through either
-broken wrapper.
+when `config.ini`'s `[decision] test_launch` is enabled, rather than routing
+through either broken wrapper.
+
+### Distinguishing a genuine campaign end from a real failure
+
+A non-303 `launch_jobs` response isn't necessarily worth alerting on: once a
+campaign stage's Input Dataset runs out of unclaimed batches, POMS refuses
+further `launch_jobs` calls with a body containing the literal text
+`AssertionError('No more splits in this campaign.')` (confirmed live
+2026-09-02 against `campaign_stage_id=26971`, `decode_reco1_reco2_caf`, after
+its 6th successful slice). That's expected, normal completion, not a bug.
+
+Because of `make_poms_call()`'s mangling bug above, this text is unreachable
+through the normal call path — by the time `make_poms_call()` raises, the
+body has already been sliced down to nothing. `submit_next_slice()` therefore
+no longer calls `pc.make_poms_call()` at all: it makes the raw POST itself
+(`PomsSession._raw_launch_jobs_call()`, mirroring `make_poms_call()`'s
+auth+POST plumbing verbatim, minus the buggy formatting) so it can check the
+real body for `NO_MORE_SPLITS_MARKER`. A match returns `None` (treated by
+`poms_auto_submit.py`'s `run()` as graceful campaign completion — it stops
+submitting further planned slices that run, without touching `last_split`);
+anything else raises `RuntimeError` with the real, unmangled body — a useful
+side effect: any *other* `launch_jobs` failure is now fully diagnosable
+straight from the cron log, no more need to manually re-run
+`debug_raw_call.py`. See `docs/adr/0009-bypass-make-poms-call-for-launch-jobs.md`
+for the decision.
 
 ## Example `submission_details()` response (trimmed)
 

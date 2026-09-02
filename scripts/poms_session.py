@@ -9,11 +9,17 @@ import logging
 import os
 import re
 import time
+import warnings
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
+
+# See "Known upstream bugs" in docs/poms_client_gotchas.md -- make_poms_call()
+# mangles this text away entirely before submit_next_slice() ever sees it;
+# _raw_launch_jobs_call() bypasses it precisely so this check works.
+NO_MORE_SPLITS_MARKER = "No more splits in this campaign"
 
 # statuses[] entries are [label, count, dims_url] triples; see
 # docs/poms_client_gotchas.md.
@@ -192,18 +198,53 @@ class PomsSession:
         if data is None:
             raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={self.campaign_stage_id}")
 
+    def _raw_launch_jobs_call(self, **data):
+        """POST launch_jobs directly, mirroring make_poms_call()'s auth+POST
+        logic but without its Traceback-mangling bug (see
+        docs/poms_client_gotchas.md). Returns (res, status_code) always -- res
+        is the redirect Location on 303, the real unmangled body otherwise.
+        Never raises; callers decide what a given body/status means.
+        """
+        data = {k: v for k, v in data.items() if v is not None}
+        config = self.pc.getconfig({})
+        token = self.pc.auth_token()
+        base = self.pc.base_path(None, config, token is not None)
+        if token:
+            self.pc.rs.headers["Authorization"] = f"Bearer {token}"
+        else:
+            cert = self.pc.auth_cert()
+            if cert is None and base[:6] == "https:":
+                return "No client certificate", 500
+            self.pc.rs.cert = (cert, cert)
+            self.pc.rs.verify = False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            resp = self.pc.rs.post(f"{base}/launch_jobs", data=data, verify=False, allow_redirects=False)
+        res, status_code = resp.text, resp.status_code
+        resp.close()
+        if status_code == 303:
+            res = resp.headers["Location"]
+        return res, status_code
+
     def submit_next_slice(self):
-        """Launch a new Submission for the Campaign Stage."""
-        # launch_campaign_stage_jobs() crashes on success; see docs/poms_client_gotchas.md.
-        data, status = self.pc.make_poms_call(
-            method="launch_jobs",
+        """Launch a new Submission for the Campaign Stage. Returns the new
+        submission_id, or None if POMS reports the campaign stage's Input
+        Dataset is exhausted (see docs/poms_client_gotchas.md) -- treat that
+        as graceful completion, not a failure.
+        """
+        # Bypasses pc.make_poms_call() (crashes on success via its wrappers,
+        # mangles the error body on failure); see docs/poms_client_gotchas.md.
+        data, status = self._raw_launch_jobs_call(
             campaign_stage_id=self.campaign_stage_id,
             experiment=self.cfg["experiment"],
             role=self.cfg["role"],
             test_launch=1 if self.cfg.get("test_launch") else None,
         )
         if status != 303:
-            raise RuntimeError(f"launch_jobs failed: status={status} data={data}")
+            if NO_MORE_SPLITS_MARKER in data:
+                logging.info("launch_jobs: no more splits in this campaign stage -- treating as complete")
+                return None
+            raise RuntimeError(f"launch_jobs failed: HTTP status {status}\n{data}")
         submission_id = parse_qs(urlparse(data).query).get("submission_id", [None])[0]
         logging.info("submitted new slice: submission_id=%s", submission_id)
         logging.info("Getting job id...")
