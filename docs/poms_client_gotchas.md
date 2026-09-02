@@ -55,10 +55,10 @@ actually returns. Confirmed live against production POMS:
   taken on *every* error response, not just tracebacks, and mangles the real
   error body down to almost nothing before raising `RuntimeError`. To see
   what the server actually said, bypass `make_poms_call()` — see
-  `test/debug_raw_call.py`, which replicates its auth/POST logic without the
-  buggy formatting. `PomsSession.submit_next_slice()` now does this same
-  bypass in production code, not just for manual debugging — see "Distinguishing
-  a genuine campaign end from a real failure" below.
+  `raw_poms_call()` in `scripts/poms_raw_client.py`, which replicates its
+  auth/POST logic without the buggy formatting. Both `PomsSession.submit_next_slice()`
+  (production) and `test/debug_raw_call.py` (manual debugging) call it — see
+  "Distinguishing a genuine campaign end from a real failure" below.
 - **Server**: `pct_complete` can stop being recalculated for a submission
   while it's still nominally active, leaving it stuck at a stale (often
   near-zero) value indefinitely. Observed live 2026-08-30 on submission
@@ -165,17 +165,19 @@ its 6th successful slice). That's expected, normal completion, not a bug.
 Because of `make_poms_call()`'s mangling bug above, this text is unreachable
 through the normal call path — by the time `make_poms_call()` raises, the
 body has already been sliced down to nothing. `submit_next_slice()` therefore
-no longer calls `pc.make_poms_call()` at all: it makes the raw POST itself
-(`PomsSession._raw_launch_jobs_call()`, mirroring `make_poms_call()`'s
-auth+POST plumbing verbatim, minus the buggy formatting) so it can check the
-real body for `NO_MORE_SPLITS_MARKER`. A match returns `None` (treated by
-`poms_auto_submit.py`'s `run()` as graceful campaign completion — it stops
-submitting further planned slices that run, without touching `last_split`);
-anything else raises `RuntimeError` with the real, unmangled body — a useful
-side effect: any *other* `launch_jobs` failure is now fully diagnosable
-straight from the cron log, no more need to manually re-run
-`debug_raw_call.py`. See `docs/adr/0009-bypass-make-poms-call-for-launch-jobs.md`
-for the decision.
+no longer calls `pc.make_poms_call()` at all: it calls `raw_poms_call(pc,
+"launch_jobs", ...)` (`scripts/poms_raw_client.py`, mirroring
+`make_poms_call()`'s auth+POST plumbing verbatim, minus the buggy formatting)
+so it can check the real body for `NO_MORE_SPLITS_MARKER`. A match returns
+`None` (treated by `poms_auto_submit.py`'s `run()` as graceful campaign
+completion — it stops submitting further planned slices that run, without
+touching `last_split`); anything else raises `RuntimeError` with the real,
+unmangled body — a useful side effect: any *other* `launch_jobs` failure is
+now fully diagnosable straight from the cron log, no more need to manually
+re-run `debug_raw_call.py`. `debug_raw_call.py` itself calls the same
+`raw_poms_call()` rather than keeping its own copy of this plumbing — see
+`docs/adr/0009-bypass-make-poms-call-for-launch-jobs.md` for the decision and
+its update.
 
 ## Example `submission_details()` response (trimmed)
 

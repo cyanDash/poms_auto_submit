@@ -9,9 +9,10 @@ import logging
 import os
 import re
 import time
-import warnings
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
+
+from poms_raw_client import raw_poms_call
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
@@ -198,34 +199,6 @@ class PomsSession:
         if data is None:
             raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={self.campaign_stage_id}")
 
-    def _raw_launch_jobs_call(self, **data):
-        """POST launch_jobs directly, mirroring make_poms_call()'s auth+POST
-        logic but without its Traceback-mangling bug (see
-        docs/poms_client_gotchas.md). Returns (res, status_code) always -- res
-        is the redirect Location on 303, the real unmangled body otherwise.
-        Never raises; callers decide what a given body/status means.
-        """
-        data = {k: v for k, v in data.items() if v is not None}
-        config = self.pc.getconfig({})
-        token = self.pc.auth_token()
-        base = self.pc.base_path(None, config, token is not None)
-        if token:
-            self.pc.rs.headers["Authorization"] = f"Bearer {token}"
-        else:
-            cert = self.pc.auth_cert()
-            if cert is None and base[:6] == "https:":
-                return "No client certificate", 500
-            self.pc.rs.cert = (cert, cert)
-            self.pc.rs.verify = False
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            resp = self.pc.rs.post(f"{base}/launch_jobs", data=data, verify=False, allow_redirects=False)
-        res, status_code = resp.text, resp.status_code
-        resp.close()
-        if status_code == 303:
-            res = resp.headers["Location"]
-        return res, status_code
-
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage. Returns the new
         submission_id, or None if POMS reports the campaign stage's Input
@@ -234,7 +207,8 @@ class PomsSession:
         """
         # Bypasses pc.make_poms_call() (crashes on success via its wrappers,
         # mangles the error body on failure); see docs/poms_client_gotchas.md.
-        data, status = self._raw_launch_jobs_call(
+        data, status = raw_poms_call(
+            self.pc, "launch_jobs",
             campaign_stage_id=self.campaign_stage_id,
             experiment=self.cfg["experiment"],
             role=self.cfg["role"],

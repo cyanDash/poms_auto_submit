@@ -18,12 +18,11 @@ one signal that would distinguish them never survived the trip through
 
 ## The fix
 
-`submit_next_slice()` no longer calls `pc.make_poms_call()`. It reimplements
-`make_poms_call()`'s auth+POST logic itself
-(`PomsSession._raw_launch_jobs_call()`, using `self.pc.rs`/`getconfig`/
-`auth_token`/`base_path`/`auth_cert`), mirrored line-for-line minus the
-buggy formatting branch, so it sees the real status code and body. The 303
-success path is unchanged. A non-303 body containing
+`submit_next_slice()` no longer calls `pc.make_poms_call()`. It calls
+`raw_poms_call(pc, "launch_jobs", ...)` (see "Update" below), which
+reimplements `make_poms_call()`'s auth+POST logic mirrored line-for-line
+minus the buggy formatting branch, so it sees the real status code and body.
+The 303 success path is unchanged. A non-303 body containing
 `"No more splits in this campaign"` logs an INFO line and returns `None`.
 Any other non-303 raises `RuntimeError` with the real body. `run()` in
 `poms_auto_submit.py` treats `None` as "stop submitting further slices this
@@ -37,7 +36,7 @@ or a raw POMS response") now has one deliberate, narrowly-scoped exception —
 string. Its own callers still only ever see `submission_id`, `None`, or a
 `RuntimeError`, never the raw text.
 
-## Accepted tradeoff
+## Accepted tradeoff (original)
 
 This duplicates ~15 lines of `make_poms_call()`'s auth/POST plumbing rather
 than patching the vendored (CVMFS-installed, not ours to patch) library or
@@ -47,3 +46,15 @@ this copy needs updating in lockstep — the same risk already accepted for
 Judged acceptable: the duplicated logic is small, stable auth plumbing (not
 business logic), and already independently proven correct by two prior
 copies (`make_poms_call()` itself, `debug_raw_call.py`).
+
+## Update (2026-09-02): the duplication was collapsed, not accepted
+
+An architecture review flagged this tradeoff itself: two independently
+hand-copied implementations of the same auth+POST plumbing (this one, and
+`debug_raw_call.py`'s pre-existing copy) is exactly the "two adapters justify
+a seam" case, not a one-off worth duplicating. `raw_poms_call(pc, method,
+**kwargs)` now lives in `scripts/poms_raw_client.py` as the one
+implementation; `PomsSession.submit_next_slice()` and `test/debug_raw_call.py`
+both call it instead of each maintaining their own copy. The "Accepted
+tradeoff" above is superseded by this — kept for the historical reasoning,
+not as current guidance.

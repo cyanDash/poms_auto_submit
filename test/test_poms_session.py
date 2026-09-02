@@ -8,6 +8,11 @@ import poms_session
 from helpers import make_cfg
 from poms_session import PomsSession
 
+# poms_session.raw_poms_call is imported by name into this module (`from
+# poms_raw_client import raw_poms_call`), so submit_next_slice() tests
+# monkeypatch it there -- raw_poms_call's own auth/POST plumbing is
+# test_poms_raw_client.py's concern, not this file's.
+
 
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
@@ -28,31 +33,6 @@ REAL_LAUNCH_JOBS_URL = (
 # exhausted (confirmed live, campaign_stage_id=26971, decode_reco1_reco2_caf,
 # 2026-09-02) -- see docs/poms_client_gotchas.md.
 REAL_NO_MORE_SPLITS_BODY = "Unknown error AssertionError('No more splits in this campaign.')"
-
-
-class FakeResponse:
-    def __init__(self, text, status_code, headers=None):
-        self.text = text
-        self.status_code = status_code
-        self.headers = headers or {}
-
-    def close(self):
-        pass
-
-
-def make_launch_pc(post, **overrides):
-    """Defaults for the auth/base_path plumbing _raw_launch_jobs_call() uses
-    -- only submit_next_slice() tests need this; every other test's fake pc
-    never touches these names."""
-    overrides.setdefault("getconfig", lambda kwargs: {})
-    overrides.setdefault("auth_token", lambda: "test-token")
-    overrides.setdefault(
-        "base_path",
-        lambda test_client, config, has_token: "https://pomsgpvm02.fnal.gov:9443/poms/sbnd/analysis",
-    )
-    overrides.setdefault("auth_cert", lambda: None)
-    overrides.setdefault("rs", types.SimpleNamespace(post=post, headers={}))
-    return overrides
 
 
 def make_session(cfg=None, **pc_overrides):
@@ -561,66 +541,64 @@ def test_set_subgroup_false_clears_override():
     assert calls == [{"param_overrides": "[('-Osubmit.subgroup=', '')]"}]
 
 
-def test_submit_next_slice_returns_submission_id_on_success():
-    session = make_session(**make_launch_pc(
-        post=lambda url, **kw: FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL}),
-    ))
+def fake_raw_poms_call(monkeypatch, result):
+    """result: (res, status) to return, or a callable(pc, method, **kw) -> (res, status)."""
+    fn = result if callable(result) else (lambda pc, method, **kw: result)
+    monkeypatch.setattr(poms_session, "raw_poms_call", fn)
+
+
+def test_submit_next_slice_returns_submission_id_on_success(monkeypatch):
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session()
 
     assert session.submit_next_slice() == "555"
 
 
-def test_submit_next_slice_raises_with_real_body_on_other_failure():
-    session = make_session(**make_launch_pc(
-        post=lambda url, **kw: FakeResponse("some real unmangled error text", 500),
-    ))
+def test_submit_next_slice_raises_with_real_body_on_other_failure(monkeypatch):
+    fake_raw_poms_call(monkeypatch, ("some real unmangled error text", 500))
+    session = make_session()
 
     with pytest.raises(RuntimeError, match="some real unmangled error text"):
         session.submit_next_slice()
 
 
-def test_submit_next_slice_returns_none_when_no_more_splits():
+def test_submit_next_slice_returns_none_when_no_more_splits(monkeypatch):
     # Confirmed real body once a campaign stage's Input Dataset is exhausted
     # -- treated as graceful completion, not a failure; see
     # docs/poms_client_gotchas.md.
-    session = make_session(**make_launch_pc(
-        post=lambda url, **kw: FakeResponse(REAL_NO_MORE_SPLITS_BODY, 400),
-    ))
+    fake_raw_poms_call(monkeypatch, (REAL_NO_MORE_SPLITS_BODY, 400))
+    session = make_session()
 
     assert session.submit_next_slice() is None
 
 
-def test_submit_next_slice_omits_test_launch_by_default():
+def test_submit_next_slice_omits_test_launch_by_default(monkeypatch):
     calls = []
-    session = make_session(**make_launch_pc(
-        post=lambda url, **kw: calls.append(kw) or FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL}),
-    ))
+    fake_raw_poms_call(monkeypatch, lambda pc, method, **kw: calls.append(kw) or (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session()
 
     session.submit_next_slice()
 
-    assert "test_launch" not in calls[0]["data"]
+    assert calls[0]["test_launch"] is None
 
 
-def test_submit_next_slice_passes_test_launch_when_enabled():
+def test_submit_next_slice_passes_test_launch_when_enabled(monkeypatch):
     calls = []
-    session = make_session(
-        cfg=make_cfg(test_launch=True),
-        **make_launch_pc(
-            post=lambda url, **kw: calls.append(kw) or FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL}),
-        ),
-    )
+    fake_raw_poms_call(monkeypatch, lambda pc, method, **kw: calls.append(kw) or (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session(cfg=make_cfg(test_launch=True))
 
     session.submit_next_slice()
 
-    assert calls[0]["data"]["test_launch"] == 1
+    assert calls[0]["test_launch"] == 1
 
 
 def test_submit_next_slice_waits_before_looking_up_jobsub_job_id(monkeypatch):
     calls = []
     monkeypatch.setattr(poms_session.time, "sleep", lambda seconds: calls.append(("sleep", seconds)))
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     session = make_session(
         submission_details=lambda experiment, role, submission_id: calls.append(("submission_details",))
         or (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
-        **make_launch_pc(post=lambda url, **kw: FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL})),
     )
 
     session.submit_next_slice()
@@ -628,12 +606,12 @@ def test_submit_next_slice_waits_before_looking_up_jobsub_job_id(monkeypatch):
     assert calls == [("sleep", poms_session.JOBSUB_ID_POLL_SECONDS), ("submission_details",)]
 
 
-def test_submit_next_slice_looks_up_jobsub_job_id():
+def test_submit_next_slice_looks_up_jobsub_job_id(monkeypatch):
     calls = []
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     session = make_session(
         submission_details=lambda experiment, role, submission_id: calls.append(submission_id)
         or (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
-        **make_launch_pc(post=lambda url, **kw: FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL})),
     )
 
     session.submit_next_slice()
@@ -641,7 +619,7 @@ def test_submit_next_slice_looks_up_jobsub_job_id():
     assert calls == ["555"]
 
 
-def test_submit_next_slice_polls_until_jobsub_job_id_is_assigned():
+def test_submit_next_slice_polls_until_jobsub_job_id_is_assigned(monkeypatch):
     # First two lookups come back with no job id yet (not assigned), the
     # third has it -- submit_next_slice should keep polling rather than
     # giving up after the first miss.
@@ -651,24 +629,24 @@ def test_submit_next_slice_polls_until_jobsub_job_id_is_assigned():
         (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}}),
     ]
     calls = []
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     session = make_session(
         submission_details=lambda experiment, role, submission_id: calls.append(1) or responses[len(calls) - 1],
-        **make_launch_pc(post=lambda url, **kw: FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL})),
     )
 
     assert session.submit_next_slice() == "555"
     assert len(calls) == 3
 
 
-def test_submit_next_slice_keeps_polling_through_lookup_failures():
+def test_submit_next_slice_keeps_polling_through_lookup_failures(monkeypatch):
     # A failed submission_details() call (ok=False, or an exception) doesn't
     # end the poll -- it's treated as "not assigned yet", same as a bare
     # None, and polling continues until a real job id shows up.
     responses = [(False, {}), (True, {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov"}})]
     calls = []
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     session = make_session(
         submission_details=lambda experiment, role, submission_id: calls.append(1) or responses[len(calls) - 1],
-        **make_launch_pc(post=lambda url, **kw: FakeResponse("", 303, headers={"Location": REAL_LAUNCH_JOBS_URL})),
     )
 
     assert session.submit_next_slice() == "555"

@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-"""One-off debug helper: makes a raw POMS POST call the same way
-poms_client.make_poms_call() does, but prints the response body verbatim
-instead of running it through make_poms_call()'s buggy error-formatting
+"""One-off debug helper: makes a raw POMS POST call via raw_poms_call(),
+bypassing make_poms_call()'s buggy error-formatting
 (`if res.find("Traceback"):` is always truthy since str.find() returns -1,
-not found, when the string isn't in res).
+not found, when the string isn't in res) so the real response prints
+verbatim.
 
 Usage: ./debug_raw_call.py <method> key=value [key=value ...]
 Example: ./debug_raw_call.py get_campaign_stage_name campaign_stage_id=26646
 """
 
+import logging
 import os
 import sys
 
@@ -21,6 +22,7 @@ except RuntimeError as e:
     sys.exit(str(e))
 
 import poms_client as pc
+from poms_raw_client import raw_poms_call
 
 EXPERIMENT = "sbnd"
 ROLE = "production"
@@ -31,6 +33,8 @@ def main():
         print(__doc__)
         sys.exit(1)
 
+    logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+
     method = sys.argv[1]
     kwargs = {"experiment": EXPERIMENT, "role": ROLE, "fmt": "json"}
     for arg in sys.argv[2:]:
@@ -40,23 +44,9 @@ def main():
     pc.update_session_experiment(EXPERIMENT)
     pc.update_session_role(ROLE)
 
-    config = pc.getconfig({})
-    token = pc.auth_token()
-    base = pc.base_path(None, config, token is not None)
-
-    if token:
-        pc.rs.headers["Authorization"] = f"Bearer {token}"
-    else:
-        cert = pc.auth_cert()
-        pc.rs.cert = (cert, cert)
-        pc.rs.verify = False
-
-    url = f"{base}/{method}"
-    print(f"POST {url}")
-    print(f"data={kwargs}")
-    resp = pc.rs.post(url, data=kwargs, verify=False, allow_redirects=False)
-    print(f"\nstatus_code: {resp.status_code}")
-    print(f"body:\n{resp.text}")
+    res, status_code = raw_poms_call(pc, method, **kwargs)
+    print(f"\nstatus_code: {status_code}")
+    print(f"body:\n{res}")
 
 
 if __name__ == "__main__":

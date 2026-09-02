@@ -1,3 +1,16 @@
+class FakeResponse:
+    """Stands in for a requests.Response in tests of raw_poms_call() and its
+    callers -- text/status_code/headers plus a no-op close()."""
+
+    def __init__(self, text, status_code, headers=None):
+        self.text = text
+        self.status_code = status_code
+        self.headers = headers or {}
+
+    def close(self):
+        pass
+
+
 def make_cfg(**overrides):
     cfg = {
         "experiment": "sbnd",

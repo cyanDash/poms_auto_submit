@@ -137,7 +137,7 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
     return effective
 
 
-def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
+def _in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Active submissions still under pct_complete_threshold, i.e. still
     occupying a slot; see docs/adr/0005-in-flight-slot-based-decision.md.
     No signal at all counts as in-flight, conservatively."""
@@ -152,8 +152,9 @@ def in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=No
 
 
 def _plan(cfg, submissions, now, get_condor_pct_complete):
-    """Shared by next_slice_count() and plan_next_slices() so in_flight_submissions()
-    (and its condor_q queries) only runs once per run. Returns (num_slices, in_flight)."""
+    """Shared by _next_slice_count() and plan_next_slices() so
+    _in_flight_submissions() (and its condor_q queries) only runs once per
+    run. Returns (num_slices, in_flight)."""
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     if remaining_splits <= 0:
         logging.info(
@@ -163,9 +164,9 @@ def _plan(cfg, submissions, now, get_condor_pct_complete):
         return 0, []
 
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
-    in_flight = in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
+    in_flight = _in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
     num_slices = max(0, target - len(in_flight))
-    subgroup_plan = plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
+    subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
     logging.info(
         "decision: submit %d slice(s) (in_flight=%d target=%d) subgroup=%s",
@@ -174,19 +175,19 @@ def _plan(cfg, submissions, now, get_condor_pct_complete):
     return num_slices, in_flight
 
 
-def next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
+def _next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Decide how many new slices to submit this run (0, 1, or 2): enough to
     bring the in-flight count up to target, capped by remaining_splits."""
     return _plan(cfg, submissions, now, get_condor_pct_complete)[0]
 
 
-def pro_available(in_flight):
+def _pro_available(in_flight):
     """Whether the campaign's single pro slot is free; see CONTEXT.md's
     Subgroup entry."""
     return not any(s.get("subgroup") == PRO_SUBGROUP for s in in_flight)
 
 
-def plan_subgroups(num_slices, role, pro_available):
+def _plan_subgroups(num_slices, role, pro_available):
     """Decide which subgroup each new submission gets; see
     docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md and
     docs/adr/0005-in-flight-slot-based-decision.md."""
@@ -198,7 +199,11 @@ def plan_subgroups(num_slices, role, pro_available):
 
 
 def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
-    """Decide how many new slices to submit this run and which subgroup each gets.
+    """Decide how many new slices to submit this run and which subgroup each
+    gets -- the module's one interface; run() is its only caller. Everything
+    else in this module (in-flight counting, the condor_q/poms fallback
+    chain, subgroup assignment) is a private implementation detail of this
+    decision.
 
     Returns a list with one entry per slice to submit (True = pro subgroup,
     False = standard), possibly empty.
@@ -209,7 +214,7 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     if num_slices == 0:
         return []
 
-    return plan_subgroups(num_slices, cfg["role"], pro_available(in_flight))
+    return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
 
 
 def run(cfg, dry_run):
