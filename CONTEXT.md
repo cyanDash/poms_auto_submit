@@ -38,5 +38,11 @@ The SAM dataset of fcl files a campaign stage consumes as input, dividing its to
 **Subgroup**:
 The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.subgroup=` param override. Only the `production` role may hold `pro`, and only one slice at a time.
 
+**Recovery Dataset**:
+A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's output datasets (missing even one output counts as incomplete), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).
+
+**Campaign Type** (`data` / `mc`):
+Not a POMS field — inferred by `scripts/run_recovery.sh` from whether the Input Dataset's first file's name contains `data_EventBuilder`. A `data` campaign's Recovery Dataset gets prestaged from tape before its recovery slice is submitted; an `mc` (Monte Carlo) campaign's files were never written to tape from a detector, so prestaging is skipped.
+
 **Role**:
 An experiment member's submission privilege level in POMS, held in `cfg["role"]`. `analysis` is the default every experiment member has. `production` is a restricted privilege held only by people trusted to run submissions that produce datasets for the whole experiment to use — it carries priority (see Subgroup) and is the convention under which an Input Dataset always gets built (see Input Dataset). `poms_auto_submit` fixes `cfg["role"]` to `production`: it only ever runs as the `sbndpro` account, whose managed token is pinned to that role (see docs/adr/0004-run-as-sbndpro-with-managed-tokens.md).

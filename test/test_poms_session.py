@@ -547,6 +547,28 @@ def fake_raw_poms_call(monkeypatch, result):
     monkeypatch.setattr(poms_session, "raw_poms_call", fn)
 
 
+def test_set_recovery_input_dataset_sends_dataset_and_reset_split(monkeypatch):
+    calls = []
+    fake_raw_poms_call(monkeypatch, lambda pc, method, **kw: calls.append((method, kw)) or ("ok", 200))
+    session = make_session()
+
+    session.set_recovery_input_dataset("my_recovery_dataset")
+
+    method, kwargs = calls[0]
+    assert method == "update_campaign_stage"
+    assert kwargs["campaign_stage"] == 42
+    assert kwargs["dataset"] == "my_recovery_dataset"
+    assert kwargs["cs_last_split"] == 0
+
+
+def test_set_recovery_input_dataset_raises_on_failure(monkeypatch):
+    fake_raw_poms_call(monkeypatch, ("some real error text", 500))
+    session = make_session()
+
+    with pytest.raises(RuntimeError, match="some real error text"):
+        session.set_recovery_input_dataset("my_recovery_dataset")
+
+
 def test_submit_next_slice_returns_submission_id_on_success(monkeypatch):
     fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     session = make_session()

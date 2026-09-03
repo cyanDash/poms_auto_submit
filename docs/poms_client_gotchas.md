@@ -262,3 +262,100 @@ every submission gets whatever subgroup `test_param_overrides` says — never
 `PomsSession.get_progress()` therefore parses `subgroup` out of
 `command_executed` (`SUBGROUP_COMMAND_PATTERN` in `poms_session.py`), not
 out of either `param_overrides` variant.
+
+## samweb CLI output shapes (scripts/run_recovery.sh)
+
+Confirmed live 2026-09-02 against
+`aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd`
+(untrimmed captures under `docs/raw/samweb_*.txt`):
+
+- `list-definition-files <defname>` — one filename per line, no header.
+- `file-lineage children <file>` — one filename per line; `children` (not
+  `descendants`) matches this project's single-Campaign-Stage convention
+  (CONTEXT.md) where a stage's executables run as one job, so outputs are
+  direct children of the input file.
+- `get-metadata <file>` — right-padded `Key: value` lines, one per field.
+  `Dataset.Tag`'s line matches TODO.md's `grep 'Dataset.Tag' | awk -F': '`
+  approach directly. Multi-line values (e.g. `Checksum`'s `adler32`/`md5`
+  continuation lines) have no `": "` and are silently skipped by that same
+  parsing approach.
+- `count-definition-files <defname>` — a single bare integer on stdout.
+  Simpler than parsing `list-definition-files --summary`'s `Key:\tvalue`
+  block (tab-separated, confirmed live but not used by the shipped script).
+
+## `defname: X with limit N` doesn't create a stable, boundable subset
+
+Building a "small" test dataset as `defname: <big_dataset> with limit 10`
+(a natural way to grab a quick 10-file subset) does **not** behave like a
+frozen 10-file snapshot once something else wraps another `with limit/offset`
+around it. Confirmed live 2026-09-02: a manual `poms_auto_submit` test
+against exactly this kind of dataset (`cs_split_type=nfiles(10)`, base
+dataset built via `with limit 10`) produced two POMS-generated per-submission
+slices, `..._slice0_files10` (`defname: <small> with limit 10 offset 0`) and
+`..._slice1_files10` (`defname: <small> with limit 10 offset 10`) — despite
+`samweb count-definition-files <small>` reporting exactly `10` files total,
+`slice1` (offset past the supposed end) still resolved to 10 real, different
+files rather than an empty set. SAM's dimension resolver apparently inlines
+the nested `defname: <small>` back out to its own dimension text
+(`defname: <big_dataset> with limit 10`) rather than treating it as an
+already-materialized 10-file result, so the outer `with limit 10 offset 10`
+ends up querying the **original big dataset**, not the intended small
+subset — silently escaping the boundary a human would expect `with limit`
+to enforce.
+
+Taking a `samweb take-snapshot` of either side (the big dataset, or the
+small `with limit 10` one itself) does **not** fix this — confirmed live the
+same day: `samweb list-files "defname: <snapshotted small> with limit 10
+offset 10"` still returned 10 real files. That rules out dataset
+staleness/dynamism as the cause. The real mechanism: nesting *any*
+`defname: X` inside another dimension expression, snapshotted or not,
+recursively expands back to `X`'s own dimension text rather than treating
+`X` as an already-materialized result — so an outer `with limit/offset`
+composes against whatever's at the bottom of that expansion chain, not
+against a bounded N-item window. Nested `with limit`/`offset` clauses
+effectively don't compose at all; only the outermost one constrains
+anything.
+
+Practical consequence: don't use `with limit N` (snapshotted or not) to
+build a dataset meant to exercise this project's exhaustion/recovery path —
+POMS's own slicing re-wraps the campaign stage's dataset in further `with
+limit/offset` clauses, exactly the scenario that breaks. Use a dimension
+with no nested `defname:` to expand — an explicit file list is a leaf
+predicate, confirmed live to behave correctly (`with limit 10 offset 10`
+against it correctly came back empty):
+```bash
+samweb list-definition-files <big_dataset> | head -10 > files.txt
+samweb create-definition <small_dataset> "file_name $(paste -sd, files.txt)"
+```
+This does **not** affect `scripts/run_recovery.sh`'s own recovery dataset:
+its dimension (`not isparentof: (...)`) is a real membership predicate over
+the *original* input dataset, not a nested `defname:` wrapped in `with
+limit/offset`, so it isn't subject to this composition trap.
+
+## update_campaign_stage sets dataset and cs_last_split -- confirmed live
+
+`PomsSession.set_recovery_input_dataset()` calls `raw_poms_call(pc,
+"update_campaign_stage", campaign_stage=..., dataset=..., cs_last_split=0)`
+to point a campaign stage at a new Input Dataset and reset its split
+counter (TODO.md step 7). `poms_client.py`'s own `update_campaign_stage()`
+wrapper is unusable for this: it routes through `make_poms_call()` (this
+doc's `if res.find("Traceback"):` bug applies), and even on success returns
+the literal string `"status_code"` instead of the real response.
+
+Confirmed live 2026-09-02 via `test/manual_test_update_campaign_stage.py`
+against `campaign_stage_id=27002` (`scrub_detsim_reco1_reco2_caf`,
+`test_poms_auto_submit_PDS_Detvar3_sdas1`) — despite the POMS GUI's
+"sam_settings" tab not exposing "Last Split" for editing, the raw API call
+does honor it: `status=200`, `data="Success"`, and `cs_last_split` read back
+as `8` before the call, `0` after (full before/after stage dicts saved at
+`docs/raw/update_campaign_stage_27002.json`). `dataset` independently
+confirmed too, in a second call: set to `"something_silly"` (read back as
+exactly that in `after`), then restored to the real dataset name in a third
+call (`docs/raw/update_campaign_stage_27002_dataset_change.json`) — genuinely
+takes effect, not just accepted-and-ignored.
+
+Operational note: this call is destructive to the target stage's submission
+progress bookkeeping -- resetting `cs_last_split` mid-campaign means the
+next `launch_jobs` starts allocating splits from batch 0 again. Fine for
+`recovery.py`'s use (a genuinely new Input Dataset), not something to run
+against a stage with real in-progress work you want preserved.

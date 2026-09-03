@@ -20,6 +20,10 @@ logged.
    higher-priority `pro` subgroup at a time. A new slice takes it if no
    in-flight submission already does; when 2 slices go out in the same run,
    at most one of them gets `pro`.
+4. **Recover on exhaustion** — once POMS reports the Input Dataset
+   exhausted and the last slice has finished, builds and submits a recovery
+   slice for input files that never made it into an output dataset (see
+   TODO.md item 1).
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything.
 
@@ -71,6 +75,11 @@ last_split = 0
 ; when true, every submission this run makes is a Test Launch (test_param_overrides
 ; instead of param_overrides); still counts against last_split/max_splits
 test_launch = 0
+
+; set by the script once it has fully evaluated (or run) recovery for the
+; current exhaustion event; don't hand-edit while cron is active. Reset to 0
+; manually to force re-evaluation
+recovery_handled = 0
 
 [paths]
 ; path to the log file, relative to this config file's directory

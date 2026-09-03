@@ -15,8 +15,9 @@ import sys
 from datetime import datetime, timedelta
 
 import condor_progress
+import recovery
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import PRO_SUBGROUP, PomsSession
+from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -46,6 +47,7 @@ def load_config(path):
         "max_splits": parser.getint("decision", "max_splits"),
         "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
+        "recovery_handled": parser.getboolean("decision", "recovery_handled", fallback=False),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
@@ -55,25 +57,33 @@ def load_config(path):
     return cfg
 
 
-def persist_last_split(config_path, last_split):
-    """Rewrite config.ini's last_split in place; leaves comments/rest untouched."""
+def _persist_config_value(config_path, section, key, value):
+    """Rewrite one key in place in config_path; leaves comments/rest untouched."""
     with open(config_path) as f:
         lines = f.readlines()
 
-    section = None
+    current_section = None
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("[") and stripped.endswith("]"):
-            section = stripped[1:-1]
+            current_section = stripped[1:-1]
             continue
-        if section == "decision" and stripped.split("=", 1)[0].strip() == "last_split":
-            lines[i] = f"last_split = {last_split}\n"
+        if current_section == section and stripped.split("=", 1)[0].strip() == key:
+            lines[i] = f"{key} = {value}\n"
             break
     else:
-        raise RuntimeError(f"last_split key not found in [decision] section of {config_path}")
+        raise RuntimeError(f"{key} key not found in [{section}] section of {config_path}")
 
     with open(config_path, "w") as f:
         f.writelines(lines)
+
+
+def persist_last_split(config_path, last_split):
+    _persist_config_value(config_path, "decision", "last_split", last_split)
+
+
+def persist_recovery_handled(config_path, value):
+    _persist_config_value(config_path, "decision", "recovery_handled", int(bool(value)))
 
 
 def acquire_lock(lock_path):
@@ -139,12 +149,17 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
 
 def _in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
     """Active submissions still under pct_complete_threshold, i.e. still
-    occupying a slot; see docs/adr/0005-in-flight-slot-based-decision.md.
-    No signal at all counts as in-flight, conservatively."""
+    occupying a slot; see docs/adr/0005-in-flight-slot-based-decision.md and
+    docs/adr/0013 (status gate). No signal at all counts as in-flight,
+    conservatively -- but only for a submission whose status is itself
+    still active; a terminal status (e.g. Failed) is never in-flight
+    regardless of whether its progress signal is available."""
     now = now or datetime.now()
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
     for s in submissions:
+        if s.get("status") not in ACTIVE_SUBMISSION_STATUSES:
+            continue
         effective = _effective_pct_complete(cfg, s, now, get_condor_pct_complete)
         if effective is None or effective < threshold:
             in_flight.append(s)
@@ -217,6 +232,28 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
 
 
+def submit_plan(cfg, session, plan):
+    """Submit each planned slice in order (set_subgroup then
+    submit_next_slice), persisting last_split after each success. Shared by
+    run() and recovery.py's evaluate_and_run_recovery() so a recovery
+    dataset's first slice(s) go out through the exact same subgroup/decision
+    path as an ordinary run -- see docs/adr/0012. Returns True if the whole
+    plan was submitted, False if POMS reported the campaign stage exhausted
+    partway through."""
+    for use_pro in plan:
+        session.set_subgroup(use_pro)
+        submission_id = session.submit_next_slice()
+        if submission_id is None:
+            logging.info(
+                "submit_next_slice returned no submission (campaign stage exhausted) "
+                "-- stopping further slice submissions this run"
+            )
+            return False
+        cfg["last_split"] += 1
+        persist_last_split(cfg["config_path"], cfg["last_split"])
+    return True
+
+
 def run(cfg, dry_run):
     import poms_client as pc
 
@@ -236,17 +273,8 @@ def run(cfg, dry_run):
         logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    for use_pro in plan:
-        session.set_subgroup(use_pro)
-        submission_id = session.submit_next_slice()
-        if submission_id is None:
-            logging.info(
-                "submit_next_slice returned no submission (campaign stage exhausted) "
-                "-- stopping further slice submissions this run"
-            )
-            break
-        cfg["last_split"] += 1
-        persist_last_split(cfg["config_path"], cfg["last_split"])
+    if not submit_plan(cfg, session, plan):
+        recovery.evaluate_and_run_recovery(cfg, session)
 
 
 def main():

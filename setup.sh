@@ -5,7 +5,8 @@
 #
 # Sets up UPS + poms_client (so POMS_CLIENT_DIR points at the CVMFS-installed
 # poms_client.py/client.cfg, and `requests` comes from poms_client's own
-# required UPS dependency, python_request), then creates (first run only) and
+# required UPS dependency, python_request) and sam_web_client (so `samweb` is
+# on $PATH for scripts/run_recovery.sh), then creates (first run only) and
 # activates a local python venv, syncing it against requirements.txt on every
 # source (not just first creation).
 #
@@ -21,6 +22,8 @@ _poms_auto_submit_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /cvmfs/fermilab.opensciencegrid.org/products/common/etc/setups.sh
 setup poms_client
+setup sam_web_client
+export SAM_EXPERIMENT=sbnd
 
 _poms_auto_submit_venv="${_poms_auto_submit_dir}/venv"
 if [[ ! -d "${_poms_auto_submit_venv}" ]]; then

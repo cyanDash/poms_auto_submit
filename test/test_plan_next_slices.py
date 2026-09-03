@@ -52,3 +52,13 @@ def test_plan_next_slices_withholds_pro_when_already_held_in_flight():
     plan = psc.plan_next_slices(make_cfg(role="production", submit_two_slices=True), session)
 
     assert plan == [False]
+
+
+def test_plan_next_slices_submits_after_a_failed_submission_with_no_signal():
+    # A killed/failed submission (condor_q has forgotten it, no pct_complete
+    # recorded) must free its slot, not block further submission forever.
+    session = FakeSession(submissions=[{"submission_id": 1, "status": "Failed", "pct_complete": None, "subgroup": "pro"}])
+
+    plan = psc.plan_next_slices(make_cfg(role="production"), session)
+
+    assert plan == [True]

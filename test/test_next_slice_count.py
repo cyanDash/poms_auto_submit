@@ -77,3 +77,13 @@ def test_next_slice_count_treats_none_pct_complete_as_in_flight():
     submissions = make_submissions({"submission_id": 1, "status": "New", "pct_complete": None, "subgroup": None})
     num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
     assert num == 0
+
+
+def test_next_slice_count_does_not_count_failed_submission_with_no_signal_as_in_flight():
+    # A killed/failed submission with no pct_complete (condor_q has already
+    # forgotten it, POMS never recorded progress) must not be treated as
+    # in-flight just because its progress signal is unavailable -- a
+    # terminal status is never in-flight, regardless of signal.
+    submissions = make_submissions({"submission_id": 1, "status": "Failed", "pct_complete": None, "subgroup": None})
+    num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
+    assert num == 1

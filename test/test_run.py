@@ -73,6 +73,7 @@ def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, t
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True, False])
+    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: "disabled")
 
     cfg = make_cfg(config_path=str(config_path), last_split=0)
     psc.run(cfg, dry_run=False)
@@ -80,3 +81,34 @@ def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, t
     assert recording.calls == [("set_subgroup", True), ("submit_next_slice",)]
     assert cfg["last_split"] == 0
     assert "last_split = 0" in config_path.read_text()
+
+
+def test_run_calls_recovery_when_submit_next_slice_returns_none(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    recording = RecordingSessionNoMoreSplits()
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True])
+    calls = []
+    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append((cfg, session)))
+
+    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    psc.run(cfg, dry_run=False)
+
+    assert len(calls) == 1
+    assert calls[0] == (cfg, recording)
+
+
+def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    recording = RecordingSession()
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True])
+    calls = []
+    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
+
+    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    psc.run(cfg, dry_run=False)
+
+    assert calls == []
