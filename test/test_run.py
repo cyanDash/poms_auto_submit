@@ -69,6 +69,30 @@ def test_run_dry_run_does_not_submit_or_persist(monkeypatch, tmp_path):
     assert "last_split = 0" in config_path.read_text()
 
 
+def test_run_dry_run_logs_dataset_names(monkeypatch, tmp_path, caplog):
+    # last_split counts slices already submitted and doubles directly as the
+    # next 0-indexed slice number -- see docs/adr/0014.
+    config_path = make_config_file(tmp_path, last_split=4, max_splits=23)
+    recording = RecordingSession()
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True, False])
+
+    cfg = make_cfg(
+        config_path=str(config_path),
+        last_split=4,
+        max_splits=23,
+        input_dataset_template="jaz8600-Run4-offbeambnbminbias-rand12k-1_slice{n}_files500",
+    )
+    with caplog.at_level("INFO"):
+        psc.run(cfg, dry_run=True)
+
+    assert recording.calls == []
+    assert cfg["last_split"] == 4
+    assert "jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files500" in caplog.text
+    assert "jaz8600-Run4-offbeambnbminbias-rand12k-1_slice5_files500" in caplog.text
+
+
 def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, tmp_path):
     # submit_next_slice() returns None when POMS reports the campaign
     # stage's Input Dataset is exhausted -- treat as graceful completion,

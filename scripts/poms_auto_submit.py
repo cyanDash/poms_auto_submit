@@ -276,7 +276,11 @@ def run(cfg, dry_run):
 
     if dry_run:
         subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
-        logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
+        datasets = [cfg["input_dataset_template"].format(n=cfg["last_split"] + i) for i in range(len(plan))]
+        logging.info(
+            "dry-run: would submit %d slice(s) with subgroup plan=%s against dataset(s)=%s",
+            len(plan), subgroup_plan, datasets,
+        )
         return
 
     if not submit_plan(cfg, session, plan):
