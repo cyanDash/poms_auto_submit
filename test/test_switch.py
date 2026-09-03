@@ -1,4 +1,7 @@
+import configparser
 import sys
+
+import pytest
 
 import poms_auto_submit as psc
 
@@ -14,6 +17,7 @@ pct_complete_threshold = 80
 submit_two_slices = 0
 max_splits = 5
 last_split = 0
+input_dataset_template = test_dataset_slice{{n}}
 
 [paths]
 log_file = test.log
@@ -35,6 +39,26 @@ def test_load_config_switch_defaults_true_when_missing(tmp_path, monkeypatch):
     cfg = psc.load_config(str(config_path))
 
     assert cfg["switch"] is True
+
+
+def test_load_config_reads_input_dataset_template(tmp_path, monkeypatch):
+    monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
+    config_path = make_config_file(tmp_path, switch=1)
+
+    cfg = psc.load_config(str(config_path))
+
+    assert cfg["input_dataset_template"] == "test_dataset_slice{n}"
+
+
+def test_load_config_requires_input_dataset_template(tmp_path, monkeypatch):
+    # Required on this branch -- split_type=None means slices are pre-built
+    # by hand; see docs/adr/0014.
+    monkeypatch.setenv("POMS_CLIENT_DIR", str(tmp_path))
+    config_path = tmp_path / "config.ini"
+    config_path.write_text(CONFIG_TEMPLATE.replace("input_dataset_template = test_dataset_slice{{n}}\n", "").format(switch=1))
+
+    with pytest.raises(configparser.NoOptionError):
+        psc.load_config(str(config_path))
 
 
 def test_main_skips_run_when_switch_off(tmp_path, monkeypatch, caplog):

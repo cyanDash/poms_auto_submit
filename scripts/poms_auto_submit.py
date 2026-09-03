@@ -48,6 +48,9 @@ def load_config(path):
         "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "recovery_handled": parser.getboolean("decision", "recovery_handled", fallback=False),
+        # Required on this branch: split_type=None for this campaign stage,
+        # so slices are pre-built by hand. See docs/adr/0014.
+        "input_dataset_template": parser.get("decision", "input_dataset_template"),
         "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
         "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
         "config_path": os.path.abspath(path),
@@ -233,7 +236,8 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
 
 
 def submit_plan(cfg, session, plan):
-    """Submit each planned slice in order (set_subgroup then
+    """Submit each planned slice in order (set_input_dataset to the
+    pre-built slice named by last_split, set_subgroup, then
     submit_next_slice), persisting last_split after each success. Shared by
     run() and recovery.py's evaluate_and_run_recovery() so a recovery
     dataset's first slice(s) go out through the exact same subgroup/decision
@@ -241,6 +245,8 @@ def submit_plan(cfg, session, plan):
     plan was submitted, False if POMS reported the campaign stage exhausted
     partway through."""
     for use_pro in plan:
+        dataset_name = cfg["input_dataset_template"].format(n=cfg["last_split"])
+        session.set_input_dataset(dataset_name)
         session.set_subgroup(use_pro)
         submission_id = session.submit_next_slice()
         if submission_id is None:

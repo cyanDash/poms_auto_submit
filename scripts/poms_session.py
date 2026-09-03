@@ -218,6 +218,27 @@ class PomsSession:
             dataset_name, self.campaign_stage_id,
         )
 
+    def set_input_dataset(self, dataset_name):
+        """Point the Campaign Stage at a different, already-built Input
+        Dataset, without resetting cs_last_split (unlike
+        set_recovery_input_dataset() above) -- used when split_type is None
+        and slices are pre-built by hand, so POMS's own split counter isn't
+        meaningful. See docs/adr/0014-manual-per-slice-input-datasets-for-split-type-none.md."""
+        data, status = raw_poms_call(
+            self.pc, "update_campaign_stage",
+            pcl_call=1,
+            campaign_stage=self.campaign_stage_id,
+            experiment=self.cfg["experiment"],
+            role=self.cfg["role"],
+            dataset=dataset_name,
+        )
+        if status not in (200, 202):
+            raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")
+        logging.info(
+            "set input dataset=%s for campaign_stage_id=%s",
+            dataset_name, self.campaign_stage_id,
+        )
+
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage. Returns the new
         submission_id, or None if POMS reports the campaign stage's Input

@@ -21,6 +21,7 @@ def make_cfg(**overrides):
         "submit_two_slices": False,
         "max_splits": 5,
         "last_split": 0,
+        "input_dataset_template": "test_dataset_slice{n}",
     }
     cfg.update(overrides)
     return cfg

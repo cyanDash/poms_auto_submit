@@ -81,6 +81,13 @@ test_launch = 0
 ; manually to force re-evaluation
 recovery_handled = 0
 
+; required on this branch: this campaign stage's split_type is None, so POMS
+; never divides its Input Dataset into batches on its own. Slices are
+; pre-built by hand as separate SAM datasets instead; this template names
+; them. {n} is replaced with last_split (the 0-indexed slice number) before
+; each submission. See docs/adr/0014.
+input_dataset_template = base_name_slice{n}_files500
+
 [paths]
 ; path to the log file, relative to this config file's directory
 log_file = ../logs/<your log>.log

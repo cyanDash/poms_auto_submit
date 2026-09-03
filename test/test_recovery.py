@@ -63,6 +63,9 @@ class FakeSession:
     def set_recovery_input_dataset(self, dataset_name):
         self.calls.append(("set_recovery_input_dataset", dataset_name))
 
+    def set_input_dataset(self, dataset_name):
+        self.calls.append(("set_input_dataset", dataset_name))
+
     def set_subgroup(self, use_pro):
         self.calls.append(("set_subgroup", use_pro))
 
@@ -172,6 +175,7 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert result == "recovery_submitted"
     assert session.calls == [
         ("set_recovery_input_dataset", "recovery_dataset_name"),
+        ("set_input_dataset", "test_dataset_slice0"),
         ("set_subgroup", True),
         ("submit_next_slice",),
     ]
