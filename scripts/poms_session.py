@@ -62,7 +62,7 @@ class PomsSession:
         cache_dir = self.cfg.get("cache_dir")
         if not cache_dir:
             return None
-        return os.path.join(cache_dir, f"{self.campaign_stage_id}.json")
+        return os.path.join(cache_dir, f"submission_cache_{self.campaign_stage_id}.json")
 
     @property
     def cache(self):

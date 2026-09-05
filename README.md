@@ -80,17 +80,13 @@ test_launch = 0
 ; current exhaustion event; don't hand-edit while cron is active. Reset to 0
 ; manually to force re-evaluation
 recovery_handled = 0
-
-[paths]
-; path to the log file, relative to this config file's directory
-log_file = ../logs/<your log>.log
-
-; path to the lock file, relative to this config file's directory. Give each
-; campaign stage's config its own lock file.
-lock_file = ../<your lock>.lock
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
+
+Everything campaign-related (the log, the lock file, cached submission info,
+`output_definitions_<stage id>.txt`) is written under `logs/<campaign_name>/`,
+created automatically on first run — there's nothing to configure.
 
 `submit_two_slices` = 1 implies a pro and a non-pro submission can be 
 simultaneously run.
@@ -110,7 +106,7 @@ information about the currently active submissions and prints out what it
 would do given this information. It does not submit a new slice, nor does it
 update the parameters for a stage.
 
-Check `logs/poms_auto_submit.log` for the logged progress/status/decision,
+Check `logs/<campaign_name>/poms_auto_submit.log` for the logged progress/status/decision,
 then run for real once manually and confirm in the POMS page that the submission goes out:
 
 ```bash

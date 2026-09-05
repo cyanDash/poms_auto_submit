@@ -36,10 +36,16 @@ def load_config(path):
 
     setup_poms_client_path()
 
+    campaign_name = parser.get("poms", "campaign_name")
+    # One directory per campaign under logs/, holding everything campaign-related
+    # (log, lock, cache jsons, output_definitions_*.txt) except the config itself.
+    campaign_dir = os.path.join(os.path.dirname(path), "..", "logs", campaign_name)
+    os.makedirs(campaign_dir, exist_ok=True)
+
     cfg = {
         "experiment": parser.get("poms", "experiment"),
         "role": PRO_ELIGIBLE_ROLE,
-        "campaign_name": parser.get("poms", "campaign_name"),
+        "campaign_name": campaign_name,
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
         "switch": parser.getboolean("decision", "switch", fallback=True),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
@@ -48,12 +54,12 @@ def load_config(path):
         "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "recovery_handled": parser.getboolean("decision", "recovery_handled", fallback=False),
-        "log_file": os.path.join(os.path.dirname(path), parser.get("paths", "log_file")),
-        "lock_file": os.path.join(os.path.dirname(path), parser.get("paths", "lock_file")),
+        "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
+        "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
         "config_path": os.path.abspath(path),
     }
     # PomsSession's cache dir; see docs/adr/0008-cache-static-submission-fields.md.
-    cfg["cache_dir"] = os.path.dirname(cfg["log_file"])
+    cfg["cache_dir"] = campaign_dir
     return cfg
 
 

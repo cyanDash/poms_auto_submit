@@ -317,7 +317,7 @@ def test_get_progress_last_status_change_and_file_counts_are_none_when_absent():
 
 def test_get_progress_uses_cache_and_skips_submission_details(tmp_path):
     submissions = [{"submission_id": 100, "status": "Running"}]
-    (tmp_path / "42.json").write_text(
+    (tmp_path / "submission_cache_42.json").write_text(
         json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": "pro"}})
     )
     calls = []
@@ -364,7 +364,7 @@ def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
     assert entry["subgroup"] == "pro"
     assert entry["pct_complete"] == 10.0
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {"100": {"jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": "pro"}}
 
 
@@ -373,7 +373,7 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
         {"submission_id": 100, "status": "Running"},
         {"submission_id": 101, "status": "Running"},
     ]
-    (tmp_path / "42.json").write_text(
+    (tmp_path / "submission_cache_42.json").write_text(
         json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None}})
     )
     calls = []
@@ -392,7 +392,7 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
     assert result[0]["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
     assert result[1]["jobsub_job_id"] == "101@jobsub01.fnal.gov"
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {
         "100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None},
         "101": {"jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
@@ -410,7 +410,7 @@ def test_get_jobsub_job_id_writes_cache_on_success(tmp_path):
 
     session._get_jobsub_job_id("555")
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {"555": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "subgroup": "standard"}}
 
 

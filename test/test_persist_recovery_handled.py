@@ -11,9 +11,6 @@ pct_complete_threshold = 80
 max_splits = 5
 last_split = 0
 recovery_handled = 0
-
-[paths]
-log_file = poms_auto_submit.log
 """
 
 

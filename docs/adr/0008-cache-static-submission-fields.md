@@ -29,12 +29,13 @@ paid for and thrown away.
 local JSON file, keyed by `campaign_stage_id`, and skips `submission_details()`
 entirely for any active submission already in the cache:
 
-- **Location**: `<cache_dir>/<campaign_stage_id>.json`, where `cache_dir` is
-  `os.path.dirname(cfg["log_file"])` — no new `config.ini` key, just reuses
-  `log_file`'s directory. Automatically `.gitignore`d (`*.json` is already a
-  blanket rule) and automatically one-per-campaign-stage since
-  `campaign_stage_id` is unique, without needing per-config bookkeeping the
-  way `lock_file` does (see `docs/adr/0006-lock-file-configurable-per-config.md`).
+- **Location**: `<cache_dir>/submission_cache_<campaign_stage_id>.json`; as of
+  `docs/adr/0015-per-campaign-directory-under-logs.md`, `cache_dir` is
+  `logs/<campaign_name>/`. No `config.ini` key for it — automatically
+  `.gitignore`d (the whole `logs/` directory is) and automatically
+  one-per-campaign-stage since `campaign_stage_id` is unique, without needing
+  per-config bookkeeping the way `lock_file` once did (see
+  `docs/adr/0006-lock-file-configurable-per-config.md`).
 - **`campaign_stage_submissions()` still runs every time** — it's the only
   way to notice a submission made directly through the POMS UI, which the
   cache would otherwise never learn about.

@@ -14,10 +14,6 @@ pct_complete_threshold = 80
 submit_two_slices = 0
 max_splits = 5
 last_split = 0
-
-[paths]
-log_file = test.log
-lock_file = test.lock
 """
 
 
