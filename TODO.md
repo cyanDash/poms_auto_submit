@@ -13,7 +13,7 @@ Save output names in a txt file.
 6. Else: create recovery dataset, prestage input if data campaign. Campaign type can be inferred from the name of the
 input file. If it has 'data_EventBuilder' in its name then it is a data campaign.
 7. change the input dataset name in POMS, set cs_splits to 0. Submit a slice.
-- [ ] Add File Cleanup feature.
+- [x] Add File Cleanup feature.
 1. get the output defnames from the txt file saved in step 3 of the recovery campaign.
 2. rest is already implemented.
 - [ ] The cron script should be a single file instead of multiple command stringed together.

@@ -14,10 +14,12 @@ import os
 import sys
 from datetime import datetime, timedelta
 
+import cleanup
 import condor_progress
 import recovery
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
+from recovery import RECOVERY_ELIGIBLE_STATUSES
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -27,6 +29,9 @@ PRO_ELIGIBLE_ROLE = "production"
 
 # Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md.
 STALE_STATUS_HOURS = 2
+
+# Gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
+CLEANUP_PCT_COMPLETE_THRESHOLD = 98
 
 
 def load_config(path):
@@ -54,6 +59,7 @@ def load_config(path):
         "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "recovery_handled": parser.getboolean("decision", "recovery_handled", fallback=False),
+        "do_cleanup": parser.getboolean("decision", "do_cleanup", fallback=False),
         "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
         "config_path": os.path.abspath(path),
@@ -90,6 +96,10 @@ def persist_last_split(config_path, last_split):
 
 def persist_recovery_handled(config_path, value):
     _persist_config_value(config_path, "decision", "recovery_handled", int(bool(value)))
+
+
+def persist_switch(config_path, value):
+    _persist_config_value(config_path, "decision", "switch", int(bool(value)))
 
 
 def acquire_lock(lock_path):
@@ -172,18 +182,22 @@ def _in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=N
     return in_flight
 
 
+def _no_splits_left(cfg):
+    return cfg["max_splits"] - cfg["last_split"] <= 0
+
+
 def _plan(cfg, submissions, now, get_condor_pct_complete):
     """Shared by _next_slice_count() and plan_next_slices() so
     _in_flight_submissions() (and its condor_q queries) only runs once per
     run. Returns (num_slices, in_flight)."""
-    remaining_splits = cfg["max_splits"] - cfg["last_split"]
-    if remaining_splits <= 0:
+    if _no_splits_left(cfg):
         logging.info(
             "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
             cfg["last_split"], cfg["max_splits"],
         )
         return 0, []
 
+    remaining_splits = cfg["max_splits"] - cfg["last_split"]
     target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
     in_flight = _in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
     num_slices = max(0, target - len(in_flight))
@@ -238,6 +252,29 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
 
 
+def _cleanup_ready(cfg, session, now=None, get_condor_pct_complete=None):
+    """Whether the campaign (including any recovery slices) is done enough
+    to safely run duplicate-cleanup and turn the campaign stage off. Gating
+    on do_cleanup/recovery_handled/_no_splits_left alone is not enough --
+    last_split reaches max_splits the instant the last slice is *submitted*,
+    not once it's actually finished -- so this also requires the last
+    slice's own status and progress; see
+    docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
+    if not (cfg["do_cleanup"] and cfg["recovery_handled"] and _no_splits_left(cfg)):
+        return False
+
+    submissions = session.get_progress()
+    if not submissions:
+        return False
+
+    last = submissions[-1]
+    if last.get("status") not in RECOVERY_ELIGIBLE_STATUSES:
+        return False
+
+    pct = _effective_pct_complete(cfg, last, now or datetime.now(), get_condor_pct_complete)
+    return pct is not None and pct > CLEANUP_PCT_COMPLETE_THRESHOLD
+
+
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order (set_subgroup then
     submit_next_slice), persisting last_split after each success. Shared by
@@ -272,6 +309,11 @@ def run(cfg, dry_run):
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
     if not plan:
+        if dry_run:
+            if _cleanup_ready(cfg, session):
+                logging.info("dry-run: would run duplicate-cleanup and turn switch off")
+        elif _cleanup_ready(cfg, session):
+            cleanup.run_cleanup(cfg, session)
         return
 
     if dry_run:

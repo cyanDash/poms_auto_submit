@@ -70,8 +70,13 @@ def evaluate_and_run_recovery(cfg, session):
 
     stage = session.get_stage_params()
     input_dataset = stage["dataset"]
+    # A test-launch's output defnames go to a sibling file, never the real
+    # one -- cleanup.py's reader (and its "load only once" dedup) must never
+    # see output from a debug run. run_recovery.sh never reads this path
+    # back for its own dimension-building, so redirecting it here is safe.
+    suffix = "_test_launch" if cfg.get("test_launch") else ""
     output_defnames_path = os.path.join(
-        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}.txt"
+        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}{suffix}.txt"
     )
 
     try:

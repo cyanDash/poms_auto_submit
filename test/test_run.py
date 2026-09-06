@@ -112,3 +112,50 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
     psc.run(cfg, dry_run=False)
 
     assert calls == []
+
+
+# --- cleanup trigger, when plan comes back empty ---
+
+def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
+    calls = []
+    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append((cfg, session)))
+
+    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    psc.run(cfg, dry_run=False)
+
+    assert calls == [(cfg, "session")]
+
+
+def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
+    calls = []
+    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
+
+    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    psc.run(cfg, dry_run=False)
+
+    assert calls == []
+
+
+def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
+    calls = []
+    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
+
+    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    psc.run(cfg, dry_run=True)
+
+    assert calls == []

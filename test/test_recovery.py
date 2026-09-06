@@ -184,6 +184,29 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert output_path.endswith("output_definitions_42.txt")
 
 
+def test_recovery_diverts_output_defnames_for_test_launch(tmp_path, monkeypatch):
+    # cleanup.py's reader must never see a test-launch's output datasets --
+    # see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
+    config_path = make_config_file(tmp_path, last_split=5)
+    cfg = make_cfg(
+        config_path=str(config_path), recovery_handled=False, last_split=5,
+        cache_dir=str(tmp_path), campaign_name="test_campaign", test_launch=True,
+    )
+    session = FakeSession(
+        progress=[{"submission_id": 1, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": None}],
+    )
+    calls = []
+    monkeypatch.setattr(
+        recovery, "run_recovery_script",
+        lambda *a, **kw: calls.append(a) or (0.5, 0.98, "recovery_dataset_name"),
+    )
+
+    evaluate_and_run_recovery(cfg, session)
+
+    (_, _, output_path), = calls
+    assert output_path.endswith("output_definitions_42_test_launch.txt")
+
+
 def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
     # A transient POMS hiccup right after the dataset switch is retryable --
     # POMS's Input Dataset is already the recovery one, so the *ordinary*

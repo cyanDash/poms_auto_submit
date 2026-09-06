@@ -21,6 +21,8 @@ def make_cfg(**overrides):
         "submit_two_slices": False,
         "max_splits": 5,
         "last_split": 0,
+        "do_cleanup": False,
+        "recovery_handled": False,
     }
     cfg.update(overrides)
     return cfg

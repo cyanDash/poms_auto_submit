@@ -80,6 +80,10 @@ test_launch = 0
 ; current exhaustion event; don't hand-edit while cron is active. Reset to 0
 ; manually to force re-evaluation
 recovery_handled = 0
+
+; when true, automatically clean up duplicates once the campaign is fully
+; done, then turn switch off. Don't hand-edit while cron is active.
+do_cleanup = 0
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
