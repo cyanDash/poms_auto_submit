@@ -31,8 +31,7 @@ logged.
 
 Must be run as the `sbndpro` user — it has managed tokens configured, so
 the setup script can fetch a bearer token with `htgettoken` alone, no `kinit`
-needed. Also the repo already exists in the sbndpro APP area, so no need to
-clone it unless you have the need to.
+needed. Clone the repo in your working area.
 
 ```bash
 git clone https://github.com/cyanDash/poms_auto_submit.git
