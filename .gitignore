@@ -5,7 +5,7 @@ __pycache__/
 *.lock
 *.json
 *.out
-logs/output_definitions_*.txt
+logs/
 .claude/
 
 # campaign-specific config files (e.g. configs/detvar3.ini) are real
