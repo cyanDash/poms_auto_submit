@@ -181,14 +181,14 @@ def _plan(cfg, submissions, now, get_condor_pct_complete):
         )
         return 0, []
 
-    target = min(2 if cfg["submit_two_slices"] else 1, remaining_splits)
+    target = 2 if cfg["submit_two_slices"] else 1
     in_flight = _in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
-    num_slices = max(0, target - len(in_flight))
+    num_slices = min(max(0, target - len(in_flight)), remaining_splits)
     subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
     logging.info(
-        "decision: submit %d slice(s) (in_flight=%d target=%d) subgroup=%s",
-        num_slices, len(in_flight), target, subgroup_plan,
+        "decision: submit %d slice(s) (in_flight=%d target=%d remaining_splits=%d) subgroup=%s",
+        num_slices, len(in_flight), target, remaining_splits, subgroup_plan,
     )
     return num_slices, in_flight
 
