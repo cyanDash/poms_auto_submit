@@ -34,6 +34,17 @@ def test_plan_next_slices_respects_max_splits_cap():
     assert plan == [True]
 
 
+def test_plan_next_slices_submits_final_split_even_with_one_in_flight():
+    # Only one split remains before max_splits and one submission is already
+    # in flight -- the last slice should still be planned, not withheld
+    # because target collapsed to equal in_flight.
+    session = FakeSession(submissions=make_submissions(sub(1, 40.0, subgroup="standard")))
+
+    plan = psc.plan_next_slices(make_cfg(submit_two_slices=True, last_split=4, max_splits=5), session)
+
+    assert len(plan) == 1
+
+
 def test_plan_next_slices_tops_up_without_waiting_for_threshold():
     # target=2, one in-flight submission under threshold and not holding
     # pro -- top up by 1 immediately, and the new slice can take pro.

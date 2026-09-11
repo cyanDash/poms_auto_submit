@@ -71,6 +71,16 @@ def test_next_slice_count_caps_to_remaining_splits_when_both_ready():
     assert num == 1
 
 
+def test_next_slice_count_submits_final_split_even_with_one_in_flight():
+    # Only one split remains before max_splits, submit_two_slices=True, and
+    # one submission is already in flight -- the last slice should still go
+    # out to fill the second concurrency slot, not be withheld because
+    # target collapsed to equal in_flight.
+    submissions = make_submissions(sub(1, 40.0))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=True, last_split=4, max_splits=5), submissions)
+    assert num == 1
+
+
 def test_next_slice_count_treats_none_pct_complete_as_in_flight():
     # A New/Idle submission hasn't started progressing yet (pct_complete is
     # None), but it's still occupying a slot, not free capacity.
