@@ -3,7 +3,7 @@
 Cron script for SBND production: checks how far a POMS campaign
 stage's Running submissions have progressed, decides how many new slices (0,
 1, or 2) are ready to go out, and submits them via POMS. Every decision is
-logged.
+logged. Assumes that you have a well-tested campaign ready to be launched.
 
 ## What it does, each run
 
@@ -76,8 +76,7 @@ last_split = 0
 test_launch = 0
 
 ; set by the script once it has fully evaluated (or run) recovery for the
-; current exhaustion event; don't hand-edit while cron is active. Reset to 0
-; manually to force re-evaluation
+; current campaign; don't hand-edit while cron is active.
 recovery_handled = 0
 
 ; when true, automatically clean up duplicates once the campaign is fully
@@ -87,14 +86,12 @@ do_cleanup = 0
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
 
-Everything campaign-related (the log, the lock file, cached submission info,
-`output_definitions_<stage id>.txt`) is written under `logs/<campaign_name>/`,
-created automatically on first run — there's nothing to configure.
+`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
 
-`submit_two_slices` = 1 implies a pro and a non-pro submission can be 
+`submit_two_slices = 1` implies a pro and a non-pro submission can be 
 simultaneously run.
 
-`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
+If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
 
 ## Example workflow
 
@@ -102,7 +99,7 @@ Validate against a real campaign before trusting it unattended:
 
 ```bash
 source setup.sh
-./scripts/poms_auto_submit.py -c configs/<config file> --dry-run
+./scripts/poms_auto_submit.py --config configs/<config file> --dry-run
 ```
 `-c`/`--config` point at the config file to use. A dry run fetches
 information about the currently active submissions and prints out what it
@@ -131,3 +128,9 @@ Make appropriate changes for the file paths. You now have a crontab installed th
 Check the logs on a daily basis during the campaign to notice errors.
 
 Make sure to delete the crontab at the end of your campaign.
+
+# A note on the usage of LLM:
+Approximately 99% of the code and commit messages in this repository are written by Claude.
+I have tried my best to ensure transparency regarding the AI usage and also spent hours to ensure that this damn thing works.
+I have also attached the CLAUDE.md and CONTEXT.md files so that if someone uses an LLM to explore this repo, the LLM can have a better idea about the domain-specific terms and the design decisions. To ensure efficient token usage and best coding practices while avoiding slop, I have taken the
+help of [Matt Pocock's skills](https://github.com/mattpocock/skills). A tutorial for using the skills is linked [here](https://youtu.be/M6mYodf0dJM?si=BR_nni--bqirschO). These skills are a gateway to software development fundamentals, like **test-driven development**, **deep modular architecture** (fancy way of saying that your codebase should be dividable into interconnected submodules which are easy to understand in terms of what they do or depend on, but they hide away the complexities of implementation as much as possible) etc. I had the privilege of learning these concepts while working on this project and I hope you do as well.
