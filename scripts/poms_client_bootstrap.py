@@ -17,7 +17,6 @@ def setup_poms_client_path():
     if not poms_client_dir:
         raise RuntimeError(
             "POMS_CLIENT_DIR is not set. Set up UPS and poms_client first:\n"
-            "  source /cvmfs/fermilab.opensciencegrid.org/products/common/etc/setups.sh\n"
-            "  setup poms_client"
+            "  source setup.sh"
         )
     sys.path.insert(0, os.path.join(poms_client_dir, "python"))
