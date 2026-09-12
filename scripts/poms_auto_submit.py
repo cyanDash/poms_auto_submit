@@ -147,8 +147,7 @@ def _log_progress(s, pct_complete, source):
 
 def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
     """3-layer fallback chain; see docs/adr/0007-condor-q-primary-progress-source.md
-    and docs/adr/0008-cache-static-submission-fields.md (why condor_q is tried
-    even when pct_complete is None). None only if nothing is available."""
+    and docs/adr/0008-cache-static-submission-fields.md."""
     get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
     condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
     if condor_pct is not None:
@@ -164,12 +163,8 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
 
 
 def _in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
-    """Active submissions still under pct_complete_threshold, i.e. still
-    occupying a slot; see docs/adr/0005-in-flight-slot-based-decision.md and
-    docs/adr/0013 (status gate). No signal at all counts as in-flight,
-    conservatively -- but only for a submission whose status is itself
-    still active; a terminal status (e.g. Failed) is never in-flight
-    regardless of whether its progress signal is available."""
+    """Active submissions still under pct_complete_threshold; see
+    docs/adr/0005-in-flight-slot-based-decision.md and docs/adr/0013."""
     now = now or datetime.now()
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
@@ -187,9 +182,7 @@ def _no_splits_left(cfg):
 
 
 def _plan(cfg, submissions, now, get_condor_pct_complete):
-    """Shared by _next_slice_count() and plan_next_slices() so
-    _in_flight_submissions() (and its condor_q queries) only runs once per
-    run. Returns (num_slices, in_flight)."""
+    """Shared by _next_slice_count() and plan_next_slices(). Returns (num_slices, in_flight)."""
     if _no_splits_left(cfg):
         logging.info(
             "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
@@ -224,8 +217,7 @@ def _pro_available(in_flight):
 
 def _plan_subgroups(num_slices, role, pro_available):
     """Decide which subgroup each new submission gets; see
-    docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md and
-    docs/adr/0005-in-flight-slot-based-decision.md."""
+    docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md."""
     if num_slices == 0:
         return []
     if role != PRO_ELIGIBLE_ROLE or not pro_available:
@@ -235,14 +227,8 @@ def _plan_subgroups(num_slices, role, pro_available):
 
 def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
     """Decide how many new slices to submit this run and which subgroup each
-    gets -- the module's one interface; run() is its only caller. Everything
-    else in this module (in-flight counting, the condor_q/poms fallback
-    chain, subgroup assignment) is a private implementation detail of this
-    decision.
-
-    Returns a list with one entry per slice to submit (True = pro subgroup,
-    False = standard), possibly empty.
-    """
+    gets. Returns a list with one entry per slice (True = pro, False =
+    standard), possibly empty."""
     submissions = session.get_progress()
 
     num_slices, in_flight = _plan(cfg, submissions, now, get_condor_pct_complete)
@@ -253,12 +239,8 @@ def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
 
 
 def _cleanup_ready(cfg, session, now=None, get_condor_pct_complete=None):
-    """Whether the campaign (including any recovery slices) is done enough
-    to safely run duplicate-cleanup and turn the campaign stage off. Gating
-    on do_cleanup/recovery_handled/_no_splits_left alone is not enough --
-    last_split reaches max_splits the instant the last slice is *submitted*,
-    not once it's actually finished -- so this also requires the last
-    slice's own status and progress; see
+    """Whether the campaign is done enough to safely run duplicate-cleanup
+    and turn the campaign stage off; see
     docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
     if not (cfg["do_cleanup"] and cfg["recovery_handled"] and _no_splits_left(cfg)):
         return False
@@ -276,13 +258,9 @@ def _cleanup_ready(cfg, session, now=None, get_condor_pct_complete=None):
 
 
 def submit_plan(cfg, session, plan):
-    """Submit each planned slice in order (set_subgroup then
-    submit_next_slice), persisting last_split after each success. Shared by
-    run() and recovery.py's evaluate_and_run_recovery() so a recovery
-    dataset's first slice(s) go out through the exact same subgroup/decision
-    path as an ordinary run -- see docs/adr/0012. Returns True if the whole
-    plan was submitted, False if POMS reported the campaign stage exhausted
-    partway through."""
+    """Submit each planned slice in order, persisting last_split after each
+    success. Shared with recovery.py; see docs/adr/0012. Returns False if
+    POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
         session.set_subgroup(use_pro)
         submission_id = session.submit_next_slice()
