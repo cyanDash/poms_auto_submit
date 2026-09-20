@@ -162,26 +162,65 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
     return effective
 
 
-def _in_flight_submissions(cfg, submissions, now=None, get_condor_pct_complete=None):
-    """Active submissions still under pct_complete_threshold; see
-    docs/adr/0005-in-flight-slot-based-decision.md and docs/adr/0013."""
-    now = now or datetime.now()
+def _in_flight_submissions(cfg, submissions, get_condor_progress=None):
+    """Submissions still holding a slot, decided from condor_q; POMS Status
+    is only the tiebreak when condor_q has no data. See
+    docs/adr/0005-in-flight-slot-based-decision.md."""
+    get_condor_progress = get_condor_progress or condor_progress.get_progress
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
     for s in submissions:
-        if s.get("status") not in ACTIVE_SUBMISSION_STATUSES:
-            continue
-        effective = _effective_pct_complete(cfg, s, now, get_condor_pct_complete)
-        if effective is None or effective < threshold:
+        jobsub_job_id = s.get("jobsub_job_id")
+        if jobsub_job_id:
+            progress = get_condor_progress(cfg["experiment"], jobsub_job_id)
+        else:
+            progress = condor_progress.Progress("no_data")
+        if progress.outcome == "error":
+            logging.warning(
+                "condor_q failed for submission_id=%s -- holding every submission in the window",
+                s.get("submission_id"),
+            )
+            return list(submissions)
+        if _holds_slot(s, progress, threshold):
             in_flight.append(s)
     return in_flight
+
+
+def _holds_slot(s, progress, threshold):
+    active = s.get("status") in ACTIVE_SUBMISSION_STATUSES
+    _warn_if_poms_disagrees(s, progress, active)
+    if progress.outcome == "live":
+        holds = progress.pct < threshold
+    elif progress.outcome == "finished":
+        holds = False
+    else:
+        holds = active
+    _log_decision(s, progress, holds)
+    return holds
+
+
+def _warn_if_poms_disagrees(s, progress, active):
+    if (progress.outcome == "live" and not active) or (progress.outcome == "finished" and active):
+        logging.warning(
+            "POMS status disagrees with condor_q: submission_id=%s status=%s condor_q=%s",
+            s.get("submission_id"), s.get("status"), progress.outcome,
+        )
+
+
+def _log_decision(s, progress, holds):
+    logging.info(
+        "progress: submission_id=%s status=%s condor_q=%s pct=%s in_flight=%s jobsub_job_id=%s subgroup=%s",
+        s.get("submission_id"), s.get("status"), progress.outcome,
+        None if progress.pct is None else round(progress.pct, 2), holds,
+        s.get("jobsub_job_id"), s.get("subgroup"),
+    )
 
 
 def _no_splits_left(cfg):
     return cfg["max_splits"] - cfg["last_split"] <= 0
 
 
-def _plan(cfg, submissions, now, get_condor_pct_complete):
+def _plan(cfg, submissions, get_condor_progress):
     """Shared by _next_slice_count() and plan_next_slices(). Returns (num_slices, in_flight)."""
     if _no_splits_left(cfg):
         logging.info(
@@ -192,7 +231,7 @@ def _plan(cfg, submissions, now, get_condor_pct_complete):
 
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     target = 2 if cfg["submit_two_slices"] else 1
-    in_flight = _in_flight_submissions(cfg, submissions, now, get_condor_pct_complete)
+    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress)
     num_slices = min(max(0, target - len(in_flight)), remaining_splits)
     subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
@@ -203,10 +242,10 @@ def _plan(cfg, submissions, now, get_condor_pct_complete):
     return num_slices, in_flight
 
 
-def _next_slice_count(cfg, submissions, now=None, get_condor_pct_complete=None):
+def _next_slice_count(cfg, submissions, get_condor_progress=None):
     """Decide how many new slices to submit this run (0, 1, or 2): enough to
     bring the in-flight count up to target, capped by remaining_splits."""
-    return _plan(cfg, submissions, now, get_condor_pct_complete)[0]
+    return _plan(cfg, submissions, get_condor_progress)[0]
 
 
 def _pro_available(in_flight):
@@ -225,13 +264,13 @@ def _plan_subgroups(num_slices, role, pro_available):
     return [True] + [False] * (num_slices - 1)
 
 
-def plan_next_slices(cfg, session, now=None, get_condor_pct_complete=None):
+def plan_next_slices(cfg, session, get_condor_progress=None):
     """Decide how many new slices to submit this run and which subgroup each
     gets. Returns a list with one entry per slice (True = pro, False =
     standard), possibly empty."""
     submissions = session.get_progress()
 
-    num_slices, in_flight = _plan(cfg, submissions, now, get_condor_pct_complete)
+    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress)
     if num_slices == 0:
         return []
 

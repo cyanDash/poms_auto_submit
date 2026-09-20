@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 from poms_raw_client import raw_poms_call
@@ -36,6 +36,11 @@ JOBSUB_ID_POLL_SECONDS = 5
 
 # See CONTEXT.md's Status entry for why Held/New/Idle count as in-flight.
 ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
+
+# get_progress() returns every Submission created within this window whatever
+# its POMS Status, plus any POMS-active one of any age. A fixed constant, not
+# a config knob.
+SUBMISSION_WINDOW = timedelta(hours=72)
 
 
 class PomsSession:
@@ -100,8 +105,9 @@ class PomsSession:
                 self._cache_submission(submission_id, jobsub_job_id, subgroup)
         return ok, details
 
-    def get_progress(self):
-        """Status/pct_complete of the currently relevant Submission(s)."""
+    def get_progress(self, now=None):
+        """Every Submission in the 72h window, plus any POMS-active one of any
+        age. POMS Status is returned as data, never used to filter recent ones."""
         ok, resp = self.pc.campaign_stage_submissions(
             self.cfg["experiment"], self.cfg["role"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"],
         )
@@ -113,8 +119,8 @@ class PomsSession:
             return []
 
         submissions = sorted(submissions, key=lambda s: s.get("submission_id", 0))
-        active = [s for s in submissions if s.get("status") in ACTIVE_SUBMISSION_STATUSES]
-        target = active if active else [submissions[-1]]
+        cutoff = (now or datetime.now()) - SUBMISSION_WINDOW
+        target = [s for s in submissions if self._in_window(s, cutoff)]
 
         result = []
         for s in target:
@@ -147,6 +153,14 @@ class PomsSession:
             result.append(entry)
 
         return result
+
+    @staticmethod
+    def _in_window(s, cutoff):
+        if s.get("status") in ACTIVE_SUBMISSION_STATUSES:
+            return True
+        created = s.get("created")
+        # Naive Central-time string, same as history[].created.
+        return created is None or datetime.fromisoformat(created) >= cutoff
 
     @staticmethod
     def _parse_subgroup(command_executed):
