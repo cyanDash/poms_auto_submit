@@ -10,7 +10,7 @@ from typing import Optional
 
 CONDOR_Q_TIMEOUT_SECONDS = 30
 
-# jobsub_lite's condor_q wrapper adds the -G/--group flag get_pct_complete()
+# jobsub_lite's condor_q wrapper adds the -G/--group flag get_progress()
 # depends on; the plain HTCondor condor_q on $PATH doesn't understand it. Not
 # resolved via $PATH because cron's minimal PATH doesn't include this
 # directory even though an interactive login shell's does; see
@@ -74,12 +74,6 @@ def get_progress(experiment, jobsub_job_id):
     if pct >= 100:
         return Progress("finished", pct)
     return Progress("live", pct)
-
-
-def get_pct_complete(experiment, jobsub_job_id):
-    """DAG_NodesDone / DAG_NodesTotal * 100 when condor_q reports node counts
-    (live or finished), else None."""
-    return get_progress(experiment, jobsub_job_id).pct
 
 
 def _pct(done, total):

@@ -13,7 +13,6 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
 
 import cleanup
 import condor_progress
@@ -112,30 +111,6 @@ def acquire_lock(lock_path):
     lock_fh.write(str(os.getpid()))
     lock_fh.flush()
     return lock_fh
-
-
-def _log_progress(s, pct_complete):
-    # Past this point it's effectively done; skip the noise.
-    if pct_complete is not None and pct_complete > 99:
-        return
-    logging.info(
-        "progress: submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s subgroup=%s",
-        s.get("submission_id"), s.get("status"), pct_complete, s.get("jobsub_job_id"), s.get("subgroup"),
-    )
-
-
-def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
-    """condor_q is the only progress source; see docs/adr/0007-condor-q-primary-progress-source.md."""
-    get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
-    condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
-    if condor_pct is not None:
-        effective = condor_pct
-    else:
-        _log_progress(s, None)
-        return None
-    effective = round(effective, 2)
-    _log_progress(s, effective)
-    return effective
 
 
 def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, track_stuck=False):
