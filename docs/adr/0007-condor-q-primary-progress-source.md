@@ -1,5 +1,7 @@
 # Make condor_q the primary progress source, POMS signals a fallback chain
 
+> **Partly superseded by ADR-0017:** the fallback layers below (stale-status proxy, raw `pct_complete`) were removed; `condor_q` is now the only progress evidence.
+
 ## The problem
 
 `docs/adr/0005-in-flight-slot-based-decision.md` made "in-flight" (active

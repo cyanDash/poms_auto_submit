@@ -1,5 +1,7 @@
 # _in_flight_submissions() must gate on status before evaluating progress
 
+> **Superseded by ADR-0017:** POMS Status no longer gates in-flight; `condor_q` does, and Status is only the tiebreak when `condor_q` has no data.
+
 ## The problem
 
 Confirmed live 2026-09-02: a manually-killed submission (`status=Failed`,
