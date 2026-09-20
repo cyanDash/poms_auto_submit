@@ -5,6 +5,8 @@ docs/adr/0007-condor-q-primary-progress-source.md.
 
 import logging
 import subprocess
+from dataclasses import dataclass
+from typing import Optional
 
 CONDOR_Q_TIMEOUT_SECONDS = 30
 
@@ -19,42 +21,68 @@ CONDOR_Q_BIN = "/opt/jobsub_lite/bin/condor_q"
 ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal"]
 
 
-def get_pct_complete(experiment, jobsub_job_id):
-    """DAG_NodesDone / DAG_NodesTotal * 100 for the DAGMan controller job
-    behind jobsub_job_id, or None if it can't be determined."""
+JOB_STATUS_COMPLETED = "4"
+
+
+@dataclass(frozen=True)
+class Progress:
+    """outcome: "live", "finished", "no_data" or "error"; pct is set when the
+    DAG's node counts are known."""
+    outcome: str
+    pct: Optional[float] = None
+
+
+def get_progress(experiment, jobsub_job_id):
+    """Query condor_q for the DAGMan controller job behind jobsub_job_id.
+    Finished DAGs linger in the queue, so "finished" is only ever read off the
+    row itself, never inferred from the job being absent."""
     if not jobsub_job_id:
-        return None
-    cluster_id = jobsub_job_id.split("@", 1)[0]
+        return Progress("error")
+    cluster_id, _, schedd = jobsub_job_id.partition("@")
     if not cluster_id.isdigit():
-        return None
+        return Progress("error")
+
+    cmd = [CONDOR_Q_BIN, "-G", experiment]
+    if schedd:
+        cmd += ["-name", schedd]
+    cmd += [cluster_id, "-autoformat:h", *ATTRS]
 
     try:
         result = subprocess.run(
-            [CONDOR_Q_BIN, "-G", experiment, cluster_id, "-autoformat:h", *ATTRS],
-            capture_output=True, text=True, timeout=CONDOR_Q_TIMEOUT_SECONDS,
+            cmd, capture_output=True, text=True, timeout=CONDOR_Q_TIMEOUT_SECONDS,
         )
     except (subprocess.SubprocessError, OSError):
         logging.exception("condor_q failed for jobsub_job_id=%s", jobsub_job_id)
-        return None
+        return Progress("error")
 
     if result.returncode != 0:
         logging.warning(
             "condor_q exited %d for jobsub_job_id=%s: %s",
             result.returncode, jobsub_job_id, result.stderr,
         )
-        return None
+        return Progress("error")
 
     row = _parse_data_row(result.stdout)
     if row is None:
-        logging.warning(
-            "condor_q output for jobsub_job_id=%s didn't match the expected shape: %r",
-            jobsub_job_id, result.stdout,
-        )
-        return None
+        return Progress("no_data")
 
-    done, total = row["DAG_NodesDone"], row["DAG_NodesTotal"]
-    if done == "undefined" or total == "undefined":
-        return None
+    pct = _pct(row["DAG_NodesDone"], row["DAG_NodesTotal"])
+    if row["JobStatus"] == JOB_STATUS_COMPLETED:
+        return Progress("finished", pct)
+    if pct is None:
+        return Progress("no_data")
+    if pct >= 100:
+        return Progress("finished", pct)
+    return Progress("live", pct)
+
+
+def get_pct_complete(experiment, jobsub_job_id):
+    """DAG_NodesDone / DAG_NodesTotal * 100 for a live DAG, else None."""
+    progress = get_progress(experiment, jobsub_job_id)
+    return progress.pct if progress.outcome == "live" else None
+
+
+def _pct(done, total):
     try:
         done, total = int(done), int(total)
     except ValueError:
