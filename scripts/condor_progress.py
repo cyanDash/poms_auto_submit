@@ -21,17 +21,23 @@ CONDOR_Q_BIN = "/opt/jobsub_lite/bin/condor_q"
 ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal", "DAG_NodesFailed"]
 
 
+# HTCondor JobStatus codes of the DAGMan controller job.
+JOB_STATUS_NAMES = {
+    "1": "Idle", "2": "Running", "3": "Removed", "4": "Completed",
+    "5": "Held", "6": "Transferring", "7": "Suspended",
+}
 JOB_STATUS_REMOVED = "3"
 JOB_STATUS_COMPLETED = "4"
 
 
 @dataclass(frozen=True)
 class Progress:
-    """outcome: "live", "finished", "no_data" or "error"; pct and unfinished
-    (Total - Done - Failed) are set when the DAG's node counts are known."""
+    """outcome: "live", "finished", "no_data" or "error"; pct, unfinished
+    (Total - Done - Failed) and job_status (the DAG's condor_q state) are set when the DAG's node counts are known."""
     outcome: str
     pct: Optional[float] = None
     unfinished: Optional[int] = None
+    job_status: Optional[str] = None
 
 
 def get_progress(experiment, jobsub_job_id):
@@ -70,13 +76,14 @@ def get_progress(experiment, jobsub_job_id):
 
     pct = _pct(row["DAG_NodesDone"], row["DAG_NodesTotal"])
     unfinished = _unfinished(row["DAG_NodesDone"], row["DAG_NodesTotal"], row["DAG_NodesFailed"])
+    job_status = JOB_STATUS_NAMES.get(row["JobStatus"], row["JobStatus"])
     if row["JobStatus"] in (JOB_STATUS_COMPLETED, JOB_STATUS_REMOVED):
-        return Progress("finished", pct, unfinished)
+        return Progress("finished", pct, unfinished, job_status)
     if pct is None:
         return Progress("no_data")
     if pct >= 100:
-        return Progress("finished", pct, unfinished)
-    return Progress("live", pct, unfinished)
+        return Progress("finished", pct, unfinished, job_status)
+    return Progress("live", pct, unfinished, job_status)
 
 
 def _unfinished(done, total, failed):

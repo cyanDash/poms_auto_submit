@@ -7,7 +7,7 @@ import poms_auto_submit as psc
 from condor_progress import Progress
 from helpers import make_cfg
 
-LIVE = Progress("live", 10.0)
+LIVE = Progress("live", 10.0, job_status="Held")
 LIVE_PAST_THRESHOLD = Progress("live", 95.0)
 FINISHED = Progress("finished", 100.0)
 NO_DATA = Progress("no_data")
@@ -113,8 +113,8 @@ def test_logs_only_live_submissions_without_poms_status_or_flags(caplog):
 
     lines = progress_lines(caplog)
     assert len(lines) == 1
-    assert "submission_id=1" in lines[0] and "pct=" in lines[0]
-    for banned in ("Located", "Running", "Held", "status=", "in_flight", "condor_q="):
+    assert "submission_id=1" in lines[0] and "pct=" in lines[0] and "status=Held" in lines[0]
+    for banned in ("Located", "Running", "in_flight", "condor_q="):
         assert banned not in lines[0]
 
 

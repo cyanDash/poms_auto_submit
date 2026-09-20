@@ -27,19 +27,19 @@ def fake_run(stdout="", returncode=0):
 def test_get_progress_live_row(monkeypatch):
     monkeypatch.setattr(condor_progress.subprocess, "run", fake_run("2 50 100 0\n"))
 
-    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("live", 50.0, 50)
+    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("live", 50.0, 50, "Running")
 
 
 def test_get_progress_finished_on_jobstatus_completed(monkeypatch):
     monkeypatch.setattr(condor_progress.subprocess, "run", fake_run("4 400 502 0\n"))
 
-    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("finished", 79.68127490039841, 102)
+    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("finished", 79.68127490039841, 102, "Completed")
 
 
 def test_get_progress_finished_when_all_nodes_done(monkeypatch):
     monkeypatch.setattr(condor_progress.subprocess, "run", fake_run("2 502 502 0\n"))
 
-    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("finished", 100.0, 0)
+    assert get_progress("sbnd", "1@jobsub04.fnal.gov") == Progress("finished", 100.0, 0, "Running")
 
 
 def test_get_progress_no_data_on_header_only_output(monkeypatch):
@@ -85,7 +85,7 @@ def test_get_progress_error_on_unusable_jobsub_job_id():
 def test_get_progress_parses_real_repeated_header_output(monkeypatch):
     monkeypatch.setattr(condor_progress.subprocess, "run", fake_run(REAL_STDOUT))
 
-    assert get_progress("sbnd", "29756425@jobsub04.fnal.gov") == Progress("live", 1177 / 10002 * 100, 8825)
+    assert get_progress("sbnd", "29756425@jobsub04.fnal.gov") == Progress("live", 1177 / 10002 * 100, 8825, "Running")
 
 
 def test_get_progress_targets_owning_schedd(monkeypatch):
@@ -133,3 +133,9 @@ def test_get_progress_finished_on_jobstatus_removed(monkeypatch):
     monkeypatch.setattr(condor_progress.subprocess, "run", fake_run("3 10 502 0\n"))
 
     assert get_progress("sbnd", "1@jobsub04.fnal.gov").outcome == "finished"
+
+
+def test_get_progress_reports_condor_job_status_names(monkeypatch):
+    for code, name in (("1", "Idle"), ("2", "Running"), ("5", "Held")):
+        monkeypatch.setattr(condor_progress.subprocess, "run", fake_run(f"{code} 10 502 0\n"))
+        assert get_progress("sbnd", "1@jobsub04.fnal.gov").job_status == name
