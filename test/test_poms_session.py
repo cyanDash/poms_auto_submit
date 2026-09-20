@@ -652,3 +652,15 @@ def test_get_progress_window_reads_cache_for_terminal_submissions(tmp_path):
     assert calls == []
     assert entry["jobsub_job_id"] == "9@jobsub01.fnal.gov"
     assert entry["subgroup"] == "pro"
+
+
+def test_get_progress_flags_old_poms_active_submission_as_outside_window():
+    session = window_session([
+        {"submission_id": 1, "status": "Held", "created": "2026-09-10T00:00:00"},
+        {"submission_id": 2, "status": "Running", "created": "2026-09-20T00:00:00"},
+    ])
+
+    entries = session.get_progress(now=WINDOW_NOW)
+
+    assert entries[0].get("outside_window") is True
+    assert "outside_window" not in entries[1]

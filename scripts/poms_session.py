@@ -135,13 +135,15 @@ class PomsSession:
                 "jobsub_job_id": jobsub_job_id,
                 "subgroup": subgroup,
             }
+            if not self._in_window(s, cutoff, active_counts=False):
+                entry["outside_window"] = True
             result.append(entry)
 
         return result
 
     @staticmethod
-    def _in_window(s, cutoff):
-        if s.get("status") in ACTIVE_SUBMISSION_STATUSES:
+    def _in_window(s, cutoff, active_counts=True):
+        if active_counts and s.get("status") in ACTIVE_SUBMISSION_STATUSES:
             return True
         created = s.get("created")
         # Naive Central-time string, same as history[].created.

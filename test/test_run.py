@@ -159,3 +159,34 @@ def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path
     psc.run(cfg, dry_run=True)
 
     assert calls == []
+
+
+def test_run_manages_stragglers_only_when_no_splits_left(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: types.SimpleNamespace(
+        get_progress=lambda: [], campaign_stage_id=42))
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
+    monkeypatch.setattr(psc.stragglers, "manage", lambda *a, **k: calls.append(k.get("dry_run")))
+
+    psc.run(make_cfg(max_splits=5, last_split=4), dry_run=False)
+    assert calls == []
+    psc.run(make_cfg(max_splits=5, last_split=5), dry_run=True)
+    assert calls == [True]
+
+
+def test_run_survives_straggler_cache_write_failure(monkeypatch):
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: types.SimpleNamespace(
+        get_progress=lambda: [], campaign_stage_id=42))
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
+    ready = []
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: ready.append(1) or False)
+
+    def boom(*a, **k):
+        raise FileNotFoundError("no cache_dir")
+    monkeypatch.setattr(psc.stragglers, "manage", boom)
+
+    psc.run(make_cfg(max_splits=5, last_split=5), dry_run=False)
+    assert ready == [1]

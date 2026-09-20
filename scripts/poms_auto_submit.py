@@ -17,6 +17,7 @@ import sys
 import cleanup
 import condor_progress
 import recovery
+import stragglers
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
 
@@ -294,6 +295,18 @@ def _cleanup_ready(cfg, session, get_condor_progress=None):
     return not _any_still_running(cfg, submissions, get_condor_progress, CLEANUP_PCT_COMPLETE_THRESHOLD)
 
 
+def _manage_stragglers(cfg, session, dry_run):
+    try:
+        submissions = session.get_progress()
+    except RuntimeError:
+        logging.exception("could not fetch POMS progress -- skipping straggler check")
+        return
+    try:
+        stragglers.manage(cfg, getattr(session, "campaign_stage_id", None), submissions, dry_run=dry_run)
+    except OSError:
+        logging.exception("straggler check failed -- continuing with cleanup and recovery")
+
+
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order, persisting last_split after each
     success. Shared with recovery.py; see docs/adr/0012. Returns False if
@@ -323,6 +336,8 @@ def run(cfg, dry_run):
         # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
+    if _no_splits_left(cfg):
+        _manage_stragglers(cfg, session, dry_run)
     if not plan:
         if dry_run:
             if _cleanup_ready(cfg, session):

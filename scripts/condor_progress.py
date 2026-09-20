@@ -18,18 +18,20 @@ CONDOR_Q_TIMEOUT_SECONDS = 30
 CONDOR_Q_BIN = "/opt/jobsub_lite/bin/condor_q"
 
 # Order matters: JobStatus's header token is never all-digits; see _parse_data_row().
-ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal"]
+ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal", "DAG_NodesFailed"]
 
 
+JOB_STATUS_REMOVED = "3"
 JOB_STATUS_COMPLETED = "4"
 
 
 @dataclass(frozen=True)
 class Progress:
-    """outcome: "live", "finished", "no_data" or "error"; pct is set when the
-    DAG's node counts are known."""
+    """outcome: "live", "finished", "no_data" or "error"; pct and unfinished
+    (Total - Done - Failed) are set when the DAG's node counts are known."""
     outcome: str
     pct: Optional[float] = None
+    unfinished: Optional[int] = None
 
 
 def get_progress(experiment, jobsub_job_id):
@@ -67,13 +69,23 @@ def get_progress(experiment, jobsub_job_id):
         return Progress("no_data")
 
     pct = _pct(row["DAG_NodesDone"], row["DAG_NodesTotal"])
-    if row["JobStatus"] == JOB_STATUS_COMPLETED:
-        return Progress("finished", pct)
+    unfinished = _unfinished(row["DAG_NodesDone"], row["DAG_NodesTotal"], row["DAG_NodesFailed"])
+    if row["JobStatus"] in (JOB_STATUS_COMPLETED, JOB_STATUS_REMOVED):
+        return Progress("finished", pct, unfinished)
     if pct is None:
         return Progress("no_data")
     if pct >= 100:
-        return Progress("finished", pct)
-    return Progress("live", pct)
+        return Progress("finished", pct, unfinished)
+    return Progress("live", pct, unfinished)
+
+
+def _unfinished(done, total, failed):
+    """Failures leave the unfinished set; DAG_NodesQueued is deliberately not
+    used, see docs/adr/0018-remove-stalled-stragglers-before-recovery.md."""
+    try:
+        return int(total) - int(done) - int(failed)
+    except ValueError:
+        return None
 
 
 def _pct(done, total):
