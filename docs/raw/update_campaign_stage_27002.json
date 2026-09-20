@@ -1,0 +1,409 @@
+{
+  "note": "Live confirmation of update_campaign_stage's dataset=/cs_last_split= kwargs, captured 2026-09-02 via test/manual_test_update_campaign_stage.py against campaign_stage_id=27002 (scrub_detsim_reco1_reco2_caf, test_poms_auto_submit_PDS_Detvar3_sdas1). dataset was passed unchanged (idempotent); cs_last_split was passed as 0.",
+  "request": {
+    "method": "update_campaign_stage",
+    "campaign_stage": 27002,
+    "dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd",
+    "cs_last_split": 0
+  },
+  "response_status": 200,
+  "response_data": "Success",
+  "before": {
+    "campaign_stage_id": 27002,
+    "experiment": "sbnd",
+    "name": "scrub_detsim_reco1_reco2_caf",
+    "job_type_id": 23021,
+    "creator": 4670,
+    "created": "2026-08-25T13:26:43",
+    "updater": 4670,
+    "updated": "2026-08-25T17:20:22",
+    "vo_role": "Production",
+    "cs_last_split": 8,
+    "last_split_test": 10,
+    "cs_split_type": "nfiles(10)",
+    "cs_split_dimensions": null,
+    "dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd",
+    "software_version": "v10_14_02_0602",
+    "login_setup_id": 10527,
+    "param_overrides": [
+      [
+        "--stage=",
+        "scrub_detsim_reco1_reco2_caf"
+      ],
+      [
+        "-Oglobal.project_stage=",
+        "scrub_detsim_reco1_reco2_caf"
+      ],
+      [
+        "-Oglobal.version=",
+        "%(version)s"
+      ],
+      [
+        "-Oglobal.quals=",
+        "e26:prof"
+      ],
+      [
+        "-Oglobal.dataset=",
+        "%(dataset)s"
+      ],
+      [
+        "-Oglobal.fclname=",
+        "prodgenie_corsika_proton_rockbox0p1_sbnd"
+      ],
+      [
+        "-Oglobal.fclfile1=",
+        "scrub_PDS_detsim_reco1.fcl"
+      ],
+      [
+        "-Oglobal.fclfile2=",
+        "standard_detsim_sbnd_PMTSPEDecrease.fcl"
+      ],
+      [
+        "-Oglobal.fclfile3=",
+        "reco1_detvar_sbnd.fcl"
+      ],
+      [
+        "-Oglobal.fclfile4=",
+        "standard_reco2_sbnd.fcl"
+      ],
+      [
+        "-Oglobal.fclfile5=",
+        "cafmakerjob_sbnd_sce_systtools_and_fluxwgt_and_g4rw.fcl"
+      ],
+      [
+        "-Oglobal.neventsperjob=",
+        "50"
+      ],
+      [
+        "-Osubmit.n_files_per_job=",
+        "1"
+      ],
+      [
+        "-Osubmit.maxConcurrent=",
+        "1000"
+      ],
+      [
+        "-Osubmit.memory=",
+        "4GB"
+      ],
+      [
+        "-Osubmit.disk=",
+        "4GB"
+      ],
+      [
+        "-Osubmit.expected-lifetime=",
+        "4h"
+      ],
+      [
+        "-Oglobal.project_name=",
+        "FullProcessing"
+      ],
+      [
+        "-Oglobal.sample=",
+        "test_PDS_detvar_Sample3"
+      ],
+      [
+        "-Oglobal.genie_tune=",
+        "AR2520i00000"
+      ],
+      [
+        "-Oglobal.genie_tag=",
+        "v3_06_02_sbn1p1"
+      ],
+      [
+        "-Oglobal.productionlabel=",
+        "SBND2026A"
+      ],
+      [
+        "-Oenv_pass.SAVE_RECO1=",
+        "0"
+      ],
+      [
+        "-Osubmit.subgroup=",
+        "pro"
+      ]
+    ],
+    "test_param_overrides": [
+      [
+        "-Osubmit.subgroup=",
+        "test"
+      ],
+      [
+        "-Oglobal.productiontype=",
+        "test_autopoms"
+      ],
+      [
+        "-Oenv_pass.SAVE_RECO1=",
+        "0"
+      ],
+      [
+        "-Oglobal.base=",
+        "/pnfs/sbnd/scratch/users/sbndpro/poms_production/"
+      ]
+    ],
+    "test_split_type": "nfiles(5)",
+    "completion_type": "located",
+    "completion_pct": 95.0,
+    "hold_experimenter_id": null,
+    "creator_role": "production",
+    "role_held_with": null,
+    "campaign_stage_type": "regular",
+    "merge_overrides": false,
+    "output_ancestor_depth": 1,
+    "default_clear_cronjob": true,
+    "data_dispatcher_dataset_query": null,
+    "data_dispatcher_project_id": null,
+    "data_dispatcher_dataset_only": false,
+    "data_dispatcher_project_virtual": null,
+    "data_dispatcher_load_limit": null,
+    "data_dispatcher_stage_methodology": null,
+    "data_dispatcher_recovery_mode": null,
+    "data_dispatcher_idle_timeout": null,
+    "data_dispatcher_worker_timeout": null,
+    "data_dispatcher_settings": {
+      "idle_timeout": null,
+      "worker_timeout": null,
+      "project_id": null,
+      "dataset_query": null,
+      "virtual": null,
+      "stage_methodology": null,
+      "recovery_mode": null,
+      "load_limit": null
+    },
+    "campaign_id": 11503,
+    "experimenter_creator_obj": {
+      "experimenter_id": 4670,
+      "first_name": "Sayan",
+      "last_name": "Das",
+      "username": "sdas1",
+      "last_login": "2024-09-11T16:25:03",
+      "session_experiment": "sbnd",
+      "session_role": "production",
+      "root": false,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "experimenter_updater_obj": {
+      "experimenter_id": 4670,
+      "first_name": "Sayan",
+      "last_name": "Das",
+      "username": "sdas1",
+      "last_login": "2024-09-11T16:25:03",
+      "session_experiment": "sbnd",
+      "session_role": "production",
+      "root": false,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "experimenter_holder_obj": null,
+    "experiment_obj": null,
+    "job_type_obj": null,
+    "login_setup_obj": null,
+    "campaign_obj": {
+      "name": "test_poms_auto_submit_PDS_Detvar3_sdas1"
+    },
+    "providers": null,
+    "consumers": null,
+    "consumer_associations": null,
+    "provider_associations": null
+  },
+  "after": {
+    "campaign_stage_id": 27002,
+    "experiment": "sbnd",
+    "name": "scrub_detsim_reco1_reco2_caf",
+    "job_type_id": 23021,
+    "creator": 4670,
+    "created": "2026-08-25T13:26:43",
+    "updater": 486,
+    "updated": "2026-09-02T13:46:00",
+    "vo_role": "Production",
+    "cs_last_split": 0,
+    "last_split_test": 10,
+    "cs_split_type": "nfiles(10)",
+    "cs_split_dimensions": null,
+    "dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd",
+    "software_version": "v10_14_02_0602",
+    "login_setup_id": 10527,
+    "param_overrides": [
+      [
+        "--stage=",
+        "scrub_detsim_reco1_reco2_caf"
+      ],
+      [
+        "-Oglobal.project_stage=",
+        "scrub_detsim_reco1_reco2_caf"
+      ],
+      [
+        "-Oglobal.version=",
+        "%(version)s"
+      ],
+      [
+        "-Oglobal.quals=",
+        "e26:prof"
+      ],
+      [
+        "-Oglobal.dataset=",
+        "%(dataset)s"
+      ],
+      [
+        "-Oglobal.fclname=",
+        "prodgenie_corsika_proton_rockbox0p1_sbnd"
+      ],
+      [
+        "-Oglobal.fclfile1=",
+        "scrub_PDS_detsim_reco1.fcl"
+      ],
+      [
+        "-Oglobal.fclfile2=",
+        "standard_detsim_sbnd_PMTSPEDecrease.fcl"
+      ],
+      [
+        "-Oglobal.fclfile3=",
+        "reco1_detvar_sbnd.fcl"
+      ],
+      [
+        "-Oglobal.fclfile4=",
+        "standard_reco2_sbnd.fcl"
+      ],
+      [
+        "-Oglobal.fclfile5=",
+        "cafmakerjob_sbnd_sce_systtools_and_fluxwgt_and_g4rw.fcl"
+      ],
+      [
+        "-Oglobal.neventsperjob=",
+        "50"
+      ],
+      [
+        "-Osubmit.n_files_per_job=",
+        "1"
+      ],
+      [
+        "-Osubmit.maxConcurrent=",
+        "1000"
+      ],
+      [
+        "-Osubmit.memory=",
+        "4GB"
+      ],
+      [
+        "-Osubmit.disk=",
+        "4GB"
+      ],
+      [
+        "-Osubmit.expected-lifetime=",
+        "4h"
+      ],
+      [
+        "-Oglobal.project_name=",
+        "FullProcessing"
+      ],
+      [
+        "-Oglobal.sample=",
+        "test_PDS_detvar_Sample3"
+      ],
+      [
+        "-Oglobal.genie_tune=",
+        "AR2520i00000"
+      ],
+      [
+        "-Oglobal.genie_tag=",
+        "v3_06_02_sbn1p1"
+      ],
+      [
+        "-Oglobal.productionlabel=",
+        "SBND2026A"
+      ],
+      [
+        "-Oenv_pass.SAVE_RECO1=",
+        "0"
+      ],
+      [
+        "-Osubmit.subgroup=",
+        "pro"
+      ]
+    ],
+    "test_param_overrides": [
+      [
+        "-Osubmit.subgroup=",
+        "test"
+      ],
+      [
+        "-Oglobal.productiontype=",
+        "test_autopoms"
+      ],
+      [
+        "-Oenv_pass.SAVE_RECO1=",
+        "0"
+      ],
+      [
+        "-Oglobal.base=",
+        "/pnfs/sbnd/scratch/users/sbndpro/poms_production/"
+      ]
+    ],
+    "test_split_type": "nfiles(5)",
+    "completion_type": "located",
+    "completion_pct": 95.0,
+    "hold_experimenter_id": null,
+    "creator_role": "production",
+    "role_held_with": null,
+    "campaign_stage_type": "regular",
+    "merge_overrides": false,
+    "output_ancestor_depth": 1,
+    "default_clear_cronjob": true,
+    "data_dispatcher_dataset_query": null,
+    "data_dispatcher_project_id": null,
+    "data_dispatcher_dataset_only": false,
+    "data_dispatcher_project_virtual": null,
+    "data_dispatcher_load_limit": null,
+    "data_dispatcher_stage_methodology": null,
+    "data_dispatcher_recovery_mode": null,
+    "data_dispatcher_idle_timeout": null,
+    "data_dispatcher_worker_timeout": null,
+    "data_dispatcher_settings": {
+      "idle_timeout": null,
+      "worker_timeout": null,
+      "project_id": null,
+      "dataset_query": null,
+      "virtual": null,
+      "stage_methodology": null,
+      "recovery_mode": null,
+      "load_limit": null
+    },
+    "campaign_id": 11503,
+    "experimenter_creator_obj": {
+      "experimenter_id": 4670,
+      "first_name": "Sayan",
+      "last_name": "Das",
+      "username": "sdas1",
+      "last_login": "2024-09-11T16:25:03",
+      "session_experiment": "sbnd",
+      "session_role": "production",
+      "root": false,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "experimenter_updater_obj": {
+      "experimenter_id": 486,
+      "first_name": "SNBD",
+      "last_name": "Production",
+      "username": "sbndpro",
+      "last_login": "2019-10-13T06:30:09",
+      "session_experiment": "minerva",
+      "session_role": "production",
+      "root": true,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "experimenter_holder_obj": null,
+    "experiment_obj": null,
+    "job_type_obj": null,
+    "login_setup_obj": null,
+    "campaign_obj": {
+      "name": "test_poms_auto_submit_PDS_Detvar3_sdas1"
+    },
+    "providers": null,
+    "consumers": null,
+    "consumer_associations": null,
+    "provider_associations": null
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "elapsed_seconds": 98.20266075001564,
+  "ok": true,
+  "data": {
+    "campaign_name": "SBND2026A_gen2_InTime-Run2c_beamlight_DATA",
+    "stage_name": "decode_reco1_reco2_caf",
+    "data": {
+      "tmin": "2026-08-12T11:58:37",
+      "tmax": "2026-08-31T05:25:05",
+      "nextlink": "/poms/campaign_stage_submissions/sbnd/production?campaign_name=SBND2026A_gen2_InTime-Run2c_beamlight_DATA&stage_name=decode_reco1_reco2_caf&campaign_stage_id=26971&campaign_id=11476&tmax=2026-09-18+22:51:33&tdays=18",
+      "prevlink": "/poms/campaign_stage_submissions/sbnd/production?campaign_name=SBND2026A_gen2_InTime-Run2c_beamlight_DATA&stage_name=decode_reco1_reco2_caf&campaign_stage_id=26971&campaign_id=11476&tmax=2026-08-12+11:58:37&tdays=18",
+      "tdays": 18.72,
+      "tminsec": "1786557517",
+      "depends": {
+        "3127271": null,
+        "3127752": null,
+        "3131346": null,
+        "3131381": null,
+        "3134224": null,
+        "3136178": null,
+        "3136636": null,
+        "3138475": null,
+        "3138487": null
+      },
+      "depth": {
+        "3127271": 0,
+        "3127752": 0,
+        "3131346": 0,
+        "3131381": 0,
+        "3134224": 0,
+        "3136178": 0,
+        "3136636": 0,
+        "3138475": 0,
+        "3138487": 0
+      },
+      "darrow": {
+        "3127271": "",
+        "3127752": "",
+        "3131346": "",
+        "3131381": "",
+        "3134224": "",
+        "3136178": "",
+        "3136636": "",
+        "3138475": "",
+        "3138487": ""
+      },
+      "submissions": [
+        {
+          "submission_id": 3127271,
+          "jobsub_job_id": "85995947@jobsub01.fnal.gov",
+          "created": "2026-08-12T12:25:22",
+          "creator": "sbndpro",
+          "status": "Failed",
+          "jobsub_cluster": "85995947",
+          "jobsub_schedd": "jobsub01.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 20,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice0_files5_sbndpro_70c3c37d-e018-4cf6-8b27-a0e0447b6d4c  ) and create_date > '2026-08-12T12:25:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              20,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice0_files5_sbndpro_70c3c37d-e018-4cf6-8b27-a0e0447b6d4c  ) and create_date > '2026-08-12T12:25:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3127752,
+          "jobsub_job_id": "86030600@jobsub01.fnal.gov",
+          "created": "2026-08-13T15:25:38",
+          "creator": "sbndpro",
+          "status": "Removed",
+          "jobsub_cluster": "86030600",
+          "jobsub_schedd": "jobsub01.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 32,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice1_files5_sbndpro_730bfb6a-ba5e-402d-bbf3-a84e60ae8353  ) and create_date > '2026-08-13T15:25:38-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              32,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice1_files5_sbndpro_730bfb6a-ba5e-402d-bbf3-a84e60ae8353  ) and create_date > '2026-08-13T15:25:38-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3131346,
+          "jobsub_job_id": "29869077@jobsub05.fnal.gov",
+          "created": "2026-08-20T15:46:17",
+          "creator": "sbndpro",
+          "status": "Held",
+          "jobsub_cluster": "29869077",
+          "jobsub_schedd": "jobsub05.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 39080,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice0_files10000_sbndpro_e2eeef8f-1c71-4a2c-9c7d-549251801539  ) and create_date > '2026-08-20T15:46:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              39080,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice0_files10000_sbndpro_e2eeef8f-1c71-4a2c-9c7d-549251801539  ) and create_date > '2026-08-20T15:46:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3131381,
+          "jobsub_job_id": "29870937@jobsub05.fnal.gov",
+          "created": "2026-08-20T17:02:09",
+          "creator": "sbndpro",
+          "status": "Held",
+          "jobsub_cluster": "29870937",
+          "jobsub_schedd": "jobsub05.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 39144,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice1_files10000_sbndpro_d9c240d2-3182-4f7d-aab0-1da5330683ea  ) and create_date > '2026-08-20T17:02:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              39144,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice1_files10000_sbndpro_d9c240d2-3182-4f7d-aab0-1da5330683ea  ) and create_date > '2026-08-20T17:02:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3134224,
+          "jobsub_job_id": "29930950@jobsub05.fnal.gov",
+          "created": "2026-08-24T11:16:59",
+          "creator": "sbndpro",
+          "status": "Located",
+          "jobsub_cluster": "29930950",
+          "jobsub_schedd": "jobsub05.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 39568,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice2_files10000_sbndpro_f1347a8a-1d61-44ab-9056-7b637279d10a  ) and create_date > '2026-08-24T11:16:59-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              39568,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice2_files10000_sbndpro_f1347a8a-1d61-44ab-9056-7b637279d10a  ) and create_date > '2026-08-24T11:16:59-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3136178,
+          "jobsub_job_id": "29973300@jobsub05.fnal.gov",
+          "created": "2026-08-27T11:20:54",
+          "creator": "sbndpro",
+          "status": "Running",
+          "jobsub_cluster": "29973300",
+          "jobsub_schedd": "jobsub05.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 38928,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice3_files10000_sbndpro_bef1cd34-a305-490f-9860-63773d34b95a  ) and create_date > '2026-08-27T11:20:54-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              38928,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice3_files10000_sbndpro_bef1cd34-a305-490f-9860-63773d34b95a  ) and create_date > '2026-08-27T11:20:54-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3136636,
+          "jobsub_job_id": "71740015@jobsub03.fnal.gov",
+          "created": "2026-08-28T09:01:35",
+          "creator": "sbndpro",
+          "status": "Running",
+          "jobsub_cluster": "71740015",
+          "jobsub_schedd": "jobsub03.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 38808,
+          "output_dims": "ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  ) and create_date > '2026-08-28T09:01:35-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              38808,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  ) and create_date > '2026-08-28T09:01:35-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3138475,
+          "jobsub_job_id": "29756425@jobsub04.fnal.gov",
+          "created": "2026-08-30T10:47:03",
+          "creator": "sbndpro",
+          "status": "New",
+          "jobsub_cluster": "29756425",
+          "jobsub_schedd": "jobsub04.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 0,
+          "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:47:03-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              0,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:47:03-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        },
+        {
+          "submission_id": 3138487,
+          "jobsub_job_id": "86450837@jobsub01.fnal.gov",
+          "created": "2026-08-30T10:50:35",
+          "creator": "sbndpro",
+          "status": "New",
+          "jobsub_cluster": "86450837",
+          "jobsub_schedd": "jobsub01.fnal.gov",
+          "campaign_stage_name": "decode_reco1_reco2_caf",
+          "available_output": 0,
+          "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:50:35-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'",
+          "handler": "SAM",
+          "statuses": [
+            [
+              "Available output: ",
+              0,
+              "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:50:35-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "campaign_stage_id": 26971,
+  "captured": "2026-08-31"
+}

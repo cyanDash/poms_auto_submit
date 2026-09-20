@@ -4,6 +4,7 @@ __pycache__/
 *.log
 *.lock
 *.json
+!docs/**/*.json
 *.out
 logs/
 .claude/
