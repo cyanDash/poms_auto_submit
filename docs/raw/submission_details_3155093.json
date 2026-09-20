@@ -1,0 +1,574 @@
+{
+  "submission_id": "3155093",
+  "submission": {
+    "submission_id": 3155093,
+    "campaign_stage_id": 26985,
+    "creator": 486,
+    "created": "2026-09-18T21:00:17",
+    "submission_params": {
+      "dataset": "jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500"
+    },
+    "depends_on": null,
+    "depend_threshold": null,
+    "updater": 486,
+    "updated": "2026-09-20T08:57:59",
+    "command_executed": "jobsub_submit /opt/jobsub_lite/bin/jobsub_submit -e IFDH_DEBUG -e SAM_EXPERIMENT -e SAM_GROUP -e SAM_STATION -e SAM_WEB_HOST -e IFDH_BASE_URI -e IFDH_TOKEN_ENABLE -e IFDH_PROXY_ENABLE -e LC_ALL -e POMS_CAMPAIGN_ID -e POMS_TASK_ID -e POMS_ENV --group=sbnd --subgroup=standard --role=production --resource-provides=usage_model=OPPORTUNISTICDEDICATEDOFFSITE --expected-lifetime=24h --memory=16GB -N 500 --generate-email-summary --append_condor_requirements=(TARGET.HAS_CVMFS_icarus_opensciencegrid_org==true)&&(TARGET.HAS_SINGULARITY=?=true) --lines=+SingularityImage=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-sl7:latest --lines=+FERMIHTC_AutoRelease=True --lines=+FERMIHTC_GraceMemory=6000 --lines=+FERMIHTC_GraceLifetime=3600 --blacklist=SLATE_US_NMSU_DISCOVERYRAL --cpu=1 --maxConcurrent=1000 -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/scripts/icarus/metadata_prescripts_icarus.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/scripts/icarus/metadata_postscripts_MC_icarus.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/scripts/icarus/runMix.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/scripts/icarus/stashDataFile.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/scripts/icarus/icaruspoms_metadata_injector.sh --timeout=24h --disk=50GB --dataset_definition=jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500 file://///cvmfs/fermilab.opensciencegrid.org/packages/common/fife-utils/3.7.8/linux-almalinux9-x86_64_v2-gcc-11.4.1-74cylyrrnko6x7qnaqg5bcr4t7hwusdl/libexec/fife_wrap --debug --ifdh_art --source-unquote /cvmfs/icarus.opensciencegrid.org/products/icarus/setup_icarus.sh --setup-unquote icaruscode%20v10_06_00_06p07%20-q%20e26%3Aprof --setup-unquote -t%20sbnutil --prescript-unquote echo%20%22I%20AM%20SETTING%20UP%20ICARUS%20NOW%22%20%26%26%20source%20/cvmfs/icarus.opensciencegrid.org/products/icarus/setup_icarus.sh --prescript-unquote export%20PRODUCTS%3D/cvmfs/sbn.opensciencegrid.org/products/sbn%3A%24%7BPRODUCTS%7D%20%26%26%20echo%20%22SEE%20MY%20PRODUCTS%3A%20%24%7BPRODUCTS%7D%22 --prescript-unquote export%20SAM_EXPERIMENT%3Dsbn%20%26%26%20echo%20%22I%20AM%20USING%20SAM_EXPERIMENT%20%3D%20%24%7BSAM_EXPERIMENT%7D%22 --prescript-unquote export%20FHICL_FILE_PATH%3D%24%7BCONDOR_DIR_INPUT%7D%3A%24%7BFHICL_FILE_PATH%7D%20%26%26%20export%20WORKDIR%3D%24%7BPWD%7D%20%26%26%20export%20FHICL_FILE_PATH%3D%24%7BWORKDIR%7D%3A%24%7BFHICL_FILE_PATH%7D%20%26%26%20echo%20%22FCL%20FILE%20PATH%20EXPORTED%22 --prescript-unquote unsetup%20genie%20%26%26%20unsetup%20genie_xsec%20%26%26%20unsetup%20lhapdf%20%26%26%20unsetup%20pythia8%20%26%26%20unsetup%20hepmc3%20%26%26%20unsetup%20dk2nugenie%20%26%26%20unsetup%20nugen%20%26%26%20unsetup%20nusystematics%20%26%26%20echo%20%22UNSETUP%20DONE%22 --prescript-unquote setup%20nusystematics%20v1_05_07%20-q%20e26%3Asbn3%3Aprof%20%26%26%20setup%20genie_xsec%20v3_06_02_sbn2%20-q%20AR2520i00000%3Ae1000%3Ak250%20%26%26%20echo%20%22AR25%20LOADED%22 --prescript-unquote ups%20active --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl%20--wrappername%20wrapper1.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20larg4_icarus_cosmics_sce_filterdirt.fcl%20--wrappername%20wrapper2.fcl --postscript-unquote ls%20-ltrh --postscript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_postscripts_MC_icarus.sh%20simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl/larg4_icarus_cosmics_sce_filterdirt.fcl/dirt_gen_overlay_siminfomixer.fcl/decoder_run2_icarus.fcl/detsim_2d_icarus_refactored_yzsim_overlay_Run4.fcl/overlay_waveforms.fcl/stage0_run2_wcdnn_icarus_overlay.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20dirt_gen_overlay_siminfomixer.fcl%20--wrappername%20wrapper3.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20decoder_run2_icarus.fcl%20--wrappername%20wrapper4.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20detsim_2d_icarus_refactored_yzsim_overlay_Run4.fcl%20--wrappername%20wrapper5.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20overlay_waveforms.fcl%20--wrappername%20wrapper6.fcl --prescript-unquote sbnpoms_wrapperfcl_maker.sh%20--fclname%20stage0_run2_wcdnn_icarus_overlay.fcl%20--wrappername%20wrapper7.fcl --prescript-unquote sbnpoms_metadata_injector.sh%20--inputfclname%20wrapper7.fcl%20--mdappfamily%20art%20--mdappversion%20v10_06_00_06p07%20--mdgroupname%20icarus%20--mdfiletype%20mc%20--mdruntype%20physics%20--mdfclname%20simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl/larg4_icarus_cosmics_sce_filterdirt.fcl/dirt_gen_overlay_siminfomixer.fcl/decoder_run2_icarus.fcl/detsim_2d_icarus_refactored_yzsim_overlay_Run4.fcl/overlay_waveforms.fcl/stage0_run2_wcdnn_icarus_overlay.fcl%20--mdprojectname%20FakeDatasets%20--mdprojectstage%20gen_g4_mix_decode_detsim_overlay_stage0%20--mdprojectversion%20v10_06_00_06p07%20--mdprojectsoftware%20icaruscode%20--mdproductionname%20ICARUS_Run4_Part2%20--mdproductiontype%20official%20--tfilemdjsonname%20hist_gen_g4_mix_decode_detsim_overlay_stage0.root.json --prescript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_prescripts_icarus.sh%20simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl%20wrapper1.fcl --prescript-unquote export%20MT_PRODUCTIONNAME%3DICARUS_FakeData_Run4_Overlay_Ar25%20%26%26%20export%20MT_PRODUCTIONTYPE%3Dmc%20%26%26%20export%20MT_PROJECTNAME%3DICARUS_Run4_Part2%20%26%26%20export%20MT_PROJECTSTAGE%3Dgen_g4_mix_decode_detsim_overlay_stage0%20%26%26%20export%20MT_PROJECTSOFTWARE%3Dicaruscode%20%26%26%20export%20MT_PRODUCTIONLABEL%3DICARUS_Run4_Part2%20%26%26%20export%20MT_GENIE_TAG%3Dv3_06_02_sbn3%20%26%26%20export%20MT_GENIE_TUNE%3DAR2520i00000%20%26%26%20export%20MT_EVENTS_PER_JOB%3D100%20%26%26%20export%20MT_SAMPLE%3DICARUS_FakeData_Run4_Overlay_Ar25%20%26%26%20export%20MT_FCLNAME%3Dsimulation_genie_icarus_bnb_volDetEnclosure_fiducial --prescript-unquote if%20%5B%5B%20%24%7BMT_PRODUCTIONTYPE%7D%20%3D~%20%22test%22%2A%20%5D%5D%20%3B%20then%20export%20IFDH_OUTPUT_DIR%3D/pnfs/sbnd/scratch/users/sbndpro/poms_production/mc/ICARUS_Run4_Part2/v10_06_00_06p07/simulation_genie_icarus_bnb_volDetEnclosure_fiducial/ICARUS_FakeData_Run4_Overlay_Ar25/%20%3B%20else%20export%20IFDH_OUTPUT_DIR%3D/pnfs/sbn/data/sbn_nd/poms_production/mc/ICARUS_Run4_Part2/v10_06_00_06p07/simulation_genie_icarus_bnb_volDetEnclosure_fiducial/ICARUS_FakeData_Run4_Overlay_Ar25/%20%3B%20fi%20%26%26%20echo%20%22IFDH_OUTPUT_DIR%20is%20%24%7BIFDH_OUTPUT_DIR%7D%22 --prescript-unquote mv%20%24%7BCONDOR_DIR_INPUT%7D/stashDataFile.sh%20%24%7BWORKDIR%7D%20%26%26%20chmod%20u%2Bx%20stashDataFile.sh --limit 1 --schema root --appfamily art --appname gen --appvers v10_06_00_06p07 --addoutput  --rename  --dest /pnfs/sbn/data/sbn_nd/poms_production/mc/ICARUS_Run4_Part2/v10_06_00_06p07/simulation_genie_icarus_bnb_volDetEnclosure_fiducial/ICARUS_FakeData_Run4_Overlay_Ar25//official --declare_metadata --metadata_extractor json --add_location --hash 0 --filter_metadata rootout --filter_metadata art.first_event --filter_metadata art.last_event --add_to_dataset _poms_task --exe ./stashDataFile.sh --exe lar --exe lar --exe sh --exe lar --exe lar --exe lar --exe lar -- -- -c wrapper1.fcl -o gen.root -T hist_gen.root -n 100 --sam-data-tier gen --sam-stream-name out1 -- -c wrapper2.fcl -o genfile.root.local -T hist_gen_g4.root -n -1 --sam-data-tier simulated --sam-stream-name out1 -s gen.root -- /runMix.sh -c wrapper3.fcl -o gen_g4_mix.root -n 100 -b out1 -- -c wrapper4.fcl -o gen_g4_mix_decode.root -T hist_gen_g4_mix_decode.root -n -1 --sam-data-tier decode --sam-stream-name out1 -s gen_g4_mix.root -- -c wrapper5.fcl -o gen_g4_mix_decode_detsim.root -T hist_gen_g4_mix_decode_detsim.root -n -1 --sam-data-tier detector-simulated --sam-stream-name out1 -s gen_g4_mix_decode.root -- -c wrapper6.fcl -o gen_g4_mix_decode_detsim_overlay.root -T hist_gen_g4_mix_decode_detsim_overlay.root -n -1 --sam-data-tier overlaid --sam-stream-name out1 -s gen_g4_mix_decode_detsim.root -- -c wrapper7.fcl -o gen_g4_mix_decode_detsim_overlay_stage0.root -T hist_gen_g4_mix_decode_detsim_overlay_stage0.root -n -1 --sam-data-tier stage0 --sam-stream-name out1 -s gen_g4_mix_decode_detsim_overlay.root \\",
+    "project": "jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce",
+    "files_consumed": 0,
+    "files_generated": 0,
+    "login_setup_snapshot_id": 746561,
+    "campaign_stage_snapshot_id": 392052,
+    "job_type_snapshot_id": 6659191,
+    "recovery_position": 0,
+    "recovery_tasks_parent": null,
+    "jobsub_job_id": "72035985@jobsub03.fnal.gov",
+    "data_dispatcher_project_idx": null,
+    "pct_complete": 100.0,
+    "data_dispatcher_stage_methodology": null,
+    "data_dispatcher_recovery_mode": null,
+    "campaign_stage_obj": {
+      "campaign_stage_id": 26985,
+      "experiment": "sbnd",
+      "name": "gen_g4_mix_decode_detsim_overlay_stage0",
+      "job_type_id": 23226,
+      "creator": 80,
+      "created": "2026-08-19T01:28:22",
+      "updater": 486,
+      "updated": "2026-09-18T21:00:17",
+      "vo_role": "Production",
+      "cs_last_split": null,
+      "last_split_test": null,
+      "cs_split_type": "",
+      "cs_split_dimensions": null,
+      "dataset": "jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500",
+      "software_version": "v10_06_00_06p07",
+      "login_setup_id": 10527,
+      "param_overrides": [
+        [
+          "--stage=",
+          "gen_g4_mix_decode_detsim_overlay_stage0"
+        ],
+        [
+          "-Oglobal.prodtype=",
+          "production"
+        ],
+        [
+          "-Oglobal.version=",
+          "%(version)s"
+        ],
+        [
+          "-Oglobal.quals=",
+          "e26:prof"
+        ],
+        [
+          "-Oglobal.dataset=",
+          "%(dataset)s"
+        ],
+        [
+          "-Oglobal.sam_dataset=",
+          "%(dataset)s"
+        ],
+        [
+          "-Oglobal.nevt=",
+          "100"
+        ],
+        [
+          "-Oglobal.campaign=",
+          "ICARUS_FakeData_Run4_Overlay_Ar25"
+        ],
+        [
+          "-Oglobal.fclname=",
+          "simulation_genie_icarus_bnb_volDetEnclosure_fiducial"
+        ],
+        [
+          "-Oglobal.fclfile1=",
+          "simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl"
+        ],
+        [
+          "-Oglobal.fclfile2=",
+          "larg4_icarus_cosmics_sce_filterdirt.fcl"
+        ],
+        [
+          "-Oglobal.fclfile3=",
+          "dirt_gen_overlay_siminfomixer.fcl"
+        ],
+        [
+          "-Oglobal.fclfile4=",
+          "decoder_run2_icarus.fcl"
+        ],
+        [
+          "-Oglobal.fclfile5=",
+          "detsim_2d_icarus_refactored_yzsim_overlay_Run4.fcl"
+        ],
+        [
+          "-Oglobal.fclfile6=",
+          "overlay_waveforms.fcl"
+        ],
+        [
+          "-Oglobal.fclfile7=",
+          "stage0_run2_wcdnn_icarus_overlay.fcl"
+        ],
+        [
+          "-Osam_consumer.limit=",
+          "1"
+        ],
+        [
+          "-Osubmit.N=",
+          "500"
+        ],
+        [
+          "-Osubmit.expected-lifetime=",
+          "24h"
+        ],
+        [
+          "-Osubmit.timeout=",
+          "24h"
+        ],
+        [
+          "-Osubmit.n_files_per_job=",
+          "1"
+        ],
+        [
+          "-Osubmit.maxConcurrent=",
+          "1000"
+        ],
+        [
+          "-Osubmit.memory=",
+          "16GB"
+        ],
+        [
+          "-Osubmit.disk=",
+          "50GB"
+        ],
+        [
+          "-Oglobal.project_name=",
+          "FakeDatasets"
+        ],
+        [
+          "-Oglobal.sample=",
+          "ICARUS_FakeData_Run4_Overlay_Ar25"
+        ],
+        [
+          "-Oglobal.productionlabel=",
+          "ICARUS_Run4_Part2"
+        ]
+      ],
+      "test_param_overrides": [
+        [
+          "-Osubmit.subgroup=",
+          "test"
+        ],
+        [
+          "-Oglobal.prodtype=",
+          "test"
+        ],
+        [
+          "-Oglobal.productiontype=",
+          "test"
+        ],
+        [
+          "-Oglobal.nevt=",
+          "66"
+        ],
+        [
+          "-Osubmit.N=",
+          "5"
+        ],
+        [
+          "-Osubmit.n_files_per_job=",
+          "1"
+        ],
+        [
+          "-Oglobal.campaign=",
+          "test_ICARUS_FakeData_Run4_Overlay_Ar25"
+        ]
+      ],
+      "test_split_type": "",
+      "completion_type": "located",
+      "completion_pct": 95.0,
+      "hold_experimenter_id": null,
+      "creator_role": "production",
+      "role_held_with": null,
+      "campaign_stage_type": "regular",
+      "merge_overrides": false,
+      "output_ancestor_depth": 1,
+      "default_clear_cronjob": true,
+      "data_dispatcher_dataset_query": null,
+      "data_dispatcher_project_id": null,
+      "data_dispatcher_dataset_only": false,
+      "data_dispatcher_project_virtual": null,
+      "data_dispatcher_load_limit": null,
+      "data_dispatcher_stage_methodology": null,
+      "data_dispatcher_recovery_mode": null,
+      "data_dispatcher_idle_timeout": null,
+      "data_dispatcher_worker_timeout": null,
+      "data_dispatcher_settings": {
+        "idle_timeout": null,
+        "worker_timeout": null,
+        "project_id": null,
+        "dataset_query": null,
+        "virtual": null,
+        "stage_methodology": null,
+        "recovery_mode": null,
+        "load_limit": null
+      },
+      "campaign_id": 11491,
+      "experimenter_creator_obj": {
+        "experimenter_id": 80,
+        "first_name": "Prabhjot",
+        "last_name": "Singh",
+        "username": "prabhjot",
+        "last_login": "2017-03-02T15:12:52",
+        "session_experiment": "icarus",
+        "session_role": "production",
+        "root": false,
+        "exp_expers": null,
+        "exp_watch": null
+      },
+      "experimenter_updater_obj": {
+        "experimenter_id": 486,
+        "first_name": "SNBD",
+        "last_name": "Production",
+        "username": "sbndpro",
+        "last_login": "2019-10-13T06:30:09",
+        "session_experiment": "minerva",
+        "session_role": "production",
+        "root": true,
+        "exp_expers": null,
+        "exp_watch": null
+      },
+      "experimenter_holder_obj": null,
+      "experiment_obj": null,
+      "job_type_obj": null,
+      "login_setup_obj": null,
+      "campaign_obj": {
+        "name": "ICARUS _FakeData_Run4_Overlay_Ar25"
+      },
+      "providers": null,
+      "consumers": null,
+      "consumer_associations": null,
+      "provider_associations": null
+    },
+    "experimenter_creator_obj": {
+      "experimenter_id": 486,
+      "first_name": "SNBD",
+      "last_name": "Production",
+      "username": "sbndpro",
+      "last_login": "2019-10-13T06:30:09",
+      "session_experiment": "minerva",
+      "session_role": "production",
+      "root": true,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "experimenter_updater_obj": {
+      "experimenter_id": 486,
+      "first_name": "SNBD",
+      "last_name": "Production",
+      "username": "sbndpro",
+      "last_login": "2019-10-13T06:30:09",
+      "session_experiment": "minerva",
+      "session_role": "production",
+      "root": true,
+      "exp_expers": null,
+      "exp_watch": null
+    },
+    "parent_obj": null,
+    "login_setup_snapshot_obj": {
+      "login_setup_snapshot_id": 746561,
+      "login_setup_id": 10527,
+      "experiment": "sbnd",
+      "launch_host": "sbndgpvm04.fnal.gov",
+      "launch_account": "sbndpro",
+      "launch_setup": "export X509_USER_PROXY=/opt/sbndpro/sbndpro.Production.proxy;export HTGETTOKENOPTS=\"-a htvaultprod.fnal.gov -i sbnd --credkey sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production\"",
+      "creator": 29,
+      "created": "2024-06-30T19:10:02",
+      "updater": 29,
+      "updated": "2024-08-22T14:06:08",
+      "name": "sbnd_setup_sbndgpvm04_spack",
+      "login_setup": null
+    },
+    "campaign_stage_snapshot_obj": {
+      "campaign_stage_snapshot_id": 392052,
+      "campaign_stage_id": 26985,
+      "experiment": "sbnd",
+      "name": "gen_g4_mix_decode_detsim_overlay_stage0",
+      "job_type_id": 23226,
+      "vo_role": "Production",
+      "creator": 80,
+      "created": "2026-08-19T01:28:22",
+      "dataset": "jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500",
+      "software_version": "v10_06_00_06p07",
+      "login_setup_id": 10527,
+      "param_overrides": [
+        [
+          "--stage=",
+          "gen_g4_mix_decode_detsim_overlay_stage0"
+        ],
+        [
+          "-Oglobal.prodtype=",
+          "production"
+        ],
+        [
+          "-Oglobal.version=",
+          "%(version)s"
+        ],
+        [
+          "-Oglobal.quals=",
+          "e26:prof"
+        ],
+        [
+          "-Oglobal.dataset=",
+          "%(dataset)s"
+        ],
+        [
+          "-Oglobal.sam_dataset=",
+          "%(dataset)s"
+        ],
+        [
+          "-Oglobal.nevt=",
+          "100"
+        ],
+        [
+          "-Oglobal.campaign=",
+          "ICARUS_FakeData_Run4_Overlay_Ar25"
+        ],
+        [
+          "-Oglobal.fclname=",
+          "simulation_genie_icarus_bnb_volDetEnclosure_fiducial"
+        ],
+        [
+          "-Oglobal.fclfile1=",
+          "simulation_genie_icarus_bnb_volDetEnclosure_fiducial.fcl"
+        ],
+        [
+          "-Oglobal.fclfile2=",
+          "larg4_icarus_cosmics_sce_filterdirt.fcl"
+        ],
+        [
+          "-Oglobal.fclfile3=",
+          "dirt_gen_overlay_siminfomixer.fcl"
+        ],
+        [
+          "-Oglobal.fclfile4=",
+          "decoder_run2_icarus.fcl"
+        ],
+        [
+          "-Oglobal.fclfile5=",
+          "detsim_2d_icarus_refactored_yzsim_overlay_Run4.fcl"
+        ],
+        [
+          "-Oglobal.fclfile6=",
+          "overlay_waveforms.fcl"
+        ],
+        [
+          "-Oglobal.fclfile7=",
+          "stage0_run2_wcdnn_icarus_overlay.fcl"
+        ],
+        [
+          "-Osam_consumer.limit=",
+          "1"
+        ],
+        [
+          "-Osubmit.N=",
+          "500"
+        ],
+        [
+          "-Osubmit.expected-lifetime=",
+          "24h"
+        ],
+        [
+          "-Osubmit.timeout=",
+          "24h"
+        ],
+        [
+          "-Osubmit.n_files_per_job=",
+          "1"
+        ],
+        [
+          "-Osubmit.maxConcurrent=",
+          "1000"
+        ],
+        [
+          "-Osubmit.memory=",
+          "16GB"
+        ],
+        [
+          "-Osubmit.disk=",
+          "50GB"
+        ],
+        [
+          "-Oglobal.project_name=",
+          "FakeDatasets"
+        ],
+        [
+          "-Oglobal.sample=",
+          "ICARUS_FakeData_Run4_Overlay_Ar25"
+        ],
+        [
+          "-Oglobal.productionlabel=",
+          "ICARUS_Run4_Part2"
+        ]
+      ],
+      "updater": 486,
+      "updated": "2026-09-18T21:00:17",
+      "cs_last_split": null,
+      "last_split_test": null,
+      "cs_split_type": "",
+      "test_split_type": "",
+      "cs_split_dimensions": null,
+      "completion_type": "located",
+      "data_dispatcher_dataset_query": null,
+      "data_dispatcher_project_id": null,
+      "data_dispatcher_dataset_only": false,
+      "data_dispatcher_project_virtual": null,
+      "data_dispatcher_load_limit": null,
+      "data_dispatcher_stage_methodology": null,
+      "data_dispatcher_recovery_mode": null,
+      "data_dispatcher_idle_timeout": null,
+      "data_dispatcher_worker_timeout": null,
+      "data_dispatcher_settings": {
+        "idle_timeout": null,
+        "worker_timeout": null,
+        "project_id": null,
+        "dataset_query": null,
+        "virtual": null,
+        "stage_methodology": null,
+        "recovery_mode": null,
+        "load_limit": null
+      },
+      "completion_pct": 95.0,
+      "default_clear_cronjob": true,
+      "campaign_stage": null
+    },
+    "job_type_snapshot_obj": {
+      "job_type_snapshot_id": 6659191,
+      "job_type_id": 23226,
+      "name": "ICARUS2026B_Ar25-MC-gen_g4_detsim_reco1_reco2_caf_frankenworkflow",
+      "experiment": "sbnd",
+      "launch_script": "fife_launch -c /exp/sbnd/app/users/sbndpro/mcp/SBND2026B_Ar25/srcs/sbnutil/poms_cfgs/icarus/ICARUS2026B-gen_g4_mix_decode_detsim_overlay_stage0_stage1_caf_frankenworkflow_SBND.cfg",
+      "definition_parameters": [],
+      "input_files_per_job": 0,
+      "output_files_per_job": 0,
+      "output_file_patterns": "((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root'))",
+      "creator": 3397,
+      "created": "2026-08-29T09:59:54",
+      "updater": 3397,
+      "updated": "2026-08-29T10:05:40",
+      "job_type": null
+    },
+    "status_history": null,
+    "data_dispatcher_submission_obj": null
+  },
+  "history": [
+    {
+      "submission_id": 3155093,
+      "created": "2026-09-18T21:00:17",
+      "status_id": 1000,
+      "submission_obj": null,
+      "status_type": null
+    },
+    {
+      "submission_id": 3155093,
+      "created": "2026-09-18T21:22:38",
+      "status_id": 7000,
+      "submission_obj": null,
+      "status_type": null
+    },
+    {
+      "submission_id": 3155093,
+      "created": "2026-09-18T21:35:16",
+      "status_id": 8000,
+      "submission_obj": null,
+      "status_type": null
+    },
+    {
+      "submission_id": 3155093,
+      "created": "2026-09-20T08:57:59",
+      "status_id": 6000,
+      "submission_obj": null,
+      "status_type": null
+    }
+  ],
+  "dataset": "jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500",
+  "recoverymap": {
+    "consumed_status": [
+      1,
+      "Include files which were not flagged \"consumed\" by the original job"
+    ],
+    "pending_files": [
+      3,
+      "Include files which do not have suitable children declared for this version of software"
+    ],
+    "added_files": [
+      4,
+      "Include files added to definition since previous job ran"
+    ],
+    "script_run": [
+      5,
+      "Launch script with some recovery flag can recover"
+    ],
+    "process_status": [
+      2,
+      "Include files which were processed by jobs that say they failed."
+    ],
+    "state_failed": [
+      6,
+      "Reset files that failed during processing, and resubmit."
+    ],
+    "state_not_done": [
+      7,
+      "Reset files with a reserved or failed state, and resubmit."
+    ],
+    "reprocess_orphans": [
+      8,
+      "Reset files that have completed with a \"done\" state, but did not produce children."
+    ],
+    "reprocess_all": [
+      9,
+      "Reset and resubmit the entire project."
+    ]
+  },
+  "statusmap": {
+    "1000": "New",
+    "2000": "LaunchFailed",
+    "3000": "Idle",
+    "4000": "Running",
+    "5000": "Held",
+    "6000": "Failed",
+    "7000": "Completed",
+    "8000": "Located",
+    "9000": "Removed",
+    "2400": "Awaiting Approval",
+    "2500": "Approved",
+    "1500": "Cancelled"
+  },
+  "ds": "20260919_020017",
+  "submission_log_format": 4,
+  "recovery_ids": [],
+  "depend_ids": [],
+  "statuses": [
+    [
+      "Available output: ",
+      0,
+      "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  ) and create_date > '2026-09-18T21:00:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+    ],
+    [
+      "Submitted to SAM: ",
+      0,
+      "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce "
+    ],
+    [
+      "Consumed by SAM: ",
+      0,
+      "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  and consumed_status co%"
+    ],
+    [
+      "Pending: ",
+      0,
+      "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  minus ( snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  and isparentof:(  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07' and create_date > '2026-09-18T21:00:17-0500' with availability anylocation )  ) "
+    ]
+  ],
+  "data_dispatcher_projects": null,
+  "data_handling_service": "sam"
+}

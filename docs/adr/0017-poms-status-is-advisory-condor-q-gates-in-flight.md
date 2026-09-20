@@ -111,8 +111,20 @@ despite POMS misreporting.
 
 ## Raw evidence
 
-Raw `submission_details()` histories for 20 Submissions and the 79-row
-`campaign_stage_submissions()` list were captured read-only on 2026-09-20, but
-those captures are **not saved in `docs/raw/`** (its newest file is from
-2026-09-02; `*.json` is gitignored anyway). Per the save-full-API-responses
-convention, re-capture untrimmed before quoting any excerpt here.
+Captured read-only on 2026-09-20 (full responses in `docs/raw/`):
+`campaign_stage_submissions_26985.json` (the 79-row list),
+`submission_details_{3155064,3155093,3153766}.json`, and `condor_q_2026-09-20.txt`.
+All three Submissions report `pct_complete=100.0`. Histories use the statusmap
+ids `7000` Completed, `8000` Located, `6000` Failed.
+
+| Submission (launched) | POMS history | `condor_q` at 2026-09-20 17:24Z |
+|---|---|---|
+| 3155064 (9/18 20:00) | Completed +22 min, Located +35 min; Completed and Located again on 9/20 10:14 and 10:35 | `JobStatus=2`, 11/502 done, 0 failed: still running |
+| 3155093 (9/18 21:00) | Completed +22 min, Located +35 min; **Failed** on 9/20 08:57 | `JobStatus=2`, 11/502 done, 0 failed: still running |
+| 3153766 (9/17 05:00, Slice 3) | **Failed** +25 min; Completed and Located only on 9/18 10:13 and 10:35 | `JobStatus=4`, 502/502 done: finished |
+
+So POMS reported `pct_complete=100.0` on Submissions with 11 of 502 nodes done,
+`Located` while running, `Failed` while running (3155093, and Slice 3 early on),
+and it flips Status again long after launch. Slice 3 shows the same signature
+as the 9/18 burst, so the 9/17 burst was already affected. `condor_q` was right
+in all three cases. Slices 4 to 7 were not pulled.

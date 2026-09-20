@@ -1,0 +1,33 @@
+## 2026-09-20T17:24:25Z condor_q -G sbnd 29993977 -autoformat:h JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed  (29993977@jobsub04.fnal.gov)
+Note: tracing not available here.
+
+Continuing without tracing...
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+2         11            502            0              
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+
+## 2026-09-20T17:24:26Z condor_q -G sbnd 72035985 -autoformat:h JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed  (72035985@jobsub03.fnal.gov)
+Note: tracing not available here.
+
+Continuing without tracing...
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+2         11            502            0              
+
+## 2026-09-20T17:24:26Z condor_q -G sbnd 93745167 -autoformat:h JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed  (93745167@jobsub02.fnal.gov)
+Note: tracing not available here.
+
+Continuing without tracing...
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+4         502           502            0              
+JobStatus DAG_NodesDone DAG_NodesTotal DAG_NodesFailed
+
