@@ -22,11 +22,6 @@ PRO_SUBGROUP = "pro"
 # _raw_launch_jobs_call() bypasses it precisely so this check works.
 NO_MORE_SPLITS_MARKER = "No more splits in this campaign"
 
-# statuses[] entries are [label, count, dims_url] triples; see
-# docs/poms_client_gotchas.md.
-STATUS_LABEL_SUBMITTED = "Submitted to SAM: "
-STATUS_LABEL_PENDING = "Pending: "
-
 # command_executed is the immutable per-submission record of the actual
 # --subgroup= flag; param_overrides isn't (see docs/poms_client_gotchas.md).
 SUBGROUP_COMMAND_PATTERN = re.compile(r"--subgroup=(\S+)")
@@ -127,28 +122,18 @@ class PomsSession:
             submission_id = s.get("submission_id")
             cached = self.cache.get(str(submission_id))
             if cached is not None:
-                pct_complete = last_status_change = files_submitted = files_pending = None
                 jobsub_job_id = cached["jobsub_job_id"]
                 subgroup = cached["subgroup"]
             else:
                 ok, details = self._fetch_submission_details(submission_id)
                 submission = details.get("submission", {}) if ok else {}
-                pct_complete = submission.get("pct_complete")
                 jobsub_job_id = submission.get("jobsub_job_id")
                 subgroup = self._parse_subgroup(submission.get("command_executed"))
-                statuses = details.get("statuses", []) if ok else []
-                last_status_change = self._last_status_change(details.get("history", []) if ok else [])
-                files_submitted = self._status_count(statuses, STATUS_LABEL_SUBMITTED)
-                files_pending = self._status_count(statuses, STATUS_LABEL_PENDING)
             entry = {
                 "submission_id": submission_id,
                 "status": s.get("status"),
-                "pct_complete": pct_complete,
                 "jobsub_job_id": jobsub_job_id,
                 "subgroup": subgroup,
-                "last_status_change": last_status_change,
-                "files_submitted": files_submitted,
-                "files_pending": files_pending,
             }
             result.append(entry)
 
@@ -166,22 +151,6 @@ class PomsSession:
     def _parse_subgroup(command_executed):
         match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
         return match.group(1) if match else None
-
-    @staticmethod
-    def _last_status_change(history):
-        """Most recent history[].created timestamp, or None if empty. Naive
-        Central-time strings; see docs/poms_client_gotchas.md."""
-        created = [entry.get("created") for entry in history if entry.get("created")]
-        if not created:
-            return None
-        return max(datetime.fromisoformat(c) for c in created)
-
-    @staticmethod
-    def _status_count(statuses, label):
-        for entry_label, count, *_ in statuses:
-            if entry_label == label:
-                return count
-        return None
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""

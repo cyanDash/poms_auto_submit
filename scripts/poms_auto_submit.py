@@ -12,7 +12,7 @@ import fcntl
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import cleanup
 import condor_progress
@@ -26,9 +26,6 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
 # Only role sbndpro's managed token can auth as; see docs/adr/0004.
 PRO_ELIGIBLE_ROLE = "production"
-
-# Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md.
-STALE_STATUS_HOURS = 2
 
 # Gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
 CLEANUP_PCT_COMPLETE_THRESHOLD = 98
@@ -113,52 +110,27 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def _stale_status_proxy_pct_complete(s, now):
-    """Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md."""
-    pct_complete = s["pct_complete"]
-    last_status_change = s.get("last_status_change")
-    if last_status_change is None or now - last_status_change < timedelta(hours=STALE_STATUS_HOURS):
-        return pct_complete
-
-    files_submitted = s.get("files_submitted")
-    files_pending = s.get("files_pending")
-    if not files_submitted:
-        return pct_complete
-
-    proxy = (files_submitted - files_pending) / files_submitted * 100
-    logging.warning(
-        "submission_id=%s: pct_complete=%s stale since %s (>%dh) -- using statuses-array proxy=%.2f "
-        "(files_submitted=%d files_pending=%d)",
-        s.get("submission_id"), pct_complete, last_status_change, STALE_STATUS_HOURS, proxy,
-        files_submitted, files_pending,
-    )
-    return proxy
-
-
-def _log_progress(s, pct_complete, source):
+def _log_progress(s, pct_complete):
     # Past this point it's effectively done; skip the noise.
     if pct_complete is not None and pct_complete > 99:
         return
     logging.info(
-        "progress: submission_id=%s status=%s pct_complete=%s (%s) jobsub_job_id=%s subgroup=%s",
-        s.get("submission_id"), s.get("status"), pct_complete, source, s.get("jobsub_job_id"), s.get("subgroup"),
+        "progress: submission_id=%s status=%s pct_complete=%s jobsub_job_id=%s subgroup=%s",
+        s.get("submission_id"), s.get("status"), pct_complete, s.get("jobsub_job_id"), s.get("subgroup"),
     )
 
 
 def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
-    """3-layer fallback chain; see docs/adr/0007-condor-q-primary-progress-source.md
-    and docs/adr/0008-cache-static-submission-fields.md."""
+    """condor_q is the only progress source; see docs/adr/0007-condor-q-primary-progress-source.md."""
     get_condor_pct_complete = get_condor_pct_complete or condor_progress.get_pct_complete
     condor_pct = get_condor_pct_complete(cfg["experiment"], s.get("jobsub_job_id"))
     if condor_pct is not None:
-        effective, source = condor_pct, "condor_q"
-    elif s.get("pct_complete") is not None:
-        effective, source = _stale_status_proxy_pct_complete(s, now), "poms"
+        effective = condor_pct
     else:
-        _log_progress(s, None, "none")
+        _log_progress(s, None)
         return None
     effective = round(effective, 2)
-    _log_progress(s, effective, source)
+    _log_progress(s, effective)
     return effective
 
 

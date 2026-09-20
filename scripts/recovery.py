@@ -55,8 +55,8 @@ def evaluate_and_run_recovery(cfg, session):
     status = last.get("status")
     if status in ACTIVE_SUBMISSION_STATUSES:
         logging.info(
-            "recovery: last slice (submission_id=%s) still %s (pct_complete=%s) -- waiting",
-            last.get("submission_id"), status, last.get("pct_complete"),
+            "recovery: last slice (submission_id=%s) still %s -- waiting",
+            last.get("submission_id"), status,
         )
         return "waiting"
     if status not in RECOVERY_ELIGIBLE_STATUSES:

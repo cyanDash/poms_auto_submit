@@ -122,3 +122,9 @@ def test_no_warning_when_poms_and_condor_agree(caplog):
         one("Completed", FINISHED)
 
     assert [r for r in caplog.records if r.levelname == "WARNING"] == []
+
+
+def test_poms_pct_complete_of_100_with_live_dag_has_no_effect():
+    s = entry(1, "Running")
+    s["pct_complete"] = 100.0
+    assert plan([s], {"1@jobsub01.fnal.gov": LIVE}) == []

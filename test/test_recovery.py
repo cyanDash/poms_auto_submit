@@ -158,7 +158,7 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
         cache_dir=str(tmp_path), campaign_name="test_campaign",
     )
     session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": None}],
+        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
         submit_result="new-sub-id",
     )
     calls = []
@@ -193,7 +193,7 @@ def test_recovery_diverts_output_defnames_for_test_launch(tmp_path, monkeypatch)
         cache_dir=str(tmp_path), campaign_name="test_campaign", test_launch=True,
     )
     session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": None}],
+        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
     )
     calls = []
     monkeypatch.setattr(
@@ -217,7 +217,7 @@ def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
         cache_dir=str(tmp_path), campaign_name="test_campaign",
     )
     session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": None}],
+        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
     )
 
     def raise_get_progress_after_switch():
@@ -248,7 +248,7 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
         cache_dir=str(tmp_path), campaign_name="test_campaign",
     )
     session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "pct_complete": 100.0, "jobsub_job_id": None}],
+        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
         submit_result=None,
     )
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.5, 0.98, "recovery_dataset_name"))
