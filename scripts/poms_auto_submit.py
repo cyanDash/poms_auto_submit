@@ -184,7 +184,8 @@ def _update_stuck_counts(cfg, no_data):
     try:
         with open(cache_file) as f:
             previous = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+        previous = {sid: e for sid, e in previous.items() if isinstance(e, dict) and isinstance(e.get("runs"), int)}
+    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
         previous = {}
 
     current = {}
@@ -295,11 +296,11 @@ def plan_next_slices(cfg, session, get_condor_progress=None):
     return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
 
 
-def _any_still_running(cfg, submissions, get_condor_progress=None, threshold=100):
+def _any_still_running(cfg, submissions, get_condor_progress=None, threshold=float("inf")):
     """Whether any Submission in the window is still running, judged by
     condor_q on every one. A live DAG below `threshold`, a POMS-active
     Submission with no data, or a condor_q error all count as running.
-    The default threshold of 100 makes any live DAG count."""
+    The default threshold makes a live DAG at any percent count."""
     return bool(_in_flight_submissions(cfg, submissions, get_condor_progress, threshold))
 
 

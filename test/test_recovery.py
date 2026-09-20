@@ -328,3 +328,11 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
     # last_split was reset to 0 (new dataset) but never advanced to 1 since submit failed
     assert cfg["last_split"] == 0
     assert "last_split = 0" in config_path.read_text()
+
+
+def test_any_still_running_true_for_live_dag_at_100_pct():
+    import poms_auto_submit as psc
+    from condor_progress import Progress
+    from helpers import make_cfg
+    subs = [{"submission_id": 1, "status": "Completed", "jobsub_job_id": "1@s"}]
+    assert psc._any_still_running(make_cfg(), subs, lambda e, j: Progress("live", 100.0)) is True

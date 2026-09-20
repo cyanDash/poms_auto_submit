@@ -91,3 +91,9 @@ def test_recovery_gate_does_not_advance_stuck_counts(tmp_path):
     no_data = lambda e, j: NO_DATA
     psc._any_still_running(cfg, subs, no_data)
     assert not list(tmp_path.glob("stuck_no_data_*.json"))
+
+
+def test_malformed_cache_file_is_treated_as_empty(tmp_path):
+    (tmp_path / "stuck_no_data_test_stage.json").write_text('{"1": "junk"}')
+    run(tmp_path, [entry(1, "Held")], {"1@s": NO_DATA})
+    assert counts(tmp_path) == {"1": 1}
