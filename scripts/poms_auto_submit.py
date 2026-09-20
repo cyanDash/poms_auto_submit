@@ -183,31 +183,24 @@ def _update_stuck_counts(cfg, campaign_stage_id, no_data):
 
 def _holds_slot(s, progress, threshold):
     active = s.get("status") in ACTIVE_SUBMISSION_STATUSES
-    _warn_if_poms_disagrees(s, progress, active)
     if progress.outcome == "live":
         holds = progress.pct < threshold
     elif progress.outcome == "finished":
         holds = False
     else:
         holds = active
-    _log_decision(s, progress, holds)
+    _log_live(s, progress)
     return holds
 
 
-def _warn_if_poms_disagrees(s, progress, active):
-    if (progress.outcome == "live" and not active) or (progress.outcome == "finished" and active):
-        logging.warning(
-            "POMS status disagrees with condor_q: submission_id=%s status=%s condor_q=%s",
-            s.get("submission_id"), s.get("status"), progress.outcome,
-        )
-
-
-def _log_decision(s, progress, holds):
+def _log_live(s, progress):
+    """Only Submissions condor_q reports as live are logged; POMS Status is
+    deliberately left out, see docs/adr/0017."""
+    if progress.outcome != "live":
+        return
     logging.info(
-        "progress: submission_id=%s status=%s condor_q=%s pct=%s in_flight=%s jobsub_job_id=%s subgroup=%s",
-        s.get("submission_id"), s.get("status"), progress.outcome,
-        None if progress.pct is None else round(progress.pct, 2), holds,
-        s.get("jobsub_job_id"), s.get("subgroup"),
+        "progress: submission_id=%s pct=%.2f jobsub_job_id=%s subgroup=%s",
+        s.get("submission_id"), progress.pct, s.get("jobsub_job_id"), s.get("subgroup"),
     )
 
 

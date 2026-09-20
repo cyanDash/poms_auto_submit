@@ -101,19 +101,29 @@ def test_pro_slot_is_held_by_a_located_submission_with_live_dag():
     assert result == [False]
 
 
-def test_warns_when_terminal_status_disagrees_with_live_dag(caplog):
+def progress_lines(caplog):
+    return [r.getMessage() for r in caplog.records if r.getMessage().startswith("progress:")]
+
+
+def test_logs_only_live_submissions_without_poms_status_or_flags(caplog):
+    with caplog.at_level(logging.INFO):
+        one("Located", LIVE)
+        one("Running", FINISHED)
+        one("Held", NO_DATA)
+
+    lines = progress_lines(caplog)
+    assert len(lines) == 1
+    assert "submission_id=1" in lines[0] and "pct=" in lines[0]
+    for banned in ("Located", "Running", "Held", "status=", "in_flight", "condor_q="):
+        assert banned not in lines[0]
+
+
+def test_no_disagreement_warning_between_poms_and_condor(caplog):
     with caplog.at_level(logging.WARNING):
         one("Located", LIVE)
-
-    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
-    assert any("Located" in m and "submission_id=1" in m for m in warnings)
-
-
-def test_warns_when_active_status_disagrees_with_finished_dag(caplog):
-    with caplog.at_level(logging.WARNING):
         one("Running", FINISHED)
 
-    assert any(r.levelname == "WARNING" for r in caplog.records)
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
 
 
 def test_no_warning_when_poms_and_condor_agree(caplog):
