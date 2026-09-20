@@ -1,9 +1,6 @@
-from datetime import datetime
-
+import condor_progress
 import poms_auto_submit as psc
-from helpers import make_cfg, make_submissions, sub
-
-NOW = datetime(2026, 8, 30, 12, 0, 0)
+from helpers import make_cfg
 
 
 class FakeSession:
@@ -20,12 +17,6 @@ def ready_cfg(**overrides):
     return cfg
 
 
-def done_submission(pct_complete=99.0, status="Completed"):
-    s = sub(1, pct_complete)
-    s["status"] = status
-    return s
-
-
 # --- _no_splits_left ---
 
 def test_no_splits_left_true_when_last_split_reaches_max():
@@ -38,54 +29,67 @@ def test_no_splits_left_false_when_splits_remain():
 
 # --- _cleanup_ready ---
 
-def test_cleanup_ready_true_when_everything_lines_up():
-    session = FakeSession(make_submissions(done_submission()))
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: None) is True
+def _cp(outcome, pct=None):
+    return condor_progress.Progress(outcome, pct)
+
+
+def _job_sub(submission_id, status="Completed"):
+    return {"submission_id": submission_id, "status": status, "jobsub_job_id": f"{submission_id}@s"}
+
+
+def _by_job(outcomes):
+    return lambda experiment, jobsub_job_id: outcomes[jobsub_job_id]
+
+
+def _ready(cfg, subs, outcomes):
+    return psc._cleanup_ready(cfg, FakeSession(subs), get_condor_progress=_by_job(outcomes))
+
+
+def test_cleanup_ready_true_when_all_finished():
+    subs = [_job_sub(1), _job_sub(2)]
+    assert _ready(ready_cfg(), subs, {"1@s": _cp("finished", 100.0), "2@s": _cp("finished", 100.0)}) is True
 
 
 def test_cleanup_ready_false_when_do_cleanup_off():
-    session = FakeSession(make_submissions(done_submission()))
-    cfg = ready_cfg(do_cleanup=False)
-    assert psc._cleanup_ready(cfg, session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+    assert _ready(ready_cfg(do_cleanup=False), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
 
 
 def test_cleanup_ready_false_when_recovery_not_handled():
-    session = FakeSession(make_submissions(done_submission()))
-    cfg = ready_cfg(recovery_handled=False)
-    assert psc._cleanup_ready(cfg, session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+    assert _ready(ready_cfg(recovery_handled=False), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
 
 
 def test_cleanup_ready_false_when_splits_remain():
-    session = FakeSession(make_submissions(done_submission()))
-    cfg = ready_cfg(last_split=3, max_splits=5)
-    assert psc._cleanup_ready(cfg, session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+    assert _ready(ready_cfg(last_split=3), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
 
 
 def test_cleanup_ready_false_when_no_submissions_yet():
-    session = FakeSession([])
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+    assert _ready(ready_cfg(), [], {}) is False
 
 
-def test_cleanup_ready_false_when_last_submission_failed():
-    # A high-but-stale pct_complete on a Failed slice must not trigger
-    # cleanup -- see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
-    session = FakeSession(make_submissions(done_submission(pct_complete=99.0, status="Failed")))
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+def test_cleanup_ready_true_despite_false_failed_when_condor_finished():
+    assert _ready(ready_cfg(), [_job_sub(1, "Failed")], {"1@s": _cp("finished", 100.0)}) is True
 
 
-def test_cleanup_ready_false_when_pct_complete_at_threshold_but_not_past():
-    session = FakeSession(make_submissions(done_submission(pct_complete=98.0)))
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+def test_cleanup_ready_false_when_live_dag_below_threshold():
+    assert _ready(ready_cfg(), [_job_sub(1, "Located")], {"1@s": _cp("live", 97.9)}) is False
 
 
-def test_cleanup_ready_true_when_condor_reports_past_threshold():
-    session = FakeSession(make_submissions(done_submission(pct_complete=None)))
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: 99.5) is True
+def test_cleanup_ready_true_when_live_dag_past_threshold():
+    assert _ready(ready_cfg(), [_job_sub(1)], {"1@s": _cp("live", 99.5)}) is True
 
 
-def test_cleanup_ready_uses_last_submission_in_list():
-    session = FakeSession(make_submissions(
-        done_submission(pct_complete=99.0, status="Completed"),
-        done_submission(pct_complete=10.0, status="Running"),
-    ))
-    assert psc._cleanup_ready(ready_cfg(), session, now=NOW, get_condor_pct_complete=lambda e, j: None) is False
+def test_cleanup_ready_false_when_earlier_slice_still_live():
+    subs = [_job_sub(1, "Running"), _job_sub(2)]
+    assert _ready(ready_cfg(), subs, {"1@s": _cp("live", 50.0), "2@s": _cp("finished", 100.0)}) is False
+
+
+def test_cleanup_ready_false_when_active_status_has_no_data():
+    assert _ready(ready_cfg(), [_job_sub(1, "Held")], {"1@s": _cp("no_data")}) is False
+
+
+def test_cleanup_ready_true_when_terminal_status_has_no_data():
+    assert _ready(ready_cfg(), [_job_sub(1, "Completed")], {"1@s": _cp("no_data")}) is True
+
+
+def test_cleanup_ready_false_on_condor_q_error():
+    assert _ready(ready_cfg(), [_job_sub(1)], {"1@s": _cp("error")}) is False
