@@ -4,6 +4,7 @@ import types
 
 import pytest
 
+import condor_progress as recovery_condor_progress
 import recovery
 from helpers import make_cfg
 from recovery import evaluate_and_run_recovery, run_recovery_script
@@ -113,14 +114,81 @@ def test_waiting_does_not_persist_recovery_handled(tmp_path):
     assert "recovery_handled = 0" in config_path.read_text()
 
 
-def test_needs_manual_review_on_failed_status(tmp_path):
+def _cp(outcome, pct=None):
+    return recovery_condor_progress.Progress(outcome, pct)
+
+
+def _live_sub(submission_id, status, jobsub_job_id):
+    return {"submission_id": submission_id, "status": status, "jobsub_job_id": jobsub_job_id}
+
+
+def _by_job(outcomes):
+    return lambda experiment, jobsub_job_id: outcomes[jobsub_job_id]
+
+
+def test_false_failed_does_not_set_recovery_handled(tmp_path):
     config_path = make_config_file(tmp_path)
     cfg = make_cfg(config_path=str(config_path), recovery_handled=False)
-    session = FakeSession(progress=[{"submission_id": 1, "status": "Failed"}])
+    session = FakeSession(progress=[_live_sub(1, "Failed", "1@s")])
 
-    assert evaluate_and_run_recovery(cfg, session) == "needs_manual_review"
-    assert session.calls == []
-    assert "recovery_handled = 1" in config_path.read_text()
+    result = evaluate_and_run_recovery(cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 40.0)}))
+
+    assert result == "waiting"
+    assert "recovery_handled = 0" in config_path.read_text()
+
+
+def test_false_located_with_live_dag_waits(tmp_path):
+    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
+    session = FakeSession(progress=[_live_sub(1, "Located", "1@s")])
+
+    assert evaluate_and_run_recovery(
+        cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 99.9)})
+    ) == "waiting"
+
+
+def test_earlier_live_slice_makes_recovery_wait_even_if_last_finished(tmp_path):
+    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
+    session = FakeSession(progress=[_live_sub(1, "Running", "1@s"), _live_sub(2, "Completed", "2@s")])
+
+    result = evaluate_and_run_recovery(
+        cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 50.0), "2@s": _cp("finished", 100.0)})
+    )
+
+    assert result == "waiting"
+
+
+def test_active_status_without_condor_data_waits(tmp_path):
+    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
+    session = FakeSession(progress=[_live_sub(1, "Held", "1@s")])
+
+    assert evaluate_and_run_recovery(
+        cfg, session, get_condor_progress=_by_job({"1@s": _cp("no_data")})
+    ) == "waiting"
+
+
+def test_condor_q_error_waits(tmp_path):
+    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
+    session = FakeSession(progress=[_live_sub(1, "Completed", "1@s")])
+
+    assert evaluate_and_run_recovery(
+        cfg, session, get_condor_progress=_by_job({"1@s": _cp("error")})
+    ) == "waiting"
+
+
+def test_all_finished_proceeds_to_recovery_script(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path)
+    cfg = make_cfg(
+        config_path=str(config_path), recovery_handled=False,
+        cache_dir=str(tmp_path), campaign_name="test_campaign",
+    )
+    session = FakeSession(progress=[_live_sub(1, "Failed", "1@s"), _live_sub(2, "Completed", "2@s")])
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
+
+    result = evaluate_and_run_recovery(
+        cfg, session, get_condor_progress=_by_job({"1@s": _cp("finished", 100.0), "2@s": _cp("no_data")})
+    )
+
+    assert result == "no_recovery_needed"
 
 
 def test_recovery_script_failure_does_not_persist_handled(tmp_path, monkeypatch):

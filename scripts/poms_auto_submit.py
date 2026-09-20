@@ -19,7 +19,6 @@ import condor_progress
 import recovery
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
-from recovery import RECOVERY_ELIGIBLE_STATUSES
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -27,7 +26,7 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 # Only role sbndpro's managed token can auth as; see docs/adr/0004.
 PRO_ELIGIBLE_ROLE = "production"
 
-# Gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
+# Per-Submission gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
 CLEANUP_PCT_COMPLETE_THRESHOLD = 98
 
 
@@ -134,12 +133,12 @@ def _effective_pct_complete(cfg, s, now, get_condor_pct_complete=None):
     return effective
 
 
-def _in_flight_submissions(cfg, submissions, get_condor_progress=None):
+def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None):
     """Submissions still holding a slot, decided from condor_q; POMS Status
     is only the tiebreak when condor_q has no data. See
     docs/adr/0005-in-flight-slot-based-decision.md."""
     get_condor_progress = get_condor_progress or condor_progress.get_progress
-    threshold = cfg["pct_complete_threshold"]
+    threshold = cfg["pct_complete_threshold"] if threshold is None else threshold
     in_flight = []
     for s in submissions:
         jobsub_job_id = s.get("jobsub_job_id")
@@ -249,7 +248,15 @@ def plan_next_slices(cfg, session, get_condor_progress=None):
     return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
 
 
-def _cleanup_ready(cfg, session, now=None, get_condor_pct_complete=None):
+def _any_still_running(cfg, submissions, get_condor_progress=None, threshold=100):
+    """Whether any Submission in the window is still running, judged by
+    condor_q on every one. A live DAG below `threshold`, a POMS-active
+    Submission with no data, or a condor_q error all count as running.
+    The default threshold of 100 makes any live DAG count."""
+    return bool(_in_flight_submissions(cfg, submissions, get_condor_progress, threshold))
+
+
+def _cleanup_ready(cfg, session, get_condor_progress=None):
     """Whether the campaign is done enough to safely run duplicate-cleanup
     and turn the campaign stage off; see
     docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
@@ -260,12 +267,7 @@ def _cleanup_ready(cfg, session, now=None, get_condor_pct_complete=None):
     if not submissions:
         return False
 
-    last = submissions[-1]
-    if last.get("status") not in RECOVERY_ELIGIBLE_STATUSES:
-        return False
-
-    pct = _effective_pct_complete(cfg, last, now or datetime.now(), get_condor_pct_complete)
-    return pct is not None and pct > CLEANUP_PCT_COMPLETE_THRESHOLD
+    return not _any_still_running(cfg, submissions, get_condor_progress, CLEANUP_PCT_COMPLETE_THRESHOLD)
 
 
 def submit_plan(cfg, session, plan):
