@@ -77,9 +77,9 @@ def get_progress(experiment, jobsub_job_id):
 
 
 def get_pct_complete(experiment, jobsub_job_id):
-    """DAG_NodesDone / DAG_NodesTotal * 100 for a live DAG, else None."""
-    progress = get_progress(experiment, jobsub_job_id)
-    return progress.pct if progress.outcome == "live" else None
+    """DAG_NodesDone / DAG_NodesTotal * 100 when condor_q reports node counts
+    (live or finished), else None."""
+    return get_progress(experiment, jobsub_job_id).pct
 
 
 def _pct(done, total):

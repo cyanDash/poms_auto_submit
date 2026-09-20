@@ -169,3 +169,9 @@ def test_get_progress_omits_schedd_selector_without_schedd(monkeypatch):
     get_progress("sbnd", "29756425")
 
     assert "-name" not in calls[0]
+
+
+def test_get_pct_complete_still_returns_100_for_finished_dag(monkeypatch):
+    monkeypatch.setattr(condor_progress.subprocess, "run", fake_run("2 502 502\n"))
+
+    assert get_pct_complete("sbnd", "1@jobsub04.fnal.gov") == 100.0
