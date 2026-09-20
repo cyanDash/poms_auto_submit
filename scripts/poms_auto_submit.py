@@ -9,6 +9,7 @@ Intended to run from crontab, e.g.:
 import argparse
 import configparser
 import fcntl
+import json
 import logging
 import os
 import sys
@@ -29,6 +30,10 @@ PRO_ELIGIBLE_ROLE = "production"
 
 # Fallback layer 2; see docs/adr/0007-condor-q-primary-progress-source.md.
 STALE_STATUS_HOURS = 2
+
+# Consecutive runs a POMS-active Submission may sit in one Status with no
+# condor_q data before a manual-intervention WARNING is logged every run.
+STUCK_NO_DATA_RUNS_WARN = 5
 
 # Gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
 CLEANUP_PCT_COMPLETE_THRESHOLD = 98
@@ -169,6 +174,7 @@ def _in_flight_submissions(cfg, submissions, get_condor_progress=None):
     get_condor_progress = get_condor_progress or condor_progress.get_progress
     threshold = cfg["pct_complete_threshold"]
     in_flight = []
+    no_data = []
     for s in submissions:
         jobsub_job_id = s.get("jobsub_job_id")
         if jobsub_job_id:
@@ -181,9 +187,49 @@ def _in_flight_submissions(cfg, submissions, get_condor_progress=None):
                 s.get("submission_id"),
             )
             return list(submissions)
+        if progress.outcome == "no_data" and s.get("status") in ACTIVE_SUBMISSION_STATUSES:
+            no_data.append(s)
         if _holds_slot(s, progress, threshold):
             in_flight.append(s)
+    _update_stuck_counts(cfg, no_data)
     return in_flight
+
+
+def _stuck_cache_file(cfg):
+    cache_dir = cfg.get("cache_dir")
+    if not cache_dir:
+        return None
+    return os.path.join(cache_dir, f"stuck_no_data_{cfg['campaign_stage_name']}.json")
+
+
+def _update_stuck_counts(cfg, no_data):
+    """Count consecutive runs each POMS-active Submission has sat in the same
+    Status with no condor_q data; WARN from STUCK_NO_DATA_RUNS_WARN on. Never
+    frees the slot. Anything not in `no_data` is dropped, which resets it."""
+    cache_file = _stuck_cache_file(cfg)
+    if not cache_file:
+        return
+    try:
+        with open(cache_file) as f:
+            previous = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        previous = {}
+
+    current = {}
+    for s in no_data:
+        submission_id = str(s.get("submission_id"))
+        prior = previous.get(submission_id)
+        runs = prior["runs"] + 1 if prior and prior["status"] == s.get("status") else 1
+        current[submission_id] = {"status": s.get("status"), "runs": runs}
+        if runs >= STUCK_NO_DATA_RUNS_WARN:
+            logging.warning(
+                "submission_id=%s has been %s with no condor_q data for %d consecutive runs "
+                "-- manual intervention needed",
+                submission_id, s.get("status"), runs,
+            )
+
+    with open(cache_file, "w") as f:
+        json.dump(current, f, indent=2)
 
 
 def _holds_slot(s, progress, threshold):
