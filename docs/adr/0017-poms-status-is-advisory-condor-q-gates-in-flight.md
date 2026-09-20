@@ -30,8 +30,9 @@ submitted exactly once, so the harm was concurrency, not duplication.
   followed.
 - **Part-1 slice 4 was submitted twice.** Accepted, not prevented: duplicate
   cleanup (ADR-0016) removes the extra output.
-- The 9/17 05:00 to 10:00 hourly burst (Slices 3 to 8) may already carry the
-  POMS fingerprint; the histories of Slices 3 to 7 were not pulled.
+- The 9/17 05:00 to 10:00 hourly burst (Slices 3 to 8) already carries the
+  POMS fingerprint: Slice 3 (3153766) was marked `Failed` while running (see
+  Raw evidence). Slices 4 to 7 were not pulled.
 
 ### Why a burst was harmless here but is not in general
 
