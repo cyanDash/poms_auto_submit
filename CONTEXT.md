@@ -35,6 +35,13 @@ _Avoid_: confusing with this script's own `--dry-run` flag, which skips calling 
 **Input Dataset**:
 The SAM dataset of fcl files a campaign stage consumes as input, dividing its total work into batches. Even a campaign generating events entirely from scratch (no real input data) still builds one under production convention: each fcl file has no event data, just a run/subrun/event-number baked in, which the stage's executables read as that batch's identity. This is why `production`-role campaigns always have an Input Dataset and `analysis`-role campaigns typically don't.
 
+**Straggler**:
+A Submission in the window with 50 or fewer unfinished jobs once no splits are left. "Unfinished" is `DAG_NodesTotal - DAG_NodesDone - DAG_NodesFailed`, so a failed job counts as leaving the unfinished set. Tracked run to run so a Straggler that stops making progress can be removed before recovery (see docs/adr/0018).
+_Avoid_: Held Submission (a Straggler is judged by progress, not by Status).
+
+**Stagger count**:
+Consecutive runs in which a Straggler's unfinished count failed to drop by 5 from the last time it did. A Straggler is removed with `condor_rm` when it reaches 3.
+
 **Subgroup**:
 The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.subgroup=` param override. Only the `production` role may hold `pro`, and only one slice at a time.
 
