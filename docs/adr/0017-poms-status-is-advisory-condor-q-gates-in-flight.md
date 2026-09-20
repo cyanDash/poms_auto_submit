@@ -55,7 +55,7 @@ any POMS-active Submission of any age, and asks `condor_q` about its DAG:
 
 Holding on error is deliberate: a scheduler outage must not trigger a burst.
 The log lists only Submissions `condor_q` reports as live (`submission_id`,
-`status` as `condor_q` reports it for the DAG, `pct`, `jobsub_job_id`, `subgroup`). POMS Status is never logged, and there is
+`status` as `condor_q` reports it for the DAG, `completion_%`, `jobsub_job_id`, `subgroup`). POMS Status is never logged, and there is
 no per-Submission in-flight flag or POMS-disagreement warning.
 
 ### Stuck without data

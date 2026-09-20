@@ -199,7 +199,7 @@ def _log_live(s, progress):
     if progress.outcome != "live":
         return
     logging.info(
-        "progress: submission_id=%s status=%s pct=%.2f jobsub_job_id=%s subgroup=%s",
+        "progress: submission_id=%s status=%s completion_%%=%.2f jobsub_job_id=%s subgroup=%s",
         s.get("submission_id"), progress.job_status, progress.pct, s.get("jobsub_job_id"), s.get("subgroup"),
     )
 

@@ -113,7 +113,7 @@ def test_logs_only_live_submissions_without_poms_status_or_flags(caplog):
 
     lines = progress_lines(caplog)
     assert len(lines) == 1
-    assert "submission_id=1" in lines[0] and "pct=" in lines[0] and "status=Held" in lines[0]
+    assert "submission_id=1" in lines[0] and "completion_%=" in lines[0] and "status=Held" in lines[0]
     for banned in ("Located", "Running", "in_flight", "condor_q="):
         assert banned not in lines[0]
 
