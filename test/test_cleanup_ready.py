@@ -74,6 +74,10 @@ def test_cleanup_ready_false_when_live_dag_below_threshold():
     assert _ready(ready_cfg(), [_job_sub(1, "Located")], {"1@s": _cp("live", 97.9)}) is False
 
 
+def test_cleanup_ready_true_when_live_dag_exactly_at_threshold():
+    assert _ready(ready_cfg(), [_job_sub(1)], {"1@s": _cp("live", 98.0)}) is True
+
+
 def test_cleanup_ready_true_when_live_dag_past_threshold():
     assert _ready(ready_cfg(), [_job_sub(1)], {"1@s": _cp("live", 99.5)}) is True
 

@@ -18,12 +18,12 @@ def entry(submission_id, status):
 
 def run(tmp_path, submissions, progress):
     cfg = make_cfg(cache_dir=str(tmp_path))
-    return psc._in_flight_submissions(cfg, submissions, lambda e, j: progress[j], track_stuck=True)
+    return psc._in_flight_submissions(cfg, submissions, lambda e, j: progress[j], stuck_stage_id=42)
 
 
 def counts(tmp_path):
-    with open(tmp_path / "stuck_no_data_test_stage.json") as f:
-        return {k: v["runs"] for k, v in json.load(f).items()}
+    with open(tmp_path / "stuck_no_data_42.json") as f:
+        return {k: v["count"] for k, v in json.load(f).items()}
 
 
 def stuck_warnings(caplog):
@@ -94,6 +94,25 @@ def test_recovery_gate_does_not_advance_stuck_counts(tmp_path):
 
 
 def test_malformed_cache_file_is_treated_as_empty(tmp_path):
-    (tmp_path / "stuck_no_data_test_stage.json").write_text('{"1": "junk"}')
+    (tmp_path / "stuck_no_data_42.json").write_text('{"1": "junk"}')
     run(tmp_path, [entry(1, "Held")], {"1@s": NO_DATA})
+    assert counts(tmp_path) == {"1": 1}
+
+
+class PlanSession:
+    campaign_stage_id = 42
+
+    def get_progress(self):
+        return [entry(1, "Held")]
+
+
+def test_dry_run_does_not_advance_stuck_counts(tmp_path):
+    cfg = make_cfg(cache_dir=str(tmp_path))
+    psc.plan_next_slices(cfg, PlanSession(), lambda e, j: NO_DATA, dry_run=True)
+    assert not list(tmp_path.glob("stuck_no_data_*.json"))
+
+
+def test_real_run_advances_stuck_counts_via_plan(tmp_path):
+    cfg = make_cfg(cache_dir=str(tmp_path))
+    psc.plan_next_slices(cfg, PlanSession(), lambda e, j: NO_DATA)
     assert counts(tmp_path) == {"1": 1}

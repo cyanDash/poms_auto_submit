@@ -34,7 +34,7 @@ def test_run_executes_plan_in_order_and_persists_last_split(monkeypatch, tmp_pat
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True, False])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
 
     cfg = make_cfg(config_path=str(config_path), last_split=0)
     psc.run(cfg, dry_run=False)
@@ -54,7 +54,7 @@ def test_run_dry_run_does_not_submit_or_persist(monkeypatch, tmp_path):
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
 
     cfg = make_cfg(config_path=str(config_path), last_split=0)
     psc.run(cfg, dry_run=True)
@@ -72,7 +72,7 @@ def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, t
     recording = RecordingSessionNoMoreSplits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True, False])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: "disabled")
 
     cfg = make_cfg(config_path=str(config_path), last_split=0)
@@ -88,7 +88,7 @@ def test_run_calls_recovery_when_submit_next_slice_returns_none(monkeypatch, tmp
     recording = RecordingSessionNoMoreSplits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
     calls = []
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append((cfg, session)))
 
@@ -104,7 +104,7 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [True])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
     calls = []
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
 
@@ -120,7 +120,7 @@ def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append((cfg, session)))
@@ -135,7 +135,7 @@ def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
@@ -150,7 +150,7 @@ def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session: [])
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))

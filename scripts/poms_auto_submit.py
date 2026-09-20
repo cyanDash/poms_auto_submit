@@ -113,7 +113,7 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, track_stuck=False):
+def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, stuck_stage_id=None):
     """Submissions still holding a slot, decided from condor_q; POMS Status
     is only the tiebreak when condor_q has no data. See
     docs/adr/0005-in-flight-slot-based-decision.md."""
@@ -137,29 +137,29 @@ def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold
             no_data.append(s)
         if _holds_slot(s, progress, threshold):
             in_flight.append(s)
-    if track_stuck:
-        _update_stuck_counts(cfg, no_data)
+    if stuck_stage_id is not None:
+        _update_stuck_counts(cfg, stuck_stage_id, no_data)
     return in_flight
 
 
-def _stuck_cache_file(cfg):
+def _stuck_cache_file(cfg, campaign_stage_id):
     cache_dir = cfg.get("cache_dir")
     if not cache_dir:
         return None
-    return os.path.join(cache_dir, f"stuck_no_data_{cfg['campaign_stage_name']}.json")
+    return os.path.join(cache_dir, f"stuck_no_data_{campaign_stage_id}.json")
 
 
-def _update_stuck_counts(cfg, no_data):
+def _update_stuck_counts(cfg, campaign_stage_id, no_data):
     """Count consecutive runs each POMS-active Submission has sat in the same
     Status with no condor_q data; WARN from STUCK_NO_DATA_RUNS_WARN on. Never
     frees the slot. Anything not in `no_data` is dropped, which resets it."""
-    cache_file = _stuck_cache_file(cfg)
+    cache_file = _stuck_cache_file(cfg, campaign_stage_id)
     if not cache_file:
         return
     try:
         with open(cache_file) as f:
             previous = json.load(f)
-        previous = {sid: e for sid, e in previous.items() if isinstance(e, dict) and isinstance(e.get("runs"), int)}
+        previous = {sid: e for sid, e in previous.items() if isinstance(e, dict) and isinstance(e.get("count"), int)}
     except (FileNotFoundError, json.JSONDecodeError, AttributeError):
         previous = {}
 
@@ -167,13 +167,13 @@ def _update_stuck_counts(cfg, no_data):
     for s in no_data:
         submission_id = str(s.get("submission_id"))
         prior = previous.get(submission_id)
-        runs = prior["runs"] + 1 if prior and prior["status"] == s.get("status") else 1
-        current[submission_id] = {"status": s.get("status"), "runs": runs}
-        if runs >= STUCK_NO_DATA_RUNS_WARN:
+        count = prior["count"] + 1 if prior and prior["status"] == s.get("status") else 1
+        current[submission_id] = {"status": s.get("status"), "count": count}
+        if count >= STUCK_NO_DATA_RUNS_WARN:
             logging.warning(
                 "submission_id=%s has been %s with no condor_q data for %d consecutive runs "
                 "-- manual intervention needed",
-                submission_id, s.get("status"), runs,
+                submission_id, s.get("status"), count,
             )
 
     with open(cache_file, "w") as f:
@@ -214,7 +214,7 @@ def _no_splits_left(cfg):
     return cfg["max_splits"] - cfg["last_split"] <= 0
 
 
-def _plan(cfg, submissions, get_condor_progress):
+def _plan(cfg, submissions, get_condor_progress, stuck_stage_id=None):
     """Shared by _next_slice_count() and plan_next_slices(). Returns (num_slices, in_flight)."""
     if _no_splits_left(cfg):
         logging.info(
@@ -225,7 +225,7 @@ def _plan(cfg, submissions, get_condor_progress):
 
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     target = 2 if cfg["submit_two_slices"] else 1
-    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress, track_stuck=True)
+    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress, stuck_stage_id=stuck_stage_id)
     num_slices = min(max(0, target - len(in_flight)), remaining_splits)
     subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
@@ -258,13 +258,14 @@ def _plan_subgroups(num_slices, role, pro_available):
     return [True] + [False] * (num_slices - 1)
 
 
-def plan_next_slices(cfg, session, get_condor_progress=None):
+def plan_next_slices(cfg, session, get_condor_progress=None, dry_run=False):
     """Decide how many new slices to submit this run and which subgroup each
     gets. Returns a list with one entry per slice (True = pro, False =
     standard), possibly empty."""
     submissions = session.get_progress()
 
-    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress)
+    stuck_stage_id = None if dry_run else getattr(session, "campaign_stage_id", None)
+    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, stuck_stage_id)
     if num_slices == 0:
         return []
 
@@ -317,7 +318,7 @@ def run(cfg, dry_run):
     session = PomsSession(pc, cfg)
 
     try:
-        plan = plan_next_slices(cfg, session)
+        plan = plan_next_slices(cfg, session, dry_run=dry_run)
     except RuntimeError:
         # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
