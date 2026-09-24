@@ -5,10 +5,12 @@ docs/adr/0007-condor-q-primary-progress-source.md.
 
 import logging
 import subprocess
+from dataclasses import dataclass
+from typing import Optional
 
 CONDOR_Q_TIMEOUT_SECONDS = 30
 
-# jobsub_lite's condor_q wrapper adds the -G/--group flag get_pct_complete()
+# jobsub_lite's condor_q wrapper adds the -G/--group flag get_progress()
 # depends on; the plain HTCondor condor_q on $PATH doesn't understand it. Not
 # resolved via $PATH because cron's minimal PATH doesn't include this
 # directory even though an interactive login shell's does; see
@@ -16,45 +18,84 @@ CONDOR_Q_TIMEOUT_SECONDS = 30
 CONDOR_Q_BIN = "/opt/jobsub_lite/bin/condor_q"
 
 # Order matters: JobStatus's header token is never all-digits; see _parse_data_row().
-ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal"]
+ATTRS = ["JobStatus", "DAG_NodesDone", "DAG_NodesTotal", "DAG_NodesFailed"]
 
 
-def get_pct_complete(experiment, jobsub_job_id):
-    """DAG_NodesDone / DAG_NodesTotal * 100 for the DAGMan controller job
-    behind jobsub_job_id, or None if it can't be determined."""
+# HTCondor JobStatus codes of the DAGMan controller job.
+JOB_STATUS_NAMES = {
+    "1": "Idle", "2": "Running", "3": "Removed", "4": "Completed",
+    "5": "Held", "6": "Transferring", "7": "Suspended",
+}
+JOB_STATUS_REMOVED = "3"
+JOB_STATUS_COMPLETED = "4"
+
+
+@dataclass(frozen=True)
+class Progress:
+    """outcome: "live", "finished", "no_data" or "error"; pct, unfinished
+    (Total - Done - Failed) and job_status (the DAG's condor_q state) are set when the DAG's node counts are known."""
+    outcome: str
+    pct: Optional[float] = None
+    unfinished: Optional[int] = None
+    job_status: Optional[str] = None
+
+
+def get_progress(experiment, jobsub_job_id):
+    """Query condor_q for the DAGMan controller job behind jobsub_job_id.
+    Finished DAGs linger in the queue, so "finished" is only ever read off the
+    row itself, never inferred from the job being absent."""
     if not jobsub_job_id:
-        return None
-    cluster_id = jobsub_job_id.split("@", 1)[0]
+        return Progress("error")
+    cluster_id, _, schedd = jobsub_job_id.partition("@")
     if not cluster_id.isdigit():
-        return None
+        return Progress("error")
+
+    cmd = [CONDOR_Q_BIN, "-G", experiment]
+    if schedd:
+        cmd += ["-name", schedd]
+    cmd += [cluster_id, "-autoformat:h", *ATTRS]
 
     try:
         result = subprocess.run(
-            [CONDOR_Q_BIN, "-G", experiment, cluster_id, "-autoformat:h", *ATTRS],
-            capture_output=True, text=True, timeout=CONDOR_Q_TIMEOUT_SECONDS,
+            cmd, capture_output=True, text=True, timeout=CONDOR_Q_TIMEOUT_SECONDS,
         )
     except (subprocess.SubprocessError, OSError):
         logging.exception("condor_q failed for jobsub_job_id=%s", jobsub_job_id)
-        return None
+        return Progress("error")
 
     if result.returncode != 0:
         logging.warning(
             "condor_q exited %d for jobsub_job_id=%s: %s",
             result.returncode, jobsub_job_id, result.stderr,
         )
-        return None
+        return Progress("error")
 
     row = _parse_data_row(result.stdout)
     if row is None:
-        logging.warning(
-            "condor_q output for jobsub_job_id=%s didn't match the expected shape: %r",
-            jobsub_job_id, result.stdout,
-        )
+        return Progress("no_data")
+
+    pct = _pct(row["DAG_NodesDone"], row["DAG_NodesTotal"])
+    unfinished = _unfinished(row["DAG_NodesDone"], row["DAG_NodesTotal"], row["DAG_NodesFailed"])
+    job_status = JOB_STATUS_NAMES.get(row["JobStatus"], row["JobStatus"])
+    if row["JobStatus"] in (JOB_STATUS_COMPLETED, JOB_STATUS_REMOVED):
+        return Progress("finished", pct, unfinished, job_status)
+    if pct is None:
+        return Progress("no_data")
+    if pct >= 100:
+        return Progress("finished", pct, unfinished, job_status)
+    return Progress("live", pct, unfinished, job_status)
+
+
+def _unfinished(done, total, failed):
+    """Failures leave the unfinished set; DAG_NodesQueued is deliberately not
+    used, see docs/adr/0018-remove-stalled-stragglers-before-recovery.md."""
+    try:
+        return int(total) - int(done) - int(failed)
+    except ValueError:
         return None
 
-    done, total = row["DAG_NodesDone"], row["DAG_NodesTotal"]
-    if done == "undefined" or total == "undefined":
-        return None
+
+def _pct(done, total):
     try:
         done, total = int(done), int(total)
     except ValueError:

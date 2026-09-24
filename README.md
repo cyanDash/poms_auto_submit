@@ -3,7 +3,7 @@
 Cron script for SBND production: checks how far a POMS campaign
 stage's Running submissions have progressed, decides how many new slices (0,
 1, or 2) are ready to go out, and submits them via POMS. Every decision is
-logged.
+logged. Assumes that you have a well-tested campaign ready to be launched.
 
 ## What it does, each run
 
@@ -31,8 +31,7 @@ logged.
 
 Must be run as the `sbndpro` user — it has managed tokens configured, so
 the setup script can fetch a bearer token with `htgettoken` alone, no `kinit`
-needed. Also the repo already exists in the sbndpro APP area, so no need to
-clone it unless you have the need to.
+needed. Clone the repo in your working area.
 
 ```bash
 git clone https://github.com/cyanDash/poms_auto_submit.git
@@ -77,8 +76,7 @@ last_split = 0
 test_launch = 0
 
 ; set by the script once it has fully evaluated (or run) recovery for the
-; current exhaustion event; don't hand-edit while cron is active. Reset to 0
-; manually to force re-evaluation
+; current campaign; don't hand-edit while cron is active.
 recovery_handled = 0
 
 ; required on this branch: this campaign stage's split_type is None, so POMS
@@ -88,21 +86,19 @@ recovery_handled = 0
 ; each submission. See docs/adr/0014.
 input_dataset_template = base_name_slice{n}_files500
 
-[paths]
-; path to the log file, relative to this config file's directory
-log_file = ../logs/<your log>.log
-
-; path to the lock file, relative to this config file's directory. Give each
-; campaign stage's config its own lock file.
-lock_file = ../<your lock>.lock
+; when true, automatically clean up duplicates once the campaign is fully
+; done, then turn switch off. Don't hand-edit while cron is active.
+do_cleanup = 0
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
 
-`submit_two_slices` = 1 implies a pro and a non-pro submission can be 
+`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
+
+`submit_two_slices = 1` implies a pro and a non-pro submission can be 
 simultaneously run.
 
-`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
+If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
 
 ## Example workflow
 
@@ -110,14 +106,14 @@ Validate against a real campaign before trusting it unattended:
 
 ```bash
 source setup.sh
-./scripts/poms_auto_submit.py -c configs/<config file> --dry-run
+./scripts/poms_auto_submit.py --config configs/<config file> --dry-run
 ```
 `-c`/`--config` point at the config file to use. A dry run fetches
 information about the currently active submissions and prints out what it
 would do given this information. It does not submit a new slice, nor does it
 update the parameters for a stage.
 
-Check `logs/poms_auto_submit.log` for the logged progress/status/decision,
+Check `logs/<campaign_name>/poms_auto_submit.log` for the logged progress/status/decision,
 then run for real once manually and confirm in the POMS page that the submission goes out:
 
 ```bash
@@ -139,3 +135,9 @@ Make appropriate changes for the file paths. You now have a crontab installed th
 Check the logs on a daily basis during the campaign to notice errors.
 
 Make sure to delete the crontab at the end of your campaign.
+
+# A note on the usage of LLM:
+Approximately 99% of the code and commit messages in this repository are written by Claude.
+I have tried my best to ensure transparency regarding the AI usage and also spent hours to ensure that this damn thing works.
+I have also attached the CLAUDE.md and CONTEXT.md files so that if someone uses an LLM to explore this repo, the LLM can have a better idea about the domain-specific terms and the design decisions. To ensure efficient token usage and best coding practices while avoiding slop, I have taken the
+help of [Matt Pocock's skills](https://github.com/mattpocock/skills). A tutorial for using the skills is linked [here](https://youtu.be/M6mYodf0dJM?si=BR_nni--bqirschO). These skills are a gateway to software development fundamentals, like **test-driven development**, **deep modular architecture** (fancy way of saying that your codebase should be dividable into interconnected submodules which are easy to understand in terms of what they do or depend on, but they hide away the complexities of implementation as much as possible) etc. I had the privilege of learning these concepts while working on this project and I hope you do as well.

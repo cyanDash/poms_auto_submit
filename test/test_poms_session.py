@@ -77,41 +77,15 @@ def test_get_progress_with_no_submissions_returns_empty_list():
     assert session.get_progress() == []
 
 
-def test_get_progress_picks_latest_submission_when_none_running():
-    submissions = [
-        {"submission_id": 100, "status": "Located"},
-        {"submission_id": 102, "status": "Completed"},
-        {"submission_id": 101, "status": "Located"},
-    ]
-    details_by_id = {
-        102: {"submission_id": "102", "submission": {"pct_complete": 100.0, "jobsub_job_id": "111@jobsub01.fnal.gov"}},
-    }
-    session = make_session(
-        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
-            True,
-            {"data": {"submissions": submissions}},
-        ),
-        submission_details=lambda experiment, role, submission_id: (True, details_by_id[submission_id]),
-    )
-
-    assert session.get_progress() == [
-        {
-            "submission_id": 102, "status": "Completed", "pct_complete": 100.0,
-            "jobsub_job_id": "111@jobsub01.fnal.gov", "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
-        }
-    ]
-
-
 def test_get_progress_returns_all_running_submissions():
     submissions = [
         {"submission_id": 100, "status": "Running"},
-        {"submission_id": 102, "status": "Located"},
+        {"submission_id": 102, "status": "Located", "created": "2000-01-01T00:00:00"},
         {"submission_id": 101, "status": "Running"},
     ]
     details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": "100@jobsub01.fnal.gov"}},
-        101: {"submission_id": "101", "submission": {"pct_complete": 55.0, "jobsub_job_id": "101@jobsub01.fnal.gov"}},
+        100: {"submission_id": "100", "submission": {"jobsub_job_id": "100@jobsub01.fnal.gov"}},
+        101: {"submission_id": "101", "submission": {"jobsub_job_id": "101@jobsub01.fnal.gov"}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -123,14 +97,12 @@ def test_get_progress_returns_all_running_submissions():
 
     assert session.get_progress() == [
         {
-            "submission_id": 100, "status": "Running", "pct_complete": 10.0,
+            "submission_id": 100, "status": "Running",
             "jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
         },
         {
-            "submission_id": 101, "status": "Running", "pct_complete": 55.0,
+            "submission_id": 101, "status": "Running",
             "jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
         },
     ]
 
@@ -141,11 +113,11 @@ def test_get_progress_treats_held_as_active_alongside_running():
     submissions = [
         {"submission_id": 100, "status": "Held"},
         {"submission_id": 101, "status": "Running"},
-        {"submission_id": 102, "status": "Located"},
+        {"submission_id": 102, "status": "Located", "created": "2000-01-01T00:00:00"},
     ]
     details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": 92.0, "jobsub_job_id": None}},
-        101: {"submission_id": "101", "submission": {"pct_complete": 55.0, "jobsub_job_id": None}},
+        100: {"submission_id": "100", "submission": {"jobsub_job_id": None}},
+        101: {"submission_id": "101", "submission": {"jobsub_job_id": None}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -157,12 +129,10 @@ def test_get_progress_treats_held_as_active_alongside_running():
 
     assert session.get_progress() == [
         {
-            "submission_id": 100, "status": "Held", "pct_complete": 92.0, "jobsub_job_id": None, "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
+            "submission_id": 100, "status": "Held", "jobsub_job_id": None, "subgroup": None,
         },
         {
-            "submission_id": 101, "status": "Running", "pct_complete": 55.0, "jobsub_job_id": None, "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
+            "submission_id": 101, "status": "Running", "jobsub_job_id": None, "subgroup": None,
         },
     ]
 
@@ -172,10 +142,10 @@ def test_get_progress_treats_new_as_active_alongside_running_and_held():
     # already queued), not idle/abandoned -- shouldn't be skipped over.
     submissions = [
         {"submission_id": 100, "status": "New"},
-        {"submission_id": 101, "status": "Located"},
+        {"submission_id": 101, "status": "Located", "created": "2000-01-01T00:00:00"},
     ]
     details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": None, "jobsub_job_id": None}},
+        100: {"submission_id": "100", "submission": {"jobsub_job_id": None}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -187,8 +157,7 @@ def test_get_progress_treats_new_as_active_alongside_running_and_held():
 
     assert session.get_progress() == [
         {
-            "submission_id": 100, "status": "New", "pct_complete": None, "jobsub_job_id": None, "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
+            "submission_id": 100, "status": "New", "jobsub_job_id": None, "subgroup": None,
         },
     ]
 
@@ -198,10 +167,10 @@ def test_get_progress_treats_idle_as_active_alongside_running_and_held():
     # in-flight -- same reasoning as New, shouldn't be skipped over.
     submissions = [
         {"submission_id": 100, "status": "Idle"},
-        {"submission_id": 101, "status": "Located"},
+        {"submission_id": 101, "status": "Located", "created": "2000-01-01T00:00:00"},
     ]
     details_by_id = {
-        100: {"submission_id": "100", "submission": {"pct_complete": None, "jobsub_job_id": None}},
+        100: {"submission_id": "100", "submission": {"jobsub_job_id": None}},
     }
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -213,8 +182,7 @@ def test_get_progress_treats_idle_as_active_alongside_running_and_held():
 
     assert session.get_progress() == [
         {
-            "submission_id": 100, "status": "Idle", "pct_complete": None, "jobsub_job_id": None, "subgroup": None,
-            "last_status_change": None, "files_submitted": None, "files_pending": None,
+            "submission_id": 100, "status": "Idle", "jobsub_job_id": None, "subgroup": None,
         },
     ]
 
@@ -228,7 +196,6 @@ def test_get_progress_parses_subgroup_from_command_executed():
     details = {
         "submission_id": "100",
         "submission": {
-            "pct_complete": 10.0,
             "jobsub_job_id": "100@jobsub01.fnal.gov",
             "command_executed": "jobsub_submit ... --group=sbnd --subgroup=pro --role=production ...",
         },
@@ -246,7 +213,7 @@ def test_get_progress_parses_subgroup_from_command_executed():
 
 def test_get_progress_subgroup_is_none_when_command_executed_is_missing():
     submissions = [{"submission_id": 100, "status": "Running"}]
-    details = {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": None}}
+    details = {"submission_id": "100", "submission": {"jobsub_job_id": None}}
     session = make_session(
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
             True,
@@ -258,66 +225,11 @@ def test_get_progress_subgroup_is_none_when_command_executed_is_missing():
     assert session.get_progress()[0]["subgroup"] is None
 
 
-def test_get_progress_parses_last_status_change_and_file_counts():
-    # history/statuses are siblings of "submission" in the real response
-    # (confirmed live 2026-08-30, submission 3136636 -- see
-    # docs/poms_client_gotchas.md). last_status_change is the max history
-    # timestamp; files_submitted/files_pending come from the statuses[]
-    # [label, count, url] triples -- fallback layer 2 in
-    # docs/adr/0007-condor-q-primary-progress-source.md.
-    submissions = [{"submission_id": 100, "status": "Running"}]
-    details = {
-        "submission_id": "100",
-        "submission": {"pct_complete": 0.04, "jobsub_job_id": None},
-        "history": [
-            {"created": "2026-08-28T09:03:36", "status_id": 4000},
-            {"created": "2026-08-28T11:37:25", "status_id": 4000},
-        ],
-        "statuses": [
-            ["Available output: ", 38804, "url"],
-            ["Submitted to SAM: ", 10000, "url"],
-            ["Consumed by SAM: ", 9982, "url"],
-            ["Pending: ", 299, "url"],
-        ],
-    }
-    session = make_session(
-        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
-            True,
-            {"data": {"submissions": submissions}},
-        ),
-        submission_details=lambda experiment, role, submission_id: (True, details),
-    )
-
-    entry = session.get_progress()[0]
-
-    assert entry["last_status_change"] == datetime(2026, 8, 28, 11, 37, 25)
-    assert entry["files_submitted"] == 10000
-    assert entry["files_pending"] == 299
-
-
-def test_get_progress_last_status_change_and_file_counts_are_none_when_absent():
-    submissions = [{"submission_id": 100, "status": "Running"}]
-    details = {"submission_id": "100", "submission": {"pct_complete": 10.0, "jobsub_job_id": None}}
-    session = make_session(
-        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
-            True,
-            {"data": {"submissions": submissions}},
-        ),
-        submission_details=lambda experiment, role, submission_id: (True, details),
-    )
-
-    entry = session.get_progress()[0]
-
-    assert entry["last_status_change"] is None
-    assert entry["files_submitted"] is None
-    assert entry["files_pending"] is None
-
-
 # --- static-field cache -- see docs/adr/0008-cache-static-submission-fields.md ---
 
 def test_get_progress_uses_cache_and_skips_submission_details(tmp_path):
     submissions = [{"submission_id": 100, "status": "Running"}]
-    (tmp_path / "42.json").write_text(
+    (tmp_path / "submission_cache_42.json").write_text(
         json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": "pro"}})
     )
     calls = []
@@ -334,10 +246,6 @@ def test_get_progress_uses_cache_and_skips_submission_details(tmp_path):
     assert calls == []
     assert entry["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
     assert entry["subgroup"] == "pro"
-    assert entry["pct_complete"] is None
-    assert entry["last_status_change"] is None
-    assert entry["files_submitted"] is None
-    assert entry["files_pending"] is None
 
 
 def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
@@ -345,7 +253,6 @@ def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
     details = {
         "submission_id": "100",
         "submission": {
-            "pct_complete": 10.0,
             "jobsub_job_id": "100@jobsub01.fnal.gov",
             "command_executed": "jobsub_submit ... --subgroup=pro ...",
         },
@@ -362,9 +269,8 @@ def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
 
     assert entry["jobsub_job_id"] == "100@jobsub01.fnal.gov"
     assert entry["subgroup"] == "pro"
-    assert entry["pct_complete"] == 10.0
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {"100": {"jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": "pro"}}
 
 
@@ -373,11 +279,11 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
         {"submission_id": 100, "status": "Running"},
         {"submission_id": 101, "status": "Running"},
     ]
-    (tmp_path / "42.json").write_text(
+    (tmp_path / "submission_cache_42.json").write_text(
         json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None}})
     )
     calls = []
-    details = {"submission_id": "101", "submission": {"pct_complete": 5.0, "jobsub_job_id": "101@jobsub01.fnal.gov"}}
+    details = {"submission_id": "101", "submission": {"jobsub_job_id": "101@jobsub01.fnal.gov"}}
     session = make_session(
         cfg=make_cfg(cache_dir=str(tmp_path)),
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
@@ -392,7 +298,7 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
     assert result[0]["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
     assert result[1]["jobsub_job_id"] == "101@jobsub01.fnal.gov"
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {
         "100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None},
         "101": {"jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
@@ -410,7 +316,7 @@ def test_get_jobsub_job_id_writes_cache_on_success(tmp_path):
 
     session._get_jobsub_job_id("555")
 
-    written = json.loads((tmp_path / "42.json").read_text())
+    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
     assert written == {"555": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "subgroup": "standard"}}
 
 
@@ -424,7 +330,7 @@ def test_cache_is_noop_without_cache_dir():
             True, {"data": {"submissions": submissions}},
         ),
         submission_details=lambda experiment, role, submission_id: calls.append(submission_id)
-        or (True, {"submission": {"pct_complete": 1.0, "jobsub_job_id": "x"}}),
+        or (True, {"submission": {"jobsub_job_id": "x"}}),
     )
 
     session.get_progress()
@@ -695,3 +601,88 @@ def test_submit_next_slice_keeps_polling_through_lookup_failures(monkeypatch):
 
     assert session.submit_next_slice() == "555"
     assert len(calls) == 2
+
+
+# --- 72h window: docs/adr/0017 / issue #9 ---
+
+WINDOW_NOW = datetime(2026, 9, 20, 12, 0, 0)
+
+
+def window_session(submissions, **kwargs):
+    return make_session(
+        campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
+            True, {"data": {"submissions": submissions}},
+        ),
+        **kwargs,
+    )
+
+
+def test_get_progress_window_includes_recent_terminal_submissions():
+    session = window_session([
+        {"submission_id": 1, "status": "Located", "created": "2026-09-19T12:00:00"},
+        {"submission_id": 2, "status": "Failed", "created": "2026-09-17T12:01:00"},
+    ])
+
+    ids = [e["submission_id"] for e in session.get_progress(now=WINDOW_NOW)]
+
+    assert ids == [1, 2]
+
+
+def test_get_progress_window_excludes_old_terminal_submissions():
+    session = window_session([
+        {"submission_id": 1, "status": "Located", "created": "2026-09-17T11:59:00"},
+        {"submission_id": 2, "status": "Completed", "created": "2026-09-19T12:00:00"},
+    ])
+
+    ids = [e["submission_id"] for e in session.get_progress(now=WINDOW_NOW)]
+
+    assert ids == [2]
+
+
+def test_get_progress_window_includes_old_poms_active_submissions():
+    session = window_session([
+        {"submission_id": 1, "status": "Held", "created": "2026-08-01T12:00:00"},
+        {"submission_id": 2, "status": "Located", "created": "2026-08-01T12:00:00"},
+    ])
+
+    ids = [e["submission_id"] for e in session.get_progress(now=WINDOW_NOW)]
+
+    assert ids == [1]
+
+
+def test_get_progress_window_carries_poms_status_as_data():
+    session = window_session([{"submission_id": 1, "status": "Located", "created": "2026-09-20T11:00:00"}])
+
+    entry = session.get_progress(now=WINDOW_NOW)[0]
+
+    assert entry["status"] == "Located"
+
+
+def test_get_progress_window_reads_cache_for_terminal_submissions(tmp_path):
+    (tmp_path / "submission_cache_42.json").write_text(
+        json.dumps({"1": {"jobsub_job_id": "9@jobsub01.fnal.gov", "subgroup": "pro"}})
+    )
+    calls = []
+    session = window_session(
+        [{"submission_id": 1, "status": "Located", "created": "2026-09-20T11:00:00"}],
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id) or (True, {}),
+    )
+    session.cfg["cache_dir"] = str(tmp_path)
+
+    entry = session.get_progress(now=WINDOW_NOW)[0]
+
+    assert calls == []
+    assert entry["jobsub_job_id"] == "9@jobsub01.fnal.gov"
+    assert entry["subgroup"] == "pro"
+
+
+def test_get_progress_flags_old_poms_active_submission_as_outside_window():
+    session = window_session([
+        {"submission_id": 1, "status": "Held", "created": "2026-09-10T00:00:00"},
+        {"submission_id": 2, "status": "Running", "created": "2026-09-20T00:00:00"},
+    ])
+
+    entries = session.get_progress(now=WINDOW_NOW)
+
+    assert entries[0].get("outside_window") is True
+    assert "outside_window" not in entries[1]

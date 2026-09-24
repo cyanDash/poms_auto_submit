@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 from poms_raw_client import raw_poms_call
@@ -22,11 +22,6 @@ PRO_SUBGROUP = "pro"
 # _raw_launch_jobs_call() bypasses it precisely so this check works.
 NO_MORE_SPLITS_MARKER = "No more splits in this campaign"
 
-# statuses[] entries are [label, count, dims_url] triples; see
-# docs/poms_client_gotchas.md.
-STATUS_LABEL_SUBMITTED = "Submitted to SAM: "
-STATUS_LABEL_PENDING = "Pending: "
-
 # command_executed is the immutable per-submission record of the actual
 # --subgroup= flag; param_overrides isn't (see docs/poms_client_gotchas.md).
 SUBGROUP_COMMAND_PATTERN = re.compile(r"--subgroup=(\S+)")
@@ -36,6 +31,11 @@ JOBSUB_ID_POLL_SECONDS = 5
 
 # See CONTEXT.md's Status entry for why Held/New/Idle count as in-flight.
 ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
+
+# get_progress() returns every Submission created within this window whatever
+# its POMS Status, plus any POMS-active one of any age. A fixed constant, not
+# a config knob.
+SUBMISSION_WINDOW = timedelta(hours=72)
 
 
 class PomsSession:
@@ -62,7 +62,7 @@ class PomsSession:
         cache_dir = self.cfg.get("cache_dir")
         if not cache_dir:
             return None
-        return os.path.join(cache_dir, f"{self.campaign_stage_id}.json")
+        return os.path.join(cache_dir, f"submission_cache_{self.campaign_stage_id}.json")
 
     @property
     def cache(self):
@@ -100,8 +100,9 @@ class PomsSession:
                 self._cache_submission(submission_id, jobsub_job_id, subgroup)
         return ok, details
 
-    def get_progress(self):
-        """Status/pct_complete of the currently relevant Submission(s)."""
+    def get_progress(self, now=None):
+        """Every Submission in the 72h window, plus any POMS-active one of any
+        age. POMS Status is returned as data, never used to filter recent ones."""
         ok, resp = self.pc.campaign_stage_submissions(
             self.cfg["experiment"], self.cfg["role"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"],
         )
@@ -113,61 +114,45 @@ class PomsSession:
             return []
 
         submissions = sorted(submissions, key=lambda s: s.get("submission_id", 0))
-        active = [s for s in submissions if s.get("status") in ACTIVE_SUBMISSION_STATUSES]
-        target = active if active else [submissions[-1]]
+        cutoff = (now or datetime.now()) - SUBMISSION_WINDOW
+        target = [s for s in submissions if self._in_window(s, cutoff)]
 
         result = []
         for s in target:
             submission_id = s.get("submission_id")
             cached = self.cache.get(str(submission_id))
             if cached is not None:
-                pct_complete = last_status_change = files_submitted = files_pending = None
                 jobsub_job_id = cached["jobsub_job_id"]
                 subgroup = cached["subgroup"]
             else:
                 ok, details = self._fetch_submission_details(submission_id)
                 submission = details.get("submission", {}) if ok else {}
-                pct_complete = submission.get("pct_complete")
                 jobsub_job_id = submission.get("jobsub_job_id")
                 subgroup = self._parse_subgroup(submission.get("command_executed"))
-                statuses = details.get("statuses", []) if ok else []
-                last_status_change = self._last_status_change(details.get("history", []) if ok else [])
-                files_submitted = self._status_count(statuses, STATUS_LABEL_SUBMITTED)
-                files_pending = self._status_count(statuses, STATUS_LABEL_PENDING)
             entry = {
                 "submission_id": submission_id,
                 "status": s.get("status"),
-                "pct_complete": pct_complete,
                 "jobsub_job_id": jobsub_job_id,
                 "subgroup": subgroup,
-                "last_status_change": last_status_change,
-                "files_submitted": files_submitted,
-                "files_pending": files_pending,
             }
+            if not self._in_window(s, cutoff, active_counts=False):
+                entry["outside_window"] = True
             result.append(entry)
 
         return result
 
     @staticmethod
+    def _in_window(s, cutoff, active_counts=True):
+        if active_counts and s.get("status") in ACTIVE_SUBMISSION_STATUSES:
+            return True
+        created = s.get("created")
+        # Naive Central-time string, same as history[].created.
+        return created is None or datetime.fromisoformat(created) >= cutoff
+
+    @staticmethod
     def _parse_subgroup(command_executed):
         match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
         return match.group(1) if match else None
-
-    @staticmethod
-    def _last_status_change(history):
-        """Most recent history[].created timestamp, or None if empty. Naive
-        Central-time strings; see docs/poms_client_gotchas.md."""
-        created = [entry.get("created") for entry in history if entry.get("created")]
-        if not created:
-            return None
-        return max(datetime.fromisoformat(c) for c in created)
-
-    @staticmethod
-    def _status_count(statuses, label):
-        for entry_label, count, *_ in statuses:
-            if entry_label == label:
-                return count
-        return None
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""

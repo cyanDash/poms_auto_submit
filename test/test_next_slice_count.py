@@ -1,5 +1,20 @@
 import poms_auto_submit as psc
+from condor_progress import Progress
 from helpers import make_cfg, make_submissions, sub
+
+
+def running(submission_id):
+    s = sub(submission_id)
+    s["jobsub_job_id"] = f"{submission_id}@jobsub01.fnal.gov"
+    return s
+
+
+def condor(*pcts):
+    """condor_q lookup: submission N (1-based) reports pcts[N-1] percent."""
+    def lookup(experiment, jobsub_job_id):
+        pct = pcts[int(jobsub_job_id.split("@")[0]) - 1]
+        return Progress("live" if pct < 100 else "finished", pct)
+    return lookup
 
 
 def test_next_slice_count_bootstraps_single_target_when_nothing_submitted():
@@ -15,38 +30,38 @@ def test_next_slice_count_bootstraps_double_target_when_nothing_submitted():
 def test_next_slice_count_tops_up_to_target_even_when_none_past_threshold():
     # target=2, one submission in flight (under threshold) -- top up to
     # target immediately rather than waiting for it to cross threshold first.
-    submissions = make_submissions(sub(1, 40.0))
+    submissions = make_submissions(sub(1))
     num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions)
     assert num == 1
 
 
 def test_next_slice_count_skips_when_in_flight_already_meets_target():
-    submissions = make_submissions(sub(1, 40.0))
+    submissions = make_submissions(sub(1))
     num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
     assert num == 0
 
 
 def test_next_slice_count_submits_one_when_single_target_and_ready():
-    submissions = make_submissions(sub(1, 90.0))
-    num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
+    submissions = make_submissions(running(1))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions, get_condor_progress=condor(90.0))
     assert num == 1
 
 
 def test_next_slice_count_submits_two_when_only_running_slice_is_ready():
-    submissions = make_submissions(sub(1, 90.0))
-    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions)
+    submissions = make_submissions(running(1))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions, get_condor_progress=condor(90.0))
     assert num == 2
 
 
 def test_next_slice_count_submits_one_when_one_of_two_ready():
-    submissions = make_submissions(sub(1, 90.0), sub(2, 40.0))
-    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions)
+    submissions = make_submissions(running(1), running(2))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions, get_condor_progress=condor(90.0, 40.0))
     assert num == 1
 
 
 def test_next_slice_count_submits_two_when_both_of_two_ready():
-    submissions = make_submissions(sub(1, 90.0), sub(2, 95.0))
-    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions)
+    submissions = make_submissions(running(1), running(2))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=True), submissions, get_condor_progress=condor(90.0, 95.0))
     assert num == 2
 
 
@@ -66,7 +81,17 @@ def test_next_slice_count_caps_to_remaining_splits_when_bootstrapping():
 
 
 def test_next_slice_count_caps_to_remaining_splits_when_both_ready():
-    submissions = make_submissions(sub(1, 90.0), sub(2, 95.0))
+    submissions = make_submissions(running(1), running(2))
+    num = psc._next_slice_count(make_cfg(submit_two_slices=True, last_split=4, max_splits=5), submissions, get_condor_progress=condor(90.0, 95.0))
+    assert num == 1
+
+
+def test_next_slice_count_submits_final_split_even_with_one_in_flight():
+    # Only one split remains before max_splits, submit_two_slices=True, and
+    # one submission is already in flight -- the last slice should still go
+    # out to fill the second concurrency slot, not be withheld because
+    # target collapsed to equal in_flight.
+    submissions = make_submissions(sub(1))
     num = psc._next_slice_count(make_cfg(submit_two_slices=True, last_split=4, max_splits=5), submissions)
     assert num == 1
 
@@ -84,7 +109,7 @@ def test_next_slice_count_submits_final_split_even_with_one_in_flight():
 def test_next_slice_count_treats_none_pct_complete_as_in_flight():
     # A New/Idle submission hasn't started progressing yet (pct_complete is
     # None), but it's still occupying a slot, not free capacity.
-    submissions = make_submissions({"submission_id": 1, "status": "New", "pct_complete": None, "subgroup": None})
+    submissions = make_submissions({"submission_id": 1, "status": "New", "subgroup": None})
     num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
     assert num == 0
 
@@ -94,6 +119,6 @@ def test_next_slice_count_does_not_count_failed_submission_with_no_signal_as_in_
     # forgotten it, POMS never recorded progress) must not be treated as
     # in-flight just because its progress signal is unavailable -- a
     # terminal status is never in-flight, regardless of signal.
-    submissions = make_submissions({"submission_id": 1, "status": "Failed", "pct_complete": None, "subgroup": None})
+    submissions = make_submissions({"submission_id": 1, "status": "Failed", "subgroup": None})
     num = psc._next_slice_count(make_cfg(submit_two_slices=False), submissions)
     assert num == 1

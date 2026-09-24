@@ -52,3 +52,11 @@ without any POMS-side auto-splitting. `max_splits` (set to 23 for this
 campaign) still gates total submissions exactly as before — once
 `last_split` reaches it, `_plan()` stops planning further slices, same as
 any other campaign.
+
+## Note: ported condor_q, recovery and straggler logic
+
+This branch carries main's condor_q-based in-flight, recovery, cleanup and
+straggler logic (ADR-0017, ADR-0018). The recovery code stays dormant here:
+`recovery_handled = 1` remains the opt-out switch, and there is deliberately no
+code guard, so `submit_plan()` would still overwrite a recovery dataset with the
+slice template if that switch were ever cleared.

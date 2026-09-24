@@ -1,0 +1,1916 @@
+{
+  "campaign_name": "ICARUS _FakeData_Run4_Overlay_Ar25",
+  "stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+  "data": {
+    "tmin": "2026-08-19T01:28:22",
+    "tmax": "2026-09-20T17:13:50",
+    "nextlink": "/poms/campaign_stage_submissions/sbnd/production?campaign_name=ICARUS _FakeData_Run4_Overlay_Ar25&stage_name=gen_g4_mix_decode_detsim_overlay_stage0&campaign_stage_id=26985&campaign_id=11491&tmax=2026-10-23+08:59:18&tdays=32",
+    "prevlink": "/poms/campaign_stage_submissions/sbnd/production?campaign_name=ICARUS _FakeData_Run4_Overlay_Ar25&stage_name=gen_g4_mix_decode_detsim_overlay_stage0&campaign_stage_id=26985&campaign_id=11491&tmax=2026-08-19+01:28:22&tdays=32",
+    "tdays": 32.65,
+    "tminsec": "1787124502",
+    "depends": {
+      "3130239": null,
+      "3130240": null,
+      "3130253": null,
+      "3130705": null,
+      "3130823": null,
+      "3130828": null,
+      "3130858": null,
+      "3130859": null,
+      "3130866": null,
+      "3131213": null,
+      "3131250": null,
+      "3137238": null,
+      "3137240": null,
+      "3137249": null,
+      "3137268": null,
+      "3137281": null,
+      "3137284": null,
+      "3137356": null,
+      "3137364": null,
+      "3137388": null,
+      "3137396": null,
+      "3137431": null,
+      "3138177": null,
+      "3138472": null,
+      "3141666": null,
+      "3142688": null,
+      "3142712": null,
+      "3143857": null,
+      "3143859": null,
+      "3143865": null,
+      "3144142": null,
+      "3144243": null,
+      "3144624": null,
+      "3144753": null,
+      "3144859": null,
+      "3145162": null,
+      "3145332": null,
+      "3145725": null,
+      "3145750": null,
+      "3146094": null,
+      "3146212": null,
+      "3146527": null,
+      "3146659": null,
+      "3146773": null,
+      "3147139": null,
+      "3147255": null,
+      "3147458": null,
+      "3147609": null,
+      "3147937": null,
+      "3147965": null,
+      "3148366": null,
+      "3148633": null,
+      "3149264": null,
+      "3149389": null,
+      "3150865": null,
+      "3152679": null,
+      "3152685": null,
+      "3152697": null,
+      "3153766": null,
+      "3153813": null,
+      "3153898": null,
+      "3153929": null,
+      "3153988": null,
+      "3154049": null,
+      "3154730": null,
+      "3154745": null,
+      "3154746": null,
+      "3154767": null,
+      "3154800": null,
+      "3154829": null,
+      "3154860": null,
+      "3154888": null,
+      "3154920": null,
+      "3154951": null,
+      "3154980": null,
+      "3155007": null,
+      "3155037": null,
+      "3155064": null,
+      "3155093": null
+    },
+    "depth": {
+      "3130239": 0,
+      "3130240": 0,
+      "3130253": 0,
+      "3130705": 0,
+      "3130823": 0,
+      "3130828": 0,
+      "3130858": 0,
+      "3130859": 0,
+      "3130866": 0,
+      "3131213": 0,
+      "3131250": 0,
+      "3137238": 0,
+      "3137240": 0,
+      "3137249": 0,
+      "3137268": 0,
+      "3137281": 0,
+      "3137284": 0,
+      "3137356": 0,
+      "3137364": 0,
+      "3137388": 0,
+      "3137396": 0,
+      "3137431": 0,
+      "3138177": 0,
+      "3138472": 0,
+      "3141666": 0,
+      "3142688": 0,
+      "3142712": 0,
+      "3143857": 0,
+      "3143859": 0,
+      "3143865": 0,
+      "3144142": 0,
+      "3144243": 0,
+      "3144624": 0,
+      "3144753": 0,
+      "3144859": 0,
+      "3145162": 0,
+      "3145332": 0,
+      "3145725": 0,
+      "3145750": 0,
+      "3146094": 0,
+      "3146212": 0,
+      "3146527": 0,
+      "3146659": 0,
+      "3146773": 0,
+      "3147139": 0,
+      "3147255": 0,
+      "3147458": 0,
+      "3147609": 0,
+      "3147937": 0,
+      "3147965": 0,
+      "3148366": 0,
+      "3148633": 0,
+      "3149264": 0,
+      "3149389": 0,
+      "3150865": 0,
+      "3152679": 0,
+      "3152685": 0,
+      "3152697": 0,
+      "3153766": 0,
+      "3153813": 0,
+      "3153898": 0,
+      "3153929": 0,
+      "3153988": 0,
+      "3154049": 0,
+      "3154730": 0,
+      "3154745": 0,
+      "3154746": 0,
+      "3154767": 0,
+      "3154800": 0,
+      "3154829": 0,
+      "3154860": 0,
+      "3154888": 0,
+      "3154920": 0,
+      "3154951": 0,
+      "3154980": 0,
+      "3155007": 0,
+      "3155037": 0,
+      "3155064": 0,
+      "3155093": 0
+    },
+    "darrow": {
+      "3130239": "",
+      "3130240": "",
+      "3130253": "",
+      "3130705": "",
+      "3130823": "",
+      "3130828": "",
+      "3130858": "",
+      "3130859": "",
+      "3130866": "",
+      "3131213": "",
+      "3131250": "",
+      "3137238": "",
+      "3137240": "",
+      "3137249": "",
+      "3137268": "",
+      "3137281": "",
+      "3137284": "",
+      "3137356": "",
+      "3137364": "",
+      "3137388": "",
+      "3137396": "",
+      "3137431": "",
+      "3138177": "",
+      "3138472": "",
+      "3141666": "",
+      "3142688": "",
+      "3142712": "",
+      "3143857": "",
+      "3143859": "",
+      "3143865": "",
+      "3144142": "",
+      "3144243": "",
+      "3144624": "",
+      "3144753": "",
+      "3144859": "",
+      "3145162": "",
+      "3145332": "",
+      "3145725": "",
+      "3145750": "",
+      "3146094": "",
+      "3146212": "",
+      "3146527": "",
+      "3146659": "",
+      "3146773": "",
+      "3147139": "",
+      "3147255": "",
+      "3147458": "",
+      "3147609": "",
+      "3147937": "",
+      "3147965": "",
+      "3148366": "",
+      "3148633": "",
+      "3149264": "",
+      "3149389": "",
+      "3150865": "",
+      "3152679": "",
+      "3152685": "",
+      "3152697": "",
+      "3153766": "",
+      "3153813": "",
+      "3153898": "",
+      "3153929": "",
+      "3153988": "",
+      "3154049": "",
+      "3154730": "",
+      "3154745": "",
+      "3154746": "",
+      "3154767": "",
+      "3154800": "",
+      "3154829": "",
+      "3154860": "",
+      "3154888": "",
+      "3154920": "",
+      "3154951": "",
+      "3154980": "",
+      "3155007": "",
+      "3155037": "",
+      "3155064": "",
+      "3155093": ""
+    },
+    "submissions": [
+      {
+        "submission_id": 3130239,
+        "jobsub_job_id": null,
+        "created": "2026-08-19T01:54:37",
+        "creator": "prabhjot",
+        "status": "Removed",
+        "jobsub_cluster": "unknown.0",
+        "jobsub_schedd": "unknown.un.known",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T01:54:37-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T01:54:37-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130240,
+        "jobsub_job_id": "29849142@jobsub05.fnal.gov",
+        "created": "2026-08-19T01:57:55",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "29849142",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_b5bebc67-ad88-4508-aeb6-35f740f21e1f  ) and create_date > '2026-08-19T01:57:55-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_b5bebc67-ad88-4508-aeb6-35f740f21e1f  ) and create_date > '2026-08-19T01:57:55-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130253,
+        "jobsub_job_id": "71623927@jobsub03.fnal.gov",
+        "created": "2026-08-19T02:23:50",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "71623927",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_41871bc9-0d5d-4bcd-af9e-8193eaf8b97a  ) and create_date > '2026-08-19T02:23:50-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_41871bc9-0d5d-4bcd-af9e-8193eaf8b97a  ) and create_date > '2026-08-19T02:23:50-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130705,
+        "jobsub_job_id": null,
+        "created": "2026-08-19T17:11:19",
+        "creator": "prabhjot",
+        "status": "Removed",
+        "jobsub_cluster": "unknown.0",
+        "jobsub_schedd": "unknown.un.known",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T17:11:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T17:11:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130823,
+        "jobsub_job_id": "86290305@jobsub01.fnal.gov",
+        "created": "2026-08-19T21:18:15",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86290305",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_9c86c0f4-f0bb-4454-93f1-911ae80bf091  ) and create_date > '2026-08-19T21:18:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_9c86c0f4-f0bb-4454-93f1-911ae80bf091  ) and create_date > '2026-08-19T21:18:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130828,
+        "jobsub_job_id": "29859094@jobsub05.fnal.gov",
+        "created": "2026-08-19T21:27:49",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "29859094",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_0ee1bc69-e7e8-4328-91d4-9582f3394875  ) and create_date > '2026-08-19T21:27:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_0ee1bc69-e7e8-4328-91d4-9582f3394875  ) and create_date > '2026-08-19T21:27:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130858,
+        "jobsub_job_id": null,
+        "created": "2026-08-19T22:30:12",
+        "creator": "prabhjot",
+        "status": "Removed",
+        "jobsub_cluster": "unknown.0",
+        "jobsub_schedd": "unknown.un.known",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T22:30:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-19T22:30:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130859,
+        "jobsub_job_id": "29859873@jobsub05.fnal.gov",
+        "created": "2026-08-19T22:33:18",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "29859873",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_46ab8ecb-8442-4211-9651-e4fe95f60fca  ) and create_date > '2026-08-19T22:33:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_46ab8ecb-8442-4211-9651-e4fe95f60fca  ) and create_date > '2026-08-19T22:33:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3130866,
+        "jobsub_job_id": "86291656@jobsub01.fnal.gov",
+        "created": "2026-08-19T22:46:25",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "86291656",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_428e0b53-57d1-478d-b24e-1e5216a2cbaf  ) and create_date > '2026-08-19T22:46:25-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_428e0b53-57d1-478d-b24e-1e5216a2cbaf  ) and create_date > '2026-08-19T22:46:25-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p06'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3131213,
+        "jobsub_job_id": "29867023@jobsub05.fnal.gov",
+        "created": "2026-08-20T11:12:13",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "29867023",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_a2ce5288-b96f-44e0-a932-c2c98842a3db  ) and create_date > '2026-08-20T11:12:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_a2ce5288-b96f-44e0-a932-c2c98842a3db  ) and create_date > '2026-08-20T11:12:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3131250,
+        "jobsub_job_id": "29868637@jobsub05.fnal.gov",
+        "created": "2026-08-20T12:29:57",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "29868637",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_394545b3-0cfc-422a-a11a-524380d3f6a1  ) and create_date > '2026-08-20T12:29:57-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_sbndpro_394545b3-0cfc-422a-a11a-524380d3f6a1  ) and create_date > '2026-08-20T12:29:57-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137238,
+        "jobsub_job_id": null,
+        "created": "2026-08-29T10:03:00",
+        "creator": "kplows",
+        "status": "LaunchFailed",
+        "jobsub_cluster": "unknown.0",
+        "jobsub_schedd": "unknown.un.known",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:03:00-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:03:00-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137240,
+        "jobsub_job_id": "29997326@jobsub05.fnal.gov",
+        "created": "2026-08-29T10:06:49",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "29997326",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:06:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:06:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137249,
+        "jobsub_job_id": "29998329@jobsub05.fnal.gov",
+        "created": "2026-08-29T10:22:09",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "29998329",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:22:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T10:22:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137268,
+        "jobsub_job_id": "93506721@jobsub02.fnal.gov",
+        "created": "2026-08-29T11:04:22",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "93506721",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:04:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:04:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137281,
+        "jobsub_job_id": "29999678@jobsub05.fnal.gov",
+        "created": "2026-08-29T11:30:46",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "29999678",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:30:46-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:30:46-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137284,
+        "jobsub_job_id": "29999709@jobsub05.fnal.gov",
+        "created": "2026-08-29T11:39:18",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "29999709",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:39:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T11:39:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137356,
+        "jobsub_job_id": "71763818@jobsub03.fnal.gov",
+        "created": "2026-08-29T14:11:42",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "71763818",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T14:11:42-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T14:11:42-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137364,
+        "jobsub_job_id": "93507958@jobsub02.fnal.gov",
+        "created": "2026-08-29T14:28:56",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "93507958",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T14:28:56-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T14:28:56-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137388,
+        "jobsub_job_id": "29716360@jobsub04.fnal.gov",
+        "created": "2026-08-29T15:19:51",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "29716360",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T15:19:51-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T15:19:51-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137396,
+        "jobsub_job_id": "86436705@jobsub01.fnal.gov",
+        "created": "2026-08-29T15:31:14",
+        "creator": "sbndpro",
+        "status": "Removed",
+        "jobsub_cluster": "86436705",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T15:31:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T15:31:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3137431,
+        "jobsub_job_id": "30002370@jobsub05.fnal.gov",
+        "created": "2026-08-29T16:48:37",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "30002370",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T16:48:37-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-29T16:48:37-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3138177,
+        "jobsub_job_id": "71777977@jobsub03.fnal.gov",
+        "created": "2026-08-30T08:57:27",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "71777977",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T08:57:27-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T08:57:27-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3138472,
+        "jobsub_job_id": "86450820@jobsub01.fnal.gov",
+        "created": "2026-08-30T10:46:34",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "86450820",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:46:34-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-08-30T10:46:34-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3141666,
+        "jobsub_job_id": "71792344@jobsub03.fnal.gov",
+        "created": "2026-08-31T05:54:18",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "71792344",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files5_sbndpro_97358181-a783-417c-b8ef-89e504f601df  ) and create_date > '2026-08-31T05:54:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files5_sbndpro_97358181-a783-417c-b8ef-89e504f601df  ) and create_date > '2026-08-31T05:54:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3142688,
+        "jobsub_job_id": "71799483@jobsub03.fnal.gov",
+        "created": "2026-08-31T17:07:53",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71799483",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-2_slice0_files5_sbndpro_df50fd60-c0b1-4930-8a00-33a6755c9b6a  ) and create_date > '2026-08-31T17:07:53-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-2_slice0_files5_sbndpro_df50fd60-c0b1-4930-8a00-33a6755c9b6a  ) and create_date > '2026-08-31T17:07:53-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3142712,
+        "jobsub_job_id": "30048534@jobsub05.fnal.gov",
+        "created": "2026-08-31T18:03:45",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30048534",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-2_slice1_files5_sbndpro_58d65d8e-eef0-414c-87c1-a7224cbbe22b  ) and create_date > '2026-08-31T18:03:45-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name test_sbndpro_jaz8600-Run4-offbeambnbminbias-rand12k-2_slice1_files5_sbndpro_58d65d8e-eef0-414c-87c1-a7224cbbe22b  ) and create_date > '2026-08-31T18:03:45-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3143857,
+        "jobsub_job_id": null,
+        "created": "2026-09-02T20:02:22",
+        "creator": "kplows",
+        "status": "LaunchFailed",
+        "jobsub_cluster": "unknown.0",
+        "jobsub_schedd": "unknown.un.known",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-09-02T20:02:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name None  ) and create_date > '2026-09-02T20:02:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3143859,
+        "jobsub_job_id": "93572813@jobsub02.fnal.gov",
+        "created": "2026-09-02T20:05:12",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93572813",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice0_files500_sbndpro_abb0f904-2520-4698-8c2a-0324014512b2  ) and create_date > '2026-09-02T20:05:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice0_files500_sbndpro_abb0f904-2520-4698-8c2a-0324014512b2  ) and create_date > '2026-09-02T20:05:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3143865,
+        "jobsub_job_id": "93573338@jobsub02.fnal.gov",
+        "created": "2026-09-02T20:13:55",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93573338",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice1_files500_sbndpro_12eb765e-b924-4df0-b7f2-4a83faa78c20  ) and create_date > '2026-09-02T20:13:55-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice1_files500_sbndpro_12eb765e-b924-4df0-b7f2-4a83faa78c20  ) and create_date > '2026-09-02T20:13:55-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3144142,
+        "jobsub_job_id": "71830979@jobsub03.fnal.gov",
+        "created": "2026-09-03T08:17:30",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71830979",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice2_files500_sbndpro_110c8084-d4a7-458b-bc49-63e95ab1be80  ) and create_date > '2026-09-03T08:17:30-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice2_files500_sbndpro_110c8084-d4a7-458b-bc49-63e95ab1be80  ) and create_date > '2026-09-03T08:17:30-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3144243,
+        "jobsub_job_id": "71834727@jobsub03.fnal.gov",
+        "created": "2026-09-03T12:38:31",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71834727",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice3_files500_sbndpro_57b2d4d1-2287-41f9-9147-08eb6fba98f6  ) and create_date > '2026-09-03T12:38:31-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice3_files500_sbndpro_57b2d4d1-2287-41f9-9147-08eb6fba98f6  ) and create_date > '2026-09-03T12:38:31-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3144624,
+        "jobsub_job_id": "30096987@jobsub05.fnal.gov",
+        "created": "2026-09-04T05:00:24",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30096987",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files500_sbndpro_875441f0-7ec6-4a6a-b51b-2ba09926f048  ) and create_date > '2026-09-04T05:00:24-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files500_sbndpro_875441f0-7ec6-4a6a-b51b-2ba09926f048  ) and create_date > '2026-09-04T05:00:24-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3144753,
+        "jobsub_job_id": "86518200@jobsub01.fnal.gov",
+        "created": "2026-09-04T10:23:00",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86518200",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files500_sbndpro_6e545e14-3bc1-4d52-9f0a-36463beb5eed  ) and create_date > '2026-09-04T10:23:00-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice4_files500_sbndpro_6e545e14-3bc1-4d52-9f0a-36463beb5eed  ) and create_date > '2026-09-04T10:23:00-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3144859,
+        "jobsub_job_id": "86519967@jobsub01.fnal.gov",
+        "created": "2026-09-04T15:01:08",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86519967",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice5_files500_sbndpro_7eadb4c8-9ab4-4441-9843-b2f55411805a  ) and create_date > '2026-09-04T15:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice5_files500_sbndpro_7eadb4c8-9ab4-4441-9843-b2f55411805a  ) and create_date > '2026-09-04T15:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3145162,
+        "jobsub_job_id": "71852833@jobsub03.fnal.gov",
+        "created": "2026-09-05T04:01:08",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71852833",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice6_files500_sbndpro_2c7898b2-639c-4179-b343-e76ff3bbea04  ) and create_date > '2026-09-05T04:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice6_files500_sbndpro_2c7898b2-639c-4179-b343-e76ff3bbea04  ) and create_date > '2026-09-05T04:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3145332,
+        "jobsub_job_id": "29846701@jobsub04.fnal.gov",
+        "created": "2026-09-05T10:01:08",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29846701",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice7_files500_sbndpro_1732df3a-6431-4c3e-9d7f-f5a8ba04c225  ) and create_date > '2026-09-05T10:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice7_files500_sbndpro_1732df3a-6431-4c3e-9d7f-f5a8ba04c225  ) and create_date > '2026-09-05T10:01:08-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3145725,
+        "jobsub_job_id": "86552517@jobsub01.fnal.gov",
+        "created": "2026-09-06T02:01:09",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86552517",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice8_files500_sbndpro_0dbf91c5-a6cc-456b-a0db-c4762e658dac  ) and create_date > '2026-09-06T02:01:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice8_files500_sbndpro_0dbf91c5-a6cc-456b-a0db-c4762e658dac  ) and create_date > '2026-09-06T02:01:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3145750,
+        "jobsub_job_id": "30123321@jobsub05.fnal.gov",
+        "created": "2026-09-06T03:01:09",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30123321",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice9_files500_sbndpro_da7dbdfc-ec1c-4c9a-8394-12b436503974  ) and create_date > '2026-09-06T03:01:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice9_files500_sbndpro_da7dbdfc-ec1c-4c9a-8394-12b436503974  ) and create_date > '2026-09-06T03:01:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3146094,
+        "jobsub_job_id": "29861561@jobsub04.fnal.gov",
+        "created": "2026-09-06T17:01:10",
+        "creator": "sbndpro",
+        "status": "Held",
+        "jobsub_cluster": "29861561",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice10_files500_sbndpro_60d1c3ca-397b-4702-8916-3b922e8e0e1c  ) and create_date > '2026-09-06T17:01:10-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice10_files500_sbndpro_60d1c3ca-397b-4702-8916-3b922e8e0e1c  ) and create_date > '2026-09-06T17:01:10-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3146212,
+        "jobsub_job_id": "30132438@jobsub05.fnal.gov",
+        "created": "2026-09-06T22:01:11",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30132438",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice11_files500_sbndpro_1389bfa2-65c3-480f-b206-035055db4fb5  ) and create_date > '2026-09-06T22:01:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice11_files500_sbndpro_1389bfa2-65c3-480f-b206-035055db4fb5  ) and create_date > '2026-09-06T22:01:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3146527,
+        "jobsub_job_id": "93629959@jobsub02.fnal.gov",
+        "created": "2026-09-07T11:33:09",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93629959",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice12_files500_sbndpro_9d362123-1238-430c-9610-8d475049d233  ) and create_date > '2026-09-07T11:33:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice12_files500_sbndpro_9d362123-1238-430c-9610-8d475049d233  ) and create_date > '2026-09-07T11:33:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3146659,
+        "jobsub_job_id": "71888240@jobsub03.fnal.gov",
+        "created": "2026-09-07T17:10:49",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71888240",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice13_files500_sbndpro_c4994390-ed3b-4fbd-a9da-e30b37d0c95f  ) and create_date > '2026-09-07T17:10:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice13_files500_sbndpro_c4994390-ed3b-4fbd-a9da-e30b37d0c95f  ) and create_date > '2026-09-07T17:10:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3146773,
+        "jobsub_job_id": "86572468@jobsub01.fnal.gov",
+        "created": "2026-09-07T22:01:13",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86572468",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice14_files500_sbndpro_a759e7bd-d08a-475f-9a51-73699b84d653  ) and create_date > '2026-09-07T22:01:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice14_files500_sbndpro_a759e7bd-d08a-475f-9a51-73699b84d653  ) and create_date > '2026-09-07T22:01:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147139,
+        "jobsub_job_id": "29876715@jobsub04.fnal.gov",
+        "created": "2026-09-08T13:29:09",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29876715",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice15_files500_sbndpro_93283d7a-a8b5-4101-967f-a4b66d96aad0  ) and create_date > '2026-09-08T13:29:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice15_files500_sbndpro_93283d7a-a8b5-4101-967f-a4b66d96aad0  ) and create_date > '2026-09-08T13:29:09-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147255,
+        "jobsub_job_id": "86583600@jobsub01.fnal.gov",
+        "created": "2026-09-08T18:01:11",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86583600",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice16_files500_sbndpro_6d41c884-54ac-41ea-a7c0-1293b1e5987c  ) and create_date > '2026-09-08T18:01:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice16_files500_sbndpro_6d41c884-54ac-41ea-a7c0-1293b1e5987c  ) and create_date > '2026-09-08T18:01:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147458,
+        "jobsub_job_id": "29883264@jobsub04.fnal.gov",
+        "created": "2026-09-09T01:01:12",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29883264",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice17_files500_sbndpro_a1664abd-d800-4771-baf5-63e90fcf3983  ) and create_date > '2026-09-09T01:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice17_files500_sbndpro_a1664abd-d800-4771-baf5-63e90fcf3983  ) and create_date > '2026-09-09T01:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147609,
+        "jobsub_job_id": "30157080@jobsub05.fnal.gov",
+        "created": "2026-09-09T06:01:12",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30157080",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice18_files500_sbndpro_877ae89e-4e94-4c18-b963-fd60cfef9823  ) and create_date > '2026-09-09T06:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice18_files500_sbndpro_877ae89e-4e94-4c18-b963-fd60cfef9823  ) and create_date > '2026-09-09T06:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147937,
+        "jobsub_job_id": "30167191@jobsub05.fnal.gov",
+        "created": "2026-09-09T16:01:16",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30167191",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice19_files500_sbndpro_c3eee865-8028-40f8-9678-6cfc94bc6759  ) and create_date > '2026-09-09T16:01:16-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice19_files500_sbndpro_c3eee865-8028-40f8-9678-6cfc94bc6759  ) and create_date > '2026-09-09T16:01:16-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3147965,
+        "jobsub_job_id": "29898133@jobsub04.fnal.gov",
+        "created": "2026-09-09T17:01:19",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29898133",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice20_files500_sbndpro_8667ed75-5194-4fc0-9554-ae7e6fe9d9ce  ) and create_date > '2026-09-09T17:01:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice20_files500_sbndpro_8667ed75-5194-4fc0-9554-ae7e6fe9d9ce  ) and create_date > '2026-09-09T17:01:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3148366,
+        "jobsub_job_id": "86607493@jobsub01.fnal.gov",
+        "created": "2026-09-10T07:01:12",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86607493",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice21_files500_sbndpro_882270ad-6cba-464e-a9dd-9cc02e8ab2b7  ) and create_date > '2026-09-10T07:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice21_files500_sbndpro_882270ad-6cba-464e-a9dd-9cc02e8ab2b7  ) and create_date > '2026-09-10T07:01:12-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3148633,
+        "jobsub_job_id": "30172179@jobsub05.fnal.gov",
+        "created": "2026-09-10T16:31:53",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30172179",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice22_files500_sbndpro_56241a48-2a30-408a-accf-a7e12bc325c3  ) and create_date > '2026-09-10T16:31:53-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice22_files500_sbndpro_56241a48-2a30-408a-accf-a7e12bc325c3  ) and create_date > '2026-09-10T16:31:53-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3149264,
+        "jobsub_job_id": "71930602@jobsub03.fnal.gov",
+        "created": "2026-09-11T12:55:17",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71930602",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice23_files500_sbndpro_2ddcecd9-9b9d-4008-a210-314bc633cf93  ) and create_date > '2026-09-11T12:55:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-1_slice23_files500_sbndpro_2ddcecd9-9b9d-4008-a210-314bc633cf93  ) and create_date > '2026-09-11T12:55:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3149389,
+        "jobsub_job_id": "29921393@jobsub04.fnal.gov",
+        "created": "2026-09-11T17:18:54",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29921393",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name kplows-recovery-jaz8600-Run4-offbeambnbminbias-rand12k-1_firstHalf_sbndpro_67cd1559-767d-4360-b2a9-97728cd120e9  ) and create_date > '2026-09-11T17:18:54-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name kplows-recovery-jaz8600-Run4-offbeambnbminbias-rand12k-1_firstHalf_sbndpro_67cd1559-767d-4360-b2a9-97728cd120e9  ) and create_date > '2026-09-11T17:18:54-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3150865,
+        "jobsub_job_id": "86639833@jobsub01.fnal.gov",
+        "created": "2026-09-13T14:28:39",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86639833",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name kplows-recovery-jaz8600-Run4-offbeambnbminbias-rand12k-1_secondHalf_sbndpro_ba943981-02c2-4c9d-a68c-7d62f3a0eddb  ) and create_date > '2026-09-13T14:28:39-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name kplows-recovery-jaz8600-Run4-offbeambnbminbias-rand12k-1_secondHalf_sbndpro_ba943981-02c2-4c9d-a68c-7d62f3a0eddb  ) and create_date > '2026-09-13T14:28:39-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3152679,
+        "jobsub_job_id": "71988796@jobsub03.fnal.gov",
+        "created": "2026-09-15T23:59:49",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71988796",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice0_files500_sbndpro_8c3583ac-5650-4473-bee9-f09d63d518a4  ) and create_date > '2026-09-15T23:59:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice0_files500_sbndpro_8c3583ac-5650-4473-bee9-f09d63d518a4  ) and create_date > '2026-09-15T23:59:49-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3152685,
+        "jobsub_job_id": "86655891@jobsub01.fnal.gov",
+        "created": "2026-09-16T00:02:36",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86655891",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice1_files500_sbndpro_a17bf448-f36a-4782-bb3d-4e30fe966628  ) and create_date > '2026-09-16T00:02:36-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice1_files500_sbndpro_a17bf448-f36a-4782-bb3d-4e30fe966628  ) and create_date > '2026-09-16T00:02:36-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3152697,
+        "jobsub_job_id": "71989414@jobsub03.fnal.gov",
+        "created": "2026-09-16T00:29:38",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "71989414",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice2_files500_sbndpro_50ac30bc-ab7b-42ba-ac5b-0fbf11ccad37  ) and create_date > '2026-09-16T00:29:38-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice2_files500_sbndpro_50ac30bc-ab7b-42ba-ac5b-0fbf11ccad37  ) and create_date > '2026-09-16T00:29:38-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3153766,
+        "jobsub_job_id": "93745167@jobsub02.fnal.gov",
+        "created": "2026-09-17T05:00:19",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93745167",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice3_files500_sbndpro_78b8f1f9-f33c-4133-b51c-88c884771cd4  ) and create_date > '2026-09-17T05:00:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice3_files500_sbndpro_78b8f1f9-f33c-4133-b51c-88c884771cd4  ) and create_date > '2026-09-17T05:00:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3153813,
+        "jobsub_job_id": "30254968@jobsub05.fnal.gov",
+        "created": "2026-09-17T06:00:18",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30254968",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice4_files500_sbndpro_4f20c8db-cb05-4d0a-9d67-d96026ead66c  ) and create_date > '2026-09-17T06:00:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice4_files500_sbndpro_4f20c8db-cb05-4d0a-9d67-d96026ead66c  ) and create_date > '2026-09-17T06:00:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3153898,
+        "jobsub_job_id": "29975297@jobsub04.fnal.gov",
+        "created": "2026-09-17T07:23:05",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29975297",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice5_files500_sbndpro_58c8e12f-744b-4db9-8e1a-84c1a85d7349  ) and create_date > '2026-09-17T07:23:05-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice5_files500_sbndpro_58c8e12f-744b-4db9-8e1a-84c1a85d7349  ) and create_date > '2026-09-17T07:23:05-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3153929,
+        "jobsub_job_id": "29976241@jobsub04.fnal.gov",
+        "created": "2026-09-17T08:00:14",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29976241",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice6_files500_sbndpro_ef59e46f-e108-4ed8-b2de-ff600117e52c  ) and create_date > '2026-09-17T08:00:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice6_files500_sbndpro_ef59e46f-e108-4ed8-b2de-ff600117e52c  ) and create_date > '2026-09-17T08:00:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3153988,
+        "jobsub_job_id": "30259559@jobsub05.fnal.gov",
+        "created": "2026-09-17T09:00:13",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30259559",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice7_files500_sbndpro_a33fad87-652b-4805-b9dd-38a5d1d3b9e2  ) and create_date > '2026-09-17T09:00:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice7_files500_sbndpro_a33fad87-652b-4805-b9dd-38a5d1d3b9e2  ) and create_date > '2026-09-17T09:00:13-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154049,
+        "jobsub_job_id": "72014731@jobsub03.fnal.gov",
+        "created": "2026-09-17T10:00:15",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "72014731",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice8_files500_sbndpro_34f5df51-3f41-4545-85c7-2888814d1055  ) and create_date > '2026-09-17T10:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice8_files500_sbndpro_34f5df51-3f41-4545-85c7-2888814d1055  ) and create_date > '2026-09-17T10:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154730,
+        "jobsub_job_id": "93759206@jobsub02.fnal.gov",
+        "created": "2026-09-18T09:00:15",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93759206",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice9_files500_sbndpro_136922eb-37de-42f5-bfc0-6f80e02e6fa5  ) and create_date > '2026-09-18T09:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice9_files500_sbndpro_136922eb-37de-42f5-bfc0-6f80e02e6fa5  ) and create_date > '2026-09-18T09:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154745,
+        "jobsub_job_id": "86676954@jobsub01.fnal.gov",
+        "created": "2026-09-18T09:23:45",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "86676954",
+        "jobsub_schedd": "jobsub01.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice10_files500_sbndpro_05a4f6c1-d1e2-4b09-9230-ba9476431ad9  ) and create_date > '2026-09-18T09:23:45-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice10_files500_sbndpro_05a4f6c1-d1e2-4b09-9230-ba9476431ad9  ) and create_date > '2026-09-18T09:23:45-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154746,
+        "jobsub_job_id": "93759753@jobsub02.fnal.gov",
+        "created": "2026-09-18T09:24:01",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93759753",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice11_files500_sbndpro_f46642c9-f509-4a1b-9f9c-2749bad776c9  ) and create_date > '2026-09-18T09:24:01-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice11_files500_sbndpro_f46642c9-f509-4a1b-9f9c-2749bad776c9  ) and create_date > '2026-09-18T09:24:01-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154767,
+        "jobsub_job_id": "29988872@jobsub04.fnal.gov",
+        "created": "2026-09-18T10:00:14",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29988872",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice12_files500_sbndpro_76cc9177-e4a8-4603-be0c-ce39984f9eb9  ) and create_date > '2026-09-18T10:00:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice12_files500_sbndpro_76cc9177-e4a8-4603-be0c-ce39984f9eb9  ) and create_date > '2026-09-18T10:00:14-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154800,
+        "jobsub_job_id": "30270377@jobsub05.fnal.gov",
+        "created": "2026-09-18T11:00:22",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "30270377",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice13_files500_sbndpro_9f9a7c2b-303c-4d6f-a22b-de34982c75ec  ) and create_date > '2026-09-18T11:00:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice13_files500_sbndpro_9f9a7c2b-303c-4d6f-a22b-de34982c75ec  ) and create_date > '2026-09-18T11:00:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154829,
+        "jobsub_job_id": "29991270@jobsub04.fnal.gov",
+        "created": "2026-09-18T12:00:15",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29991270",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice14_files500_sbndpro_68571f10-e735-4729-91ab-901a21787599  ) and create_date > '2026-09-18T12:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice14_files500_sbndpro_68571f10-e735-4729-91ab-901a21787599  ) and create_date > '2026-09-18T12:00:15-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154860,
+        "jobsub_job_id": "93761646@jobsub02.fnal.gov",
+        "created": "2026-09-18T13:00:20",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "93761646",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice15_files500_sbndpro_cfe7df7b-db1a-4f45-9bad-dc6d29373762  ) and create_date > '2026-09-18T13:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice15_files500_sbndpro_cfe7df7b-db1a-4f45-9bad-dc6d29373762  ) and create_date > '2026-09-18T13:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154888,
+        "jobsub_job_id": "30271537@jobsub05.fnal.gov",
+        "created": "2026-09-18T14:00:25",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "30271537",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice16_files500_sbndpro_bf27726c-b2ad-477f-9257-d32898de921c  ) and create_date > '2026-09-18T14:00:25-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice16_files500_sbndpro_bf27726c-b2ad-477f-9257-d32898de921c  ) and create_date > '2026-09-18T14:00:25-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154920,
+        "jobsub_job_id": "93762692@jobsub02.fnal.gov",
+        "created": "2026-09-18T15:00:20",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "93762692",
+        "jobsub_schedd": "jobsub02.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice17_files500_sbndpro_469d5cbe-ec2a-4b6f-9529-bf68618f05a5  ) and create_date > '2026-09-18T15:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice17_files500_sbndpro_469d5cbe-ec2a-4b6f-9529-bf68618f05a5  ) and create_date > '2026-09-18T15:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154951,
+        "jobsub_job_id": "30272688@jobsub05.fnal.gov",
+        "created": "2026-09-18T16:00:18",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "30272688",
+        "jobsub_schedd": "jobsub05.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice18_files500_sbndpro_2ed832b1-bda8-4cb2-b0a5-965c6d09b7b5  ) and create_date > '2026-09-18T16:00:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice18_files500_sbndpro_2ed832b1-bda8-4cb2-b0a5-965c6d09b7b5  ) and create_date > '2026-09-18T16:00:18-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3154980,
+        "jobsub_job_id": "72034173@jobsub03.fnal.gov",
+        "created": "2026-09-18T17:00:11",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "72034173",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice19_files500_sbndpro_0e733bf8-f75f-431c-bd0c-1f13bca940a5  ) and create_date > '2026-09-18T17:00:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice19_files500_sbndpro_0e733bf8-f75f-431c-bd0c-1f13bca940a5  ) and create_date > '2026-09-18T17:00:11-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3155007,
+        "jobsub_job_id": "29993201@jobsub04.fnal.gov",
+        "created": "2026-09-18T18:00:19",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29993201",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice20_files500_sbndpro_8b98bd88-344a-44c8-a33d-1ef7bd7a1cd9  ) and create_date > '2026-09-18T18:00:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice20_files500_sbndpro_8b98bd88-344a-44c8-a33d-1ef7bd7a1cd9  ) and create_date > '2026-09-18T18:00:19-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3155037,
+        "jobsub_job_id": "72035202@jobsub03.fnal.gov",
+        "created": "2026-09-18T19:00:22",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "72035202",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice21_files500_sbndpro_63aec0da-f6a3-4cd7-b9e2-6f63e07d9de2  ) and create_date > '2026-09-18T19:00:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice21_files500_sbndpro_63aec0da-f6a3-4cd7-b9e2-6f63e07d9de2  ) and create_date > '2026-09-18T19:00:22-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3155064,
+        "jobsub_job_id": "29993977@jobsub04.fnal.gov",
+        "created": "2026-09-18T20:00:20",
+        "creator": "sbndpro",
+        "status": "Located",
+        "jobsub_cluster": "29993977",
+        "jobsub_schedd": "jobsub04.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice22_files500_sbndpro_d47aeb83-3fed-4dc6-8204-a87c90d46fc8  ) and create_date > '2026-09-18T20:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice22_files500_sbndpro_d47aeb83-3fed-4dc6-8204-a87c90d46fc8  ) and create_date > '2026-09-18T20:00:20-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      },
+      {
+        "submission_id": 3155093,
+        "jobsub_job_id": "72035985@jobsub03.fnal.gov",
+        "created": "2026-09-18T21:00:17",
+        "creator": "sbndpro",
+        "status": "Failed",
+        "jobsub_cluster": "72035985",
+        "jobsub_schedd": "jobsub03.fnal.gov",
+        "campaign_stage_name": "gen_g4_mix_decode_detsim_overlay_stage0",
+        "available_output": 0,
+        "output_dims": "ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  ) and create_date > '2026-09-18T21:00:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'",
+        "handler": "SAM",
+        "statuses": [
+          [
+            "Available output: ",
+            0,
+            "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name jaz8600-Run4-offbeambnbminbias-rand12k-2_slice23_files500_sbndpro_4f527486-95b9-4560-8ae6-da00d7b287ce  ) and create_date > '2026-09-18T21:00:17-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_06_00_06p07'"
+          ]
+        ],
+        "dd_summary": null
+      }
+    ]
+  }
+}

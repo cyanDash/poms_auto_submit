@@ -1,0 +1,562 @@
+{
+  "elapsed_seconds": 47.92702686495613,
+  "ok": true,
+  "data": {
+    "submission_id": "3136636",
+    "submission": {
+      "submission_id": 3136636,
+      "campaign_stage_id": 26971,
+      "creator": 486,
+      "created": "2026-08-28T09:01:35",
+      "submission_params": {
+        "dataset": "SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000"
+      },
+      "depends_on": null,
+      "depend_threshold": null,
+      "updater": 4413,
+      "updated": "2026-08-28T09:01:35",
+      "command_executed": "jobsub_submit /opt/jobsub_lite/bin/jobsub_submit -e IFDH_DEBUG -e SAM_EXPERIMENT -e SAM_GROUP -e SAM_STATION -e POMS_CAMPAIGN_ID -e POMS_TASK_ID -e POMS_ENV -G sbnd --subgroup=pro -N 10000 --resource-provides=usage_model=OPPORTUNISTICDEDICATEDOFFSITE --generate-email-summary --line=+SingularityImage=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-sl7:latest --append_condor_requirements=(TARGET.HAS_SINGULARITY=?=true) --append_condor_requirements=(TARGET.GLIDEIN_Site isnt NotreDame) --append_condor_requirements=(TARGET.GLIDEIN_Site isnt SU-ITS) --auth-methods=token --maxConcurrent=5000 -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/sbndpoms_metadata_injector.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/metadata_prescripts.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/metadata_postscripts_onestage.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/export_pot_counter.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/build_event_numbers.sh -f dropbox:///exp/sbnd/app/users/sbndpro/mcp/MCP2025B/srcs/sbnutil/scripts/sbnd/rm_empty_files.sh --lines=+FERMIHTC_AutoRelease=True --lines=+FERMIHTC_GraceMemory=4000 --lines=+FERMIHTC_GraceLifetime=7200 --memory=14GB --disk=14GB --expected-lifetime=24h --dataset_definition=SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000 file://///cvmfs/fermilab.opensciencegrid.org/packages/common/fife-utils/3.7.8/linux-almalinux9-x86_64_v2-gcc-11.4.1-74cylyrrnko6x7qnaqg5bcr4t7hwusdl/libexec/fife_wrap --debug --source-unquote /cvmfs/sbnd.opensciencegrid.org/products/sbnd/setup_sbnd.sh --setup-unquote sbnutil --setup-unquote sbndcode%20v10_14_02_06%20-q%20e26%3Aprof --ifdh_art --setup_local --prescript-unquote export%20FHICL_FILE_PATH%3D%24%7BCONDOR_DIR_INPUT%7D%3A%24%7BFHICL_FILE_PATH%7D --prescript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_prescripts.sh%20run_decoders_job.fcl%20wrapper1.fcl --prescript-unquote sh%20sbnpoms_wrapperfcl_maker.sh%20--fclname%20reco1_data.fcl%20--wrappername%20wrapper2.fcl%20%26%26%20echo%20-e%20%22%22%20%3E%3E%20wrapper2.fcl%20%26%26%20echo%20-e%20%22process_name%3A%20Reco1%22%20%3E%3E%20wrapper2.fcl --prescript-unquote sh%20sbnpoms_wrapperfcl_maker.sh%20--fclname%20reco2_data.fcl%20--wrappername%20wrapper3.fcl%20%26%26%20echo%20-e%20%22%22%20%3E%3E%20wrapper3.fcl%20%26%26%20echo%20-e%20%22process_name%3A%20Reco2%22%20%3E%3E%20wrapper3.fcl --prescript-unquote sh%20sbnpoms_wrapperfcl_maker.sh%20--fclname%20cafmakerjob_sbnd_data_sce_bnblight.fcl%20--wrappername%20wrapper4.fcl%20%26%26%20echo%20-e%20%22%22%20%3E%3E%20wrapper4.fcl%20%26%26%20echo%20-e%20%22process_name%3A%20CAF%22%20%3E%3E%20wrapper4.fcl --prescript-unquote sh%20sbndpoms_metadata_injector.sh%20--inputfclname%20wrapper1.fcl%20--mdfclname%20run_decoders_job.fcl%20--mdappfamily%20art%20--mdappversion%20v10_14_02_06%20--mdgroupname%20sbnd%20--mdfiletype%20data%20--mdruntype%20physics%20--experiment%20sbnd%20--mdprojectname%20FullProcessing%20--mdprojectstage%20decode_reco1_reco2_caf%20--mdprojectversion%20v10_14_02_06%20--mdprojectsoftware%20sbndcode%20--mdproductionname%20gen2_InTime-Run2c_beamlight%20--mdproductiontype%20data%20--configuration%20%24%7BMT_CONFIGURATION%7D%20--datastream%20%24%7BMT_DATASTREAM%7D%20--beamType%20%24%7BMT_BEAMTYPE%7D%20--detector%20%24%7BMT_DETECTOR%7D%20--eventCount%20%24%7BMT_EVENTCOUNT%7D%20--random%20%24%7BMT_RANDOM%7D%20--randomRun%20%24%7BMT_RANDOMRUN%7D --prescript-unquote source%20/cvmfs/larsoft.opensciencegrid.org/products/setup --prescript-unquote setup%20ifdhc%20v2_7_2%20-q%20e26%3Ap3915%3Aprof --prescript-unquote export%20MT_PRODUCTIONNAME%3Dgen2_InTime-Run2c_beamlight%20%26%26%20export%20MT_PRODUCTIONTYPE%3Ddata%20%26%26%20export%20MT_PROJECTNAME%3DFullProcessing%20%26%26%20export%20MT_PROJECTSTAGE%3Ddecode_reco1_reco2_caf%20%26%26%20export%20MT_PROJECTSOFTWARE%3Dsbndcode%20%26%26%20export%20MT_PRODUCTIONLABEL%3DSBND2026A --prescript-unquote export%20IFDH_OUTPUT_DIR%3D/pnfs/sbn/data_add/sbn_nd/poms_production//data/SBND2026A/v10_14_02_06/gen2_InTime-Run2c_beamlight/%20%26%26%20echo%20%22IFDH_OUTPUT_DIR%20is%20%24%7BIFDH_OUTPUT_DIR%7D%22 --prescript-unquote echo%20%26%26%20echo%20%26%26%20ups%20active%20%26%26%20echo%20%26%26%20echo --postscript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/build_event_numbers.sh%20decode_reco1_reco2_caf --postscript-unquote ls%20-ltrh --postscript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_postscripts_onestage.sh%20run_decoders_job.fcl%22/%22run_DigitalNoiseEventFilter.fcl%22/%22reco1_data.fcl%22/%22reco2_data.fcl%22/%22run_sbndbnbinfo_sbn.fcl%22/%22cafmakerjob_sbnd_data_sce_bnblight.fcl --prescript-unquote sh%20sbnpoms_wrapperfcl_maker.sh%20--fclname%20run_DigitalNoiseEventFilter.fcl%20--wrappername%20wrapper_extra1.fcl%20%26%26%20cat%20wrapper_extra1.fcl --prescript-unquote sh%20sbnpoms_wrapperfcl_maker.sh%20--fclname%20run_sbndbnbinfo_sbn.fcl%20--wrappername%20wrapper_pot.fcl%20%26%26%20cat%20wrapper_pot.fcl --limit 1 --appvers v10_14_02_06 --schema root --addoutput  --rename  --dest /pnfs/sbn/data_add/sbn_nd/poms_production//data/SBND2026A/v10_14_02_06/gen2_InTime-Run2c_beamlight//data --declare_metadata --metadata_extractor json --add_location --hash 0 --filter_metadata rootout --filter_metadata art.first_event --filter_metadata art.last_event --add_to_dataset _poms_task --exe lar --exe lar --exe lar --exe mv --exe lar --exe lar --exe lar -- -c wrapper1.fcl -o out1:data_filtered_decoded.root -o out2:data_%ifb_choppy_decoded.root -n -1 -- -c wrapper_extra1.fcl -o digitalNoise_filtered_decoded.root -s data_filtered_decoded.root -- -c wrapper2.fcl -o out1:data_filtered_decoded_reco1.root -o out2:data_filtered_decoded_nhit_fail.root -s digitalNoise_filtered_decoded.root -n -1 --sam-data-tier=out2:reconstructed --sam-stream-name=out2:unknown -- *larcv*.root larcv_data_filtered_decoded_reco1.root -- -c wrapper3.fcl -s data_filtered_decoded_reco1.root -o out1:to_count.root -T hist_data_filtered_decoded_reco1_reco2.root -- -c wrapper_pot.fcl -s to_count.root -o data_filtered_decoded_reco1_reco2.root -- -c wrapper4.fcl -s data_filtered_decoded_reco1_reco2.root \\",
+      "project": "SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7",
+      "files_consumed": 9982,
+      "files_generated": 10000,
+      "login_setup_snapshot_id": 746561,
+      "campaign_stage_snapshot_id": 391819,
+      "job_type_snapshot_id": 6474286,
+      "recovery_position": null,
+      "recovery_tasks_parent": null,
+      "jobsub_job_id": "71740015@jobsub03.fnal.gov",
+      "data_dispatcher_project_idx": null,
+      "pct_complete": 0.043215211754537596,
+      "data_dispatcher_stage_methodology": null,
+      "data_dispatcher_recovery_mode": null,
+      "campaign_stage_obj": {
+        "campaign_stage_id": 26971,
+        "experiment": "sbnd",
+        "name": "decode_reco1_reco2_caf",
+        "job_type_id": 22963,
+        "creator": 4413,
+        "created": "2026-08-12T11:58:37",
+        "updater": 80,
+        "updated": "2026-08-30T10:55:00",
+        "vo_role": "Production",
+        "cs_last_split": 7,
+        "last_split_test": null,
+        "cs_split_type": "nfiles(10000)",
+        "cs_split_dimensions": null,
+        "dataset": "SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12",
+        "software_version": "v10_14_02_06",
+        "login_setup_id": 10527,
+        "param_overrides": [
+          [
+            "-Oglobal.project_stage=",
+            "decode_reco1_reco2_caf"
+          ],
+          [
+            "--stage ",
+            "decode_reco1_reco2_caf"
+          ],
+          [
+            "-Oglobal.version=",
+            "%(version)s"
+          ],
+          [
+            "-Oglobal.release=",
+            "%(version)s"
+          ],
+          [
+            "-Oglobal.quals=",
+            "e26:prof"
+          ],
+          [
+            "-Oglobal.sam_dataset=",
+            "%(dataset)s"
+          ],
+          [
+            "-Oglobal.fclfile1=",
+            "run_decoders_job.fcl"
+          ],
+          [
+            "-Oglobal.extrafclfile1=",
+            "run_DigitalNoiseEventFilter.fcl"
+          ],
+          [
+            "-Oglobal.fclfile2=",
+            "reco1_data.fcl"
+          ],
+          [
+            "-Oglobal.potfclfile=",
+            "run_sbndbnbinfo_sbn.fcl"
+          ],
+          [
+            "-Oglobal.fclfile3=",
+            "reco2_data.fcl"
+          ],
+          [
+            "-Oglobal.fclfile4=",
+            "cafmakerjob_sbnd_data_sce_bnblight.fcl"
+          ],
+          [
+            "-Osubmit.n_files_per_job=",
+            "1"
+          ],
+          [
+            "-Osubmit.maxConcurrent=",
+            "5000"
+          ],
+          [
+            "-Osubmit.memory=",
+            "10GB"
+          ],
+          [
+            "-Osubmit.disk=",
+            "14GB"
+          ],
+          [
+            "-Osubmit.expected-lifetime=",
+            "24h"
+          ],
+          [
+            "-Oglobal.project_name=",
+            "FullProcessing"
+          ],
+          [
+            "-Oglobal.campaign=",
+            "gen2_InTime-Run2c_beamlight"
+          ],
+          [
+            "-Osubmit.subgroup=",
+            "pro"
+          ],
+          [
+            "-Oglobal.productionlabel=",
+            "SBND2026A"
+          ]
+        ],
+        "test_param_overrides": [
+          [
+            "-Osubmit.subgroup=",
+            "test"
+          ],
+          [
+            "-Oglobal.prodtype=",
+            "test"
+          ],
+          [
+            "-Oglobal.basedir=",
+            "/pnfs/sbnd/scratch/users/sbndpro/poms_production/"
+          ],
+          [
+            "-Osubmit.N=",
+            "5"
+          ]
+        ],
+        "test_split_type": "nfiles(5)",
+        "completion_type": "complete",
+        "completion_pct": 99.5,
+        "hold_experimenter_id": null,
+        "creator_role": "production",
+        "role_held_with": null,
+        "campaign_stage_type": "regular",
+        "merge_overrides": false,
+        "output_ancestor_depth": 1,
+        "default_clear_cronjob": true,
+        "data_dispatcher_dataset_query": null,
+        "data_dispatcher_project_id": null,
+        "data_dispatcher_dataset_only": false,
+        "data_dispatcher_project_virtual": null,
+        "data_dispatcher_load_limit": null,
+        "data_dispatcher_stage_methodology": null,
+        "data_dispatcher_recovery_mode": null,
+        "data_dispatcher_idle_timeout": null,
+        "data_dispatcher_worker_timeout": null,
+        "data_dispatcher_settings": {
+          "idle_timeout": null,
+          "worker_timeout": null,
+          "project_id": null,
+          "dataset_query": null,
+          "virtual": null,
+          "stage_methodology": null,
+          "recovery_mode": null,
+          "load_limit": null
+        },
+        "campaign_id": 11476,
+        "experimenter_creator_obj": {
+          "experimenter_id": 4413,
+          "first_name": "Seokju",
+          "last_name": "Chung",
+          "username": "sc5303",
+          "last_login": "2023-10-12T12:25:03",
+          "session_experiment": "sbnd",
+          "session_role": "production",
+          "root": false,
+          "exp_expers": null,
+          "exp_watch": null
+        },
+        "experimenter_updater_obj": {
+          "experimenter_id": 80,
+          "first_name": "Prabhjot",
+          "last_name": "Singh",
+          "username": "prabhjot",
+          "last_login": "2017-03-02T15:12:52",
+          "session_experiment": "sbnd",
+          "session_role": "production",
+          "root": false,
+          "exp_expers": null,
+          "exp_watch": null
+        },
+        "experimenter_holder_obj": null,
+        "experiment_obj": null,
+        "job_type_obj": null,
+        "login_setup_obj": null,
+        "campaign_obj": {
+          "name": "SBND2026A_gen2_InTime-Run2c_beamlight_DATA"
+        },
+        "providers": null,
+        "consumers": null,
+        "consumer_associations": null,
+        "provider_associations": null
+      },
+      "experimenter_creator_obj": {
+        "experimenter_id": 486,
+        "first_name": "SNBD",
+        "last_name": "Production",
+        "username": "sbndpro",
+        "last_login": "2019-10-13T06:30:09",
+        "session_experiment": "minerva",
+        "session_role": "production",
+        "root": true,
+        "exp_expers": null,
+        "exp_watch": null
+      },
+      "experimenter_updater_obj": {
+        "experimenter_id": 4413,
+        "first_name": "Seokju",
+        "last_name": "Chung",
+        "username": "sc5303",
+        "last_login": "2023-10-12T12:25:03",
+        "session_experiment": "sbnd",
+        "session_role": "production",
+        "root": false,
+        "exp_expers": null,
+        "exp_watch": null
+      },
+      "parent_obj": null,
+      "login_setup_snapshot_obj": {
+        "login_setup_snapshot_id": 746561,
+        "login_setup_id": 10527,
+        "experiment": "sbnd",
+        "launch_host": "sbndgpvm04.fnal.gov",
+        "launch_account": "sbndpro",
+        "launch_setup": "export X509_USER_PROXY=/opt/sbndpro/sbndpro.Production.proxy;export HTGETTOKENOPTS=\"-a htvaultprod.fnal.gov -i sbnd --credkey sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production\"",
+        "creator": 29,
+        "created": "2024-06-30T19:10:02",
+        "updater": 29,
+        "updated": "2024-08-22T14:06:08",
+        "name": "sbnd_setup_sbndgpvm04_spack",
+        "login_setup": null
+      },
+      "campaign_stage_snapshot_obj": {
+        "campaign_stage_snapshot_id": 391819,
+        "campaign_stage_id": 26971,
+        "experiment": "sbnd",
+        "name": "decode_reco1_reco2_caf",
+        "job_type_id": 22963,
+        "vo_role": "Production",
+        "creator": 4413,
+        "created": "2026-08-12T11:58:37",
+        "dataset": "SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12",
+        "software_version": "v10_14_02_06",
+        "login_setup_id": 10527,
+        "param_overrides": [
+          [
+            "-Oglobal.project_stage=",
+            "decode_reco1_reco2_caf"
+          ],
+          [
+            "--stage ",
+            "decode_reco1_reco2_caf"
+          ],
+          [
+            "-Oglobal.version=",
+            "%(version)s"
+          ],
+          [
+            "-Oglobal.release=",
+            "%(version)s"
+          ],
+          [
+            "-Oglobal.quals=",
+            "e26:prof"
+          ],
+          [
+            "-Oglobal.sam_dataset=",
+            "%(dataset)s"
+          ],
+          [
+            "-Oglobal.fclfile1=",
+            "run_decoders_job.fcl"
+          ],
+          [
+            "-Oglobal.extrafclfile1=",
+            "run_DigitalNoiseEventFilter.fcl"
+          ],
+          [
+            "-Oglobal.fclfile2=",
+            "reco1_data.fcl"
+          ],
+          [
+            "-Oglobal.potfclfile=",
+            "run_sbndbnbinfo_sbn.fcl"
+          ],
+          [
+            "-Oglobal.fclfile3=",
+            "reco2_data.fcl"
+          ],
+          [
+            "-Oglobal.fclfile4=",
+            "cafmakerjob_sbnd_data_sce_bnblight.fcl"
+          ],
+          [
+            "-Osubmit.n_files_per_job=",
+            "1"
+          ],
+          [
+            "-Osubmit.maxConcurrent=",
+            "5000"
+          ],
+          [
+            "-Osubmit.memory=",
+            "14GB"
+          ],
+          [
+            "-Osubmit.disk=",
+            "14GB"
+          ],
+          [
+            "-Osubmit.expected-lifetime=",
+            "24h"
+          ],
+          [
+            "-Oglobal.project_name=",
+            "FullProcessing"
+          ],
+          [
+            "-Oglobal.campaign=",
+            "gen2_InTime-Run2c_beamlight"
+          ],
+          [
+            "-Oglobal.productionlabel=",
+            "SBND2026A"
+          ],
+          [
+            "-Osubmit.subgroup=",
+            "pro"
+          ]
+        ],
+        "updater": 4413,
+        "updated": "2026-08-28T09:01:24",
+        "cs_last_split": 5,
+        "last_split_test": null,
+        "cs_split_type": "nfiles(10000)",
+        "test_split_type": "nfiles(5)",
+        "cs_split_dimensions": null,
+        "completion_type": "complete",
+        "data_dispatcher_dataset_query": null,
+        "data_dispatcher_project_id": null,
+        "data_dispatcher_dataset_only": false,
+        "data_dispatcher_project_virtual": null,
+        "data_dispatcher_load_limit": null,
+        "data_dispatcher_stage_methodology": null,
+        "data_dispatcher_recovery_mode": null,
+        "data_dispatcher_idle_timeout": null,
+        "data_dispatcher_worker_timeout": null,
+        "data_dispatcher_settings": {
+          "idle_timeout": null,
+          "worker_timeout": null,
+          "project_id": null,
+          "dataset_query": null,
+          "virtual": null,
+          "stage_methodology": null,
+          "recovery_mode": null,
+          "load_limit": null
+        },
+        "completion_pct": 99.5,
+        "default_clear_cronjob": true,
+        "campaign_stage": null
+      },
+      "job_type_snapshot_obj": {
+        "job_type_snapshot_id": 6474286,
+        "job_type_id": 22963,
+        "name": "SBND2026A-DATA-decode_reco1_reco2_caf",
+        "experiment": "sbnd",
+        "launch_script": "fife_launch -c /exp/sbnd/app/users/sbndpro/mcp/SBND2026A/srcs/sbnutil/poms_cfgs/sbnd/official/SBND2026A-DATA-decode_reco1_reco2_caf.cfg",
+        "definition_parameters": [],
+        "input_files_per_job": 0,
+        "output_files_per_job": 0,
+        "output_file_patterns": "((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root'))",
+        "creator": 80,
+        "created": "2026-02-04T15:33:34",
+        "updater": 80,
+        "updated": "2026-02-04T16:28:21",
+        "job_type": null
+      },
+      "status_history": null,
+      "data_dispatcher_submission_obj": null
+    },
+    "history": [
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T09:01:35",
+        "status_id": 1000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T09:03:36",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T09:20:41",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T09:35:22",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T10:12:27",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T10:27:19",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T11:19:45",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T11:24:45",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T11:34:43",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      },
+      {
+        "submission_id": 3136636,
+        "created": "2026-08-28T11:37:25",
+        "status_id": 4000,
+        "submission_obj": null,
+        "status_type": null
+      }
+    ],
+    "dataset": "SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000",
+    "recoverymap": {
+      "consumed_status": [
+        1,
+        "Include files which were not flagged \"consumed\" by the original job"
+      ],
+      "pending_files": [
+        3,
+        "Include files which do not have suitable children declared for this version of software"
+      ],
+      "added_files": [
+        4,
+        "Include files added to definition since previous job ran"
+      ],
+      "script_run": [
+        5,
+        "Launch script with some recovery flag can recover"
+      ],
+      "process_status": [
+        2,
+        "Include files which were processed by jobs that say they failed."
+      ],
+      "state_failed": [
+        6,
+        "Reset files that failed during processing, and resubmit."
+      ],
+      "state_not_done": [
+        7,
+        "Reset files with a reserved or failed state, and resubmit."
+      ],
+      "reprocess_orphans": [
+        8,
+        "Reset files that have completed with a \"done\" state, but did not produce children."
+      ],
+      "reprocess_all": [
+        9,
+        "Reset and resubmit the entire project."
+      ]
+    },
+    "statusmap": {
+      "1000": "New",
+      "2000": "LaunchFailed",
+      "3000": "Idle",
+      "4000": "Running",
+      "5000": "Held",
+      "6000": "Failed",
+      "7000": "Completed",
+      "8000": "Located",
+      "9000": "Removed",
+      "2400": "Awaiting Approval",
+      "2500": "Approved",
+      "1500": "Cancelled"
+    },
+    "ds": "20260828_140135",
+    "submission_log_format": 4,
+    "recovery_ids": [],
+    "depend_ids": [],
+    "statuses": [
+      [
+        "Available output: ",
+        38808,
+        "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  ) and create_date > '2026-08-28T09:01:35-0500' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06'"
+      ],
+      [
+        "Submitted to SAM: ",
+        10000,
+        "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7 "
+      ],
+      [
+        "Consumed by SAM: ",
+        9982,
+        "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  and consumed_status co%"
+      ],
+      [
+        "Pending: ",
+        298,
+        "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  minus ( snapshot_for_project_name SBND_DATA_Run2c_bnblight_Raw_snapshot_2026Aug12_slice4_files10000_sbndpro_c8073d24-f3bb-4c8c-919d-eb7df67b16b7  and isparentof:(  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v10_14_02_06' and create_date > '2026-08-28T09:01:35-0500' with availability anylocation )  ) "
+      ]
+    ],
+    "data_dispatcher_projects": null,
+    "data_handling_service": "sam"
+  },
+  "submission_id": 3136636,
+  "captured": "2026-08-31"
+}

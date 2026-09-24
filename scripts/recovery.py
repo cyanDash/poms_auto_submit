@@ -7,19 +7,11 @@ import logging
 import os
 import subprocess
 
-from poms_session import ACTIVE_SUBMISSION_STATUSES
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RECOVERY_SCRIPT = os.path.join(SCRIPT_DIR, "run_recovery.sh")
 RECOVERY_SCRIPT_TIMEOUT_SECONDS = 3600
 
 NO_RECOVERY_NEEDED_MARKER = "NO_RECOVERY_NEEDED"
-
-# See CONTEXT.md's Status entry. Anything terminal outside this set (Failed,
-# Cancelled, Removed, LaunchFailed, Awaiting Approval, Approved) needs
-# manual review, not auto-recovery.
-RECOVERY_ELIGIBLE_STATUSES = {"Completed", "Located"}
-
 
 def run_recovery_script(input_dataset, campaign_name, output_defnames_path):
     """Returns (ratio, threshold, dataset_name); ratio/dataset_name are None
@@ -36,12 +28,13 @@ def run_recovery_script(input_dataset, campaign_name, output_defnames_path):
     dataset_name = None if outcome_line == NO_RECOVERY_NEEDED_MARKER else outcome_line
     return ratio, threshold, dataset_name
 
-
-def evaluate_and_run_recovery(cfg, session):
+def evaluate_and_run_recovery(cfg, session, get_condor_progress=None):
     """Runs at most once per exhaustion event. Returns 'already_handled' |
-    'waiting' | 'needs_manual_review' | 'recovery_script_failed' |
+    'waiting' | 'recovery_script_failed' |
     'no_recovery_needed' | 'recovery_submitted' | 'recovery_submit_failed'."""
-    from poms_auto_submit import persist_last_split, persist_recovery_handled, plan_next_slices, submit_plan
+    from poms_auto_submit import (
+        _any_still_running, persist_last_split, persist_recovery_handled, plan_next_slices, submit_plan,
+    )
 
     if cfg.get("recovery_handled"):
         return "already_handled"
@@ -51,27 +44,19 @@ def evaluate_and_run_recovery(cfg, session):
         logging.info("recovery: no submission history yet -- waiting")
         return "waiting"
 
-    last = submissions[-1]
-    status = last.get("status")
-    if status in ACTIVE_SUBMISSION_STATUSES:
-        logging.info(
-            "recovery: last slice (submission_id=%s) still %s (pct_complete=%s) -- waiting",
-            last.get("submission_id"), status, last.get("pct_complete"),
-        )
+    if _any_still_running(cfg, submissions, get_condor_progress):
+        logging.info("recovery: a submission is still running per condor_q -- waiting")
         return "waiting"
-    if status not in RECOVERY_ELIGIBLE_STATUSES:
-        logging.warning(
-            "recovery: last slice (submission_id=%s) ended in status=%s -- needs manual review",
-            last.get("submission_id"), status,
-        )
-        persist_recovery_handled(cfg["config_path"], True)
-        cfg["recovery_handled"] = True
-        return "needs_manual_review"
 
     stage = session.get_stage_params()
     input_dataset = stage["dataset"]
+    # A test-launch's output defnames go to a sibling file, never the real
+    # one -- cleanup.py's reader (and its "load only once" dedup) must never
+    # see output from a debug run. run_recovery.sh never reads this path
+    # back for its own dimension-building, so redirecting it here is safe.
+    suffix = "_test_launch" if cfg.get("test_launch") else ""
     output_defnames_path = os.path.join(
-        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}.txt"
+        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}{suffix}.txt"
     )
 
     try:

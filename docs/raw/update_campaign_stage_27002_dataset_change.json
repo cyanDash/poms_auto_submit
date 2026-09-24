@@ -1,0 +1,27 @@
+{
+  "note": "Second live confirmation: dataset= genuinely takes effect (not just accepted/ignored), captured 2026-09-02 via test/manual_test_update_campaign_stage.py against campaign_stage_id=27002. Two calls: first set dataset='something_silly' (real change, confirmed in 'after'), second restored the original dataset value back.",
+  "call_1": {
+    "request": {
+      "method": "update_campaign_stage",
+      "campaign_stage": 27002,
+      "dataset": "something_silly",
+      "cs_last_split": 0
+    },
+    "response_status": 200,
+    "response_data": "Success",
+    "before_dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd",
+    "after_dataset": "something_silly"
+  },
+  "call_2_restore": {
+    "request": {
+      "method": "update_campaign_stage",
+      "campaign_stage": 27002,
+      "dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd",
+      "cs_last_split": 0
+    },
+    "response_status": 200,
+    "response_data": "Success",
+    "before_dataset": "something_silly",
+    "after_dataset": "aurora_SBND2026A_gen2_BNBLight_DevSample_prodgenie_corsika_proton_rockbox0p1_sbnd_CV_v10_14_02_03_reco1_sbnd"
+  }
+}

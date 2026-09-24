@@ -36,3 +36,17 @@ Each real production campaign runs off its own config file carrying
 campaign-specific parameters (different `campaign_name`,
 `max_splits`, etc.). They are never tracked. The logs are also not
 never tracked.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub Issues in `cyanDash/poms_auto_submit`; skills use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) — no overrides. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
