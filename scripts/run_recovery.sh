@@ -78,18 +78,19 @@ fi
 printf '%s\n' "${outputs[@]}" > "$OUTPUT_DEFNAMES_FILE"
 
 # --- build the "missing at least one output" dimension and create the
-# recovery dataset. "and" here, not "or": we want files that did not
-# produce ALL of their expected outputs, i.e. not(isparentof out1 and
-# isparentof out2 and ...) = not out1 or not out2 or ... ---
+# recovery dataset: not (isparentof out1 and isparentof out2 ...). One
+# isparentof per output -- a file belongs to only one output definition, so
+# a single isparentof over "defname: out1 and defname: out2" is an empty set
+# and "not" of it would keep every input file. ---
 outputs_clause=""
 for o in "${outputs[@]}"; do
     if [[ -z "$outputs_clause" ]]; then
-        outputs_clause="defname: $o"
+        outputs_clause="isparentof: (defname: $o)"
     else
-        outputs_clause="$outputs_clause and defname: $o"
+        outputs_clause="$outputs_clause and isparentof: (defname: $o)"
     fi
 done
-dimension="defname: $INPUT_DATASET and not isparentof: ($outputs_clause)"
+dimension="defname: $INPUT_DATASET and not ($outputs_clause)"
 
 if ! samweb create-definition "$RECOVERY_NAME" "$dimension" >&2; then
     echo "samweb create-definition failed for $RECOVERY_NAME" >&2
