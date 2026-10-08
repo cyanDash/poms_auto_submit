@@ -20,7 +20,7 @@ PRO_SUBGROUP = "pro"
 # See "Known upstream bugs" in docs/poms_client_gotchas.md -- make_poms_call()
 # mangles this text away entirely before submit_next_slice() ever sees it;
 # _raw_launch_jobs_call() bypasses it precisely so this check works.
-NO_MORE_SPLITS_MARKER = "No more splits in this campaign"
+NO_MORE_SPLITS_MARKER = "No more splits in"
 
 # command_executed is the immutable per-submission record of the actual
 # --subgroup= flag; param_overrides isn't (see docs/poms_client_gotchas.md).

@@ -162,6 +162,11 @@ further `launch_jobs` calls with a body containing the literal text
 2026-09-02 against `campaign_stage_id=26971`, `decode_reco1_reco2_caf`, after
 its 6th successful slice). That's expected, normal completion, not a bug.
 
+POMS later reworded this (confirmed live 2026-10-08, `campaign_stage_id=27127`):
+`No more splits in campaign '<name>' stage '<stage>' (campaign_stage_id=N).`,
+no `AssertionError` wrapper. `NO_MORE_SPLITS_MARKER` is therefore just
+`"No more splits in"`, matching both wordings.
+
 Because of `make_poms_call()`'s mangling bug above, this text is unreachable
 through the normal call path — by the time `make_poms_call()` raises, the
 body has already been sliced down to nothing. `submit_next_slice()` therefore

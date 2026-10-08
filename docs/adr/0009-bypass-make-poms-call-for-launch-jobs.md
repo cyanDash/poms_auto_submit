@@ -58,3 +58,13 @@ implementation; `PomsSession.submit_next_slice()` and `test/debug_raw_call.py`
 both call it instead of each maintaining their own copy. The "Accepted
 tradeoff" above is superseded by this — kept for the historical reasoning,
 not as current guidance.
+
+## Update: marker loosened (2026-10-08)
+
+POMS reworded the exhaustion error to `No more splits in campaign '<name>'
+stage '<stage>' (campaign_stage_id=N).` (no "this campaign", no
+`AssertionError` wrapper), so the old match missed it and the run crashed
+before recovery could run. `NO_MORE_SPLITS_MARKER` is now `"No more splits
+in"`, which matches both wordings. The tradeoff is a looser substring match:
+another 400 body starting with that phrase would also read as "complete". See
+`docs/poms_client_gotchas.md`.

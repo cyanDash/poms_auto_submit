@@ -32,7 +32,14 @@ REAL_LAUNCH_JOBS_URL = (
 # Real launch_jobs failure body once a campaign stage's Input Dataset is
 # exhausted (confirmed live, campaign_stage_id=26971, decode_reco1_reco2_caf,
 # 2026-09-02) -- see docs/poms_client_gotchas.md.
-REAL_NO_MORE_SPLITS_BODY = "Unknown error AssertionError('No more splits in this campaign.')"
+REAL_NO_MORE_SPLITS_BODY_THIS_CAMPAIGN = "Unknown error AssertionError('No more splits in this campaign.')"
+
+# Newer wording (confirmed live, campaign_stage_id=27127, 2026-10-08): names the
+# campaign and stage instead of "this campaign", and no AssertionError wrapper.
+REAL_NO_MORE_SPLITS_BODY_NAMED = (
+    "No more splits in campaign 'sdas1_ torch_vs_triton_output_comparison' "
+    "stage 'gen_g4_detsim_torch_triton_comparison' (campaign_stage_id=27127)."
+)
 
 
 def make_session(cfg=None, **pc_overrides):
@@ -494,7 +501,14 @@ def test_submit_next_slice_returns_none_when_no_more_splits(monkeypatch):
     # Confirmed real body once a campaign stage's Input Dataset is exhausted
     # -- treated as graceful completion, not a failure; see
     # docs/poms_client_gotchas.md.
-    fake_raw_poms_call(monkeypatch, (REAL_NO_MORE_SPLITS_BODY, 400))
+    fake_raw_poms_call(monkeypatch, (REAL_NO_MORE_SPLITS_BODY_THIS_CAMPAIGN, 400))
+    session = make_session()
+
+    assert session.submit_next_slice() is None
+
+
+def test_submit_next_slice_returns_none_on_named_no_more_splits_body(monkeypatch):
+    fake_raw_poms_call(monkeypatch, (REAL_NO_MORE_SPLITS_BODY_NAMED, 400))
     session = make_session()
 
     assert session.submit_next_slice() is None
