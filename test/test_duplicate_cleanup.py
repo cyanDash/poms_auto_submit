@@ -703,6 +703,30 @@ def test_two_live_files_for_an_input_fail_verification_naming_it():
     }
 
 
+def test_live_file_that_is_not_in_the_plan_fails_verification_naming_its_input(tmp_path):
+    sam = duplicated_campaign()
+    cfg = make_cfg(tmp_path)
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
+    with open(plan_path(cfg)) as f:
+        plan = json.load(f)
+    sam.add("reco1_def", "reco1_102.root", "gen_1.root", 102)
+    sam.add("reco1_def", "reco1_orphan.root", None, 103)
+
+    assert verify_plan(plan, sam) == {
+        "gen_1.root": ["reco1_def: reco1_102.root is live but not in the plan"],
+        "reco1_orphan.root": [
+            "reco1_def: reco1_orphan.root is live but not in the plan (reco1_orphan.root has no parent)",
+        ],
+    }
+
+
+def test_file_the_plan_could_not_group_does_not_fail_verification(tmp_path):
+    sam = duplicated_campaign()
+    sam.add("reco1_def", "reco1_orphan.root", None, 103)
+
+    assert clean_definitions(make_cfg(tmp_path), [RECO1], sam)["ok"] is True
+
+
 def test_retired_kept_file_fails_verification_naming_its_input():
     sam = duplicated_campaign()
     plan = plan_cleanup([RECO1], sam)

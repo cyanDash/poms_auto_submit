@@ -301,6 +301,22 @@ def verify_plan(plan, sam):
             for f in others:
                 if f in live[name]:
                     bad[key].append(f"{name}: {f} is live but not kept")
+
+    for entry in plan["definitions"]:
+        name = entry["name"]
+        planned = {u["file"] for u in entry["ungrouped"]}
+        for plan_input in plan["inputs"].values():
+            planned.update(plan_input["kept"].get(name, []))
+            planned.update(plan_input["retired"].get(name, []))
+            planned.update(s["file"] for s in plan_input["skipped"].get(name, []))
+        extra = sorted(live[name] - planned)
+        ancestors = _root_ancestors(sam, extra, entry["depth"], {}) if extra else {}
+        for f in extra:
+            ancestor, reason = ancestors[f]
+            if ancestor is None:
+                bad[f].append(f"{name}: {f} is live but not in the plan ({reason})")
+            else:
+                bad[_input_key(ancestor)].append(f"{name}: {f} is live but not in the plan")
     return dict(bad)
 
 
@@ -392,7 +408,7 @@ def main(argv=None, sam=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if sam is None:
         import samweb_client
-        sam = samweb_client.SAMWebClient()
+        sam = samweb_client.SAMWebClient(experiment=os.environ.get("SAM_EXPERIMENT", "sbnd"))
     cache_dir = os.getcwd()
     cfg = {"cache_dir": cache_dir, "state_file": os.path.join(cache_dir, "state_duplicate_cleanup.json")}
     definitions = [{"name": name, "depth": 1} for name in dict.fromkeys(args.dataset)]
