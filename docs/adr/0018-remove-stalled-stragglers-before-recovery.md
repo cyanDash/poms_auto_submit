@@ -25,3 +25,8 @@ removed jobs' input files simply land in the Recovery Dataset.
 - State lives in its own per-Campaign-Stage file in `cache_dir`, separate from
   the ADR-0008 cache and the #11 stuck-count file, with the same load/save
   style and malformed-file tolerance.
+
+## Update (2026-10-11): state moved into the consolidated state file
+
+The file described above is now one section of the per-ini state file; see
+`docs/adr/0020-one-consolidated-state-file-per-config.md`.

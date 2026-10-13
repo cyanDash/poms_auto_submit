@@ -71,3 +71,8 @@ non-empty, both as the campaign-type probe and as the source of output
 a retryable failure, not a hang), and by the time this script runs the
 campaign stage's last slice has completed, so most files are expected to
 have lineage already.
+
+## Update (2026-10-11): script state left the ini and the per-feature files
+
+`last_split`, `recovery_handled`, the caches and the output definitions named above now live in one
+state file per ini; see `docs/adr/0020-one-consolidated-state-file-per-config.md`.

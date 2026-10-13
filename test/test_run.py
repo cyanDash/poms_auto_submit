@@ -2,10 +2,13 @@ import sys
 import types
 
 import poms_auto_submit as psc
+import state
 from helpers import make_cfg
 
 
 class RecordingSession:
+    campaign_stage_id = 42
+
     def __init__(self):
         self.calls = []
 
@@ -25,7 +28,7 @@ class RecordingSessionNoMoreSplits(RecordingSession):
 
 def make_config_file(tmp_path, last_split=0, max_splits=5):
     config_path = tmp_path / "config.ini"
-    config_path.write_text(f"[decision]\nlast_split = {last_split}\nmax_splits = {max_splits}\n")
+    config_path.write_text(f"[decision]\nmax_splits = {max_splits}\n")
     return config_path
 
 
@@ -36,7 +39,7 @@ def test_run_executes_plan_in_order_and_persists_last_split(monkeypatch, tmp_pat
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
     assert recording.calls == [
@@ -46,7 +49,7 @@ def test_run_executes_plan_in_order_and_persists_last_split(monkeypatch, tmp_pat
         ("submit_next_slice",),
     ]
     assert cfg["last_split"] == 2
-    assert "last_split = 2" in config_path.read_text()
+    assert state.read(cfg, "last_split") == 2
 
 
 def test_run_dry_run_does_not_submit_or_persist(monkeypatch, tmp_path):
@@ -56,12 +59,12 @@ def test_run_dry_run_does_not_submit_or_persist(monkeypatch, tmp_path):
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=True)
 
     assert recording.calls == []
     assert cfg["last_split"] == 0
-    assert "last_split = 0" in config_path.read_text()
+    assert state.read(cfg, "last_split") is None
 
 
 def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, tmp_path):
@@ -73,14 +76,14 @@ def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, t
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
-    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: "disabled")
+    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: False)
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
     assert recording.calls == [("set_subgroup", True), ("submit_next_slice",)]
     assert cfg["last_split"] == 0
-    assert "last_split = 0" in config_path.read_text()
+    assert state.read(cfg, "last_split") is None
 
 
 def test_run_calls_recovery_when_submit_next_slice_returns_none(monkeypatch, tmp_path):
@@ -90,13 +93,29 @@ def test_run_calls_recovery_when_submit_next_slice_returns_none(monkeypatch, tmp
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
     calls = []
+    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: True)
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append((cfg, session)))
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
     assert len(calls) == 1
     assert calls[0] == (cfg, recording)
+
+
+def test_run_does_not_call_recovery_when_not_ready(monkeypatch, tmp_path):
+    config_path = make_config_file(tmp_path)
+    recording = RecordingSessionNoMoreSplits()
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
+    calls = []
+    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: False)
+    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
+
+    psc.run(make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0), dry_run=False)
+
+    assert calls == []
 
 
 def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_path):
@@ -108,7 +127,7 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
     calls = []
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
     assert calls == []
@@ -116,31 +135,33 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
 
 # --- cleanup trigger, when plan comes back empty ---
 
+SESSION = types.SimpleNamespace(campaign_stage_id=42)
+
 def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append((cfg, session)))
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
-    assert calls == [(cfg, "session")]
+    assert calls == [(cfg, SESSION)]
 
 
 def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
 
     assert calls == []
@@ -149,13 +170,13 @@ def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
 def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: "session")
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
     monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
 
-    cfg = make_cfg(config_path=str(config_path), last_split=0)
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=True)
 
     assert calls == []

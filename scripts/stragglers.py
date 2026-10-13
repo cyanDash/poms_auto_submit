@@ -1,13 +1,12 @@
 """Track Stragglers and condor_rm the ones that stall, so recovery starts with
 nothing running. See docs/adr/0018-remove-stalled-stragglers-before-recovery.md."""
 
-import json
 import logging
-import os
 from datetime import datetime
 
 import condor_progress
 import condor_rm
+import state
 
 # A live DAG with this many unfinished jobs or fewer becomes a Straggler.
 STRAGGLER_MAX_UNFINISHED = 50
@@ -17,36 +16,27 @@ STAGGER_DROP = 5
 STAGGER_LIMIT = 3
 
 
-def _cache_file(cfg, campaign_stage_id):
-    cache_dir = cfg.get("cache_dir")
-    if not cache_dir or campaign_stage_id is None:
-        return None
-    return os.path.join(cache_dir, f"stragglers_{campaign_stage_id}.json")
-
-
-def _load(cache_file):
+def _load(cfg):
+    records = state.read(cfg, "stragglers", {})
     try:
-        with open(cache_file) as f:
-            records = json.load(f)
         return {
             sid: r for sid, r in records.items()
             if isinstance(r, dict) and all(isinstance(r.get(k), int) for k in ("current_unfinished", "expected_unfinished", "stagger_count"))
         }
-    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
+    except AttributeError:
         return {}
 
 
-def manage(cfg, campaign_stage_id, submissions, get_progress=None, remove=None, dry_run=False, now=None):
+def manage(cfg, submissions, get_progress=None, remove=None, dry_run=False, now=None):
     """One run's Straggler pass over the Submissions already examined. Only
     call once no splits are left. A condor_q error changes no records; a
     dry run logs what it would remove and writes nothing."""
-    cache_file = _cache_file(cfg, campaign_stage_id)
-    if not cache_file:
+    if not cfg.get("state_file"):
         return
     get_progress = get_progress or condor_progress.get_progress
     remove = remove or condor_rm.remove
     now = (now or datetime.now()).isoformat(timespec="seconds")
-    previous = _load(cache_file)
+    previous = _load(cfg)
 
     progress_by_id = {}
     for s in submissions:
@@ -77,8 +67,7 @@ def manage(cfg, campaign_stage_id, submissions, get_progress=None, remove=None, 
         current[sid] = record
 
     if not dry_run:
-        with open(cache_file, "w") as f:
-            json.dump(current, f, indent=2)
+        state.write(cfg, "stragglers", current)
 
 
 def _advance(record, unfinished, now):

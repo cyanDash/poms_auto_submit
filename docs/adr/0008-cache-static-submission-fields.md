@@ -81,3 +81,8 @@ rather than layer 3's raw `pct_complete`. Judged acceptable: layer 2/3 are
 themselves already just a fallback for `condor_q` outages, and this only
 narrows that fallback further for cache-hit submissions, it doesn't remove
 `condor_q` as the primary source for any submission.
+
+## Update (2026-10-11): state moved into the consolidated state file
+
+The file described above is now one section of the per-ini state file; see
+`docs/adr/0020-one-consolidated-state-file-per-config.md`.

@@ -69,3 +69,9 @@ and `run_recovery.sh`'s samweb pipeline were both confirmed against live
 POMS/SAM (see `docs/poms_client_gotchas.md`) — both have now been. The
 switch is removed; recovery now runs unconditionally once triggered, gated
 only by `recovery_handled` and the status checks already described above.
+
+## Update (2026-10-11): `recovery_handled` left the config
+
+The `recovery_handled` flag and its manual reset described above is replaced by a fixed `[decision] do_recovery`
+flag plus internal handled state in the per-ini state file (ADR-0020); see
+`docs/adr/0019-do-recovery-config-flag-and-internal-handled-marker.md`.

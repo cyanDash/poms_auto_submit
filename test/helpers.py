@@ -22,7 +22,7 @@ def make_cfg(**overrides):
         "max_splits": 5,
         "last_split": 0,
         "do_cleanup": False,
-        "recovery_handled": False,
+        "do_recovery": False,
     }
     cfg.update(overrides)
     return cfg

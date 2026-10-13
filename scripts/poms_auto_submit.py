@@ -9,7 +9,6 @@ Intended to run from crontab, e.g.:
 import argparse
 import configparser
 import fcntl
-import json
 import logging
 import os
 import sys
@@ -17,6 +16,7 @@ import sys
 import cleanup
 import condor_progress
 import recovery
+import state
 import stragglers
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
@@ -44,7 +44,7 @@ def load_config(path):
 
     campaign_name = parser.get("poms", "campaign_name")
     # One directory per campaign under logs/, holding everything campaign-related
-    # (log, lock, cache jsons, output_definitions_*.txt) except the config itself.
+    # (log, lock, state_<ini name>.json) except the config itself.
     campaign_dir = os.path.join(os.path.dirname(path), "..", "logs", campaign_name)
     os.makedirs(campaign_dir, exist_ok=True)
 
@@ -53,54 +53,32 @@ def load_config(path):
         "role": PRO_ELIGIBLE_ROLE,
         "campaign_name": campaign_name,
         "campaign_stage_name": parser.get("poms", "campaign_stage_name"),
-        "switch": parser.getboolean("decision", "switch", fallback=True),
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
         "max_splits": parser.getint("decision", "max_splits"),
-        "last_split": parser.getint("decision", "last_split"),
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
-        "recovery_handled": parser.getboolean("decision", "recovery_handled", fallback=False),
+        "do_recovery": parser.getboolean("decision", "do_recovery", fallback=False),
         "do_cleanup": parser.getboolean("decision", "do_cleanup", fallback=False),
         "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
-        "config_path": os.path.abspath(path),
     }
-    # PomsSession's cache dir; see docs/adr/0008-cache-static-submission-fields.md.
     cfg["cache_dir"] = campaign_dir
+    # One state file per ini; see docs/adr/0020-one-consolidated-state-file-per-config.md.
+    ini_name = os.path.splitext(os.path.basename(path))[0]
+    cfg["state_file"] = os.path.join(campaign_dir, f"state_{ini_name}.json")
+    # The ini values only seed an ini written before ADR-0020; once the state
+    # file holds a value the ini's is ignored.
+    cfg["switch"] = state.read(cfg, "switch", parser.getboolean("decision", "switch", fallback=True))
+    cfg["last_split"] = state.read(cfg, "last_split", parser.getint("decision", "last_split", fallback=0))
     return cfg
 
 
-def _persist_config_value(config_path, section, key, value):
-    """Rewrite one key in place in config_path; leaves comments/rest untouched."""
-    with open(config_path) as f:
-        lines = f.readlines()
-
-    current_section = None
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current_section = stripped[1:-1]
-            continue
-        if current_section == section and stripped.split("=", 1)[0].strip() == key:
-            lines[i] = f"{key} = {value}\n"
-            break
-    else:
-        raise RuntimeError(f"{key} key not found in [{section}] section of {config_path}")
-
-    with open(config_path, "w") as f:
-        f.writelines(lines)
+def persist_last_split(cfg, last_split):
+    state.write(cfg, "last_split", last_split)
 
 
-def persist_last_split(config_path, last_split):
-    _persist_config_value(config_path, "decision", "last_split", last_split)
-
-
-def persist_recovery_handled(config_path, value):
-    _persist_config_value(config_path, "decision", "recovery_handled", int(bool(value)))
-
-
-def persist_switch(config_path, value):
-    _persist_config_value(config_path, "decision", "switch", int(bool(value)))
+def persist_switch(cfg, value):
+    state.write(cfg, "switch", bool(value))
 
 
 def acquire_lock(lock_path):
@@ -114,7 +92,7 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, stuck_stage_id=None):
+def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, track_stuck=False):
     """Submissions still holding a slot, decided from condor_q; POMS Status
     is only the tiebreak when condor_q has no data. See
     docs/adr/0005-in-flight-slot-based-decision.md."""
@@ -138,30 +116,21 @@ def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold
             no_data.append(s)
         if _holds_slot(s, progress, threshold):
             in_flight.append(s)
-    if stuck_stage_id is not None:
-        _update_stuck_counts(cfg, stuck_stage_id, no_data)
+    if track_stuck:
+        _update_stuck_counts(cfg, no_data)
     return in_flight
 
 
-def _stuck_cache_file(cfg, campaign_stage_id):
-    cache_dir = cfg.get("cache_dir")
-    if not cache_dir:
-        return None
-    return os.path.join(cache_dir, f"stuck_no_data_{campaign_stage_id}.json")
-
-
-def _update_stuck_counts(cfg, campaign_stage_id, no_data):
+def _update_stuck_counts(cfg, no_data):
     """Count consecutive runs each POMS-active Submission has sat in the same
     Status with no condor_q data; WARN from STUCK_NO_DATA_RUNS_WARN on. Never
     frees the slot. Anything not in `no_data` is dropped, which resets it."""
-    cache_file = _stuck_cache_file(cfg, campaign_stage_id)
-    if not cache_file:
+    if not cfg.get("state_file"):
         return
     try:
-        with open(cache_file) as f:
-            previous = json.load(f)
+        previous = state.read(cfg, "stuck_no_data", {})
         previous = {sid: e for sid, e in previous.items() if isinstance(e, dict) and isinstance(e.get("count"), int)}
-    except (FileNotFoundError, json.JSONDecodeError, AttributeError):
+    except AttributeError:
         previous = {}
 
     current = {}
@@ -177,8 +146,7 @@ def _update_stuck_counts(cfg, campaign_stage_id, no_data):
                 submission_id, s.get("status"), count,
             )
 
-    with open(cache_file, "w") as f:
-        json.dump(current, f, indent=2)
+    state.write(cfg, "stuck_no_data", current)
 
 
 def _holds_slot(s, progress, threshold):
@@ -208,18 +176,20 @@ def _no_splits_left(cfg):
     return cfg["max_splits"] - cfg["last_split"] <= 0
 
 
-def _plan(cfg, submissions, get_condor_progress, stuck_stage_id=None):
+def _plan(cfg, submissions, get_condor_progress, track_stuck=False):
     """Shared by _next_slice_count() and plan_next_slices(). Returns (num_slices, in_flight)."""
     if _no_splits_left(cfg):
         logging.info(
             "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
             cfg["last_split"], cfg["max_splits"],
         )
+        if cfg["do_recovery"] and not recovery.is_handled(cfg):
+            logging.info("recovery: not done (max_splits reached before the splits were exhausted)")
         return 0, []
 
     remaining_splits = cfg["max_splits"] - cfg["last_split"]
     target = 2 if cfg["submit_two_slices"] else 1
-    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress, stuck_stage_id=stuck_stage_id)
+    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress, track_stuck=track_stuck)
     num_slices = min(max(0, target - len(in_flight)), remaining_splits)
     subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
     subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
@@ -258,8 +228,7 @@ def plan_next_slices(cfg, session, get_condor_progress=None, dry_run=False):
     standard), possibly empty."""
     submissions = session.get_progress()
 
-    stuck_stage_id = None if dry_run else getattr(session, "campaign_stage_id", None)
-    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, stuck_stage_id)
+    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, track_stuck=not dry_run)
     if num_slices == 0:
         return []
 
@@ -278,7 +247,9 @@ def _cleanup_ready(cfg, session, get_condor_progress=None):
     """Whether the campaign is done enough to safely run duplicate-cleanup
     and turn the campaign stage off; see
     docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
-    if not (cfg["do_cleanup"] and cfg["recovery_handled"] and _no_splits_left(cfg)):
+    if not (cfg["do_cleanup"] and _no_splits_left(cfg)):
+        return False
+    if cfg["do_recovery"] and not recovery.is_handled(cfg):
         return False
 
     submissions = session.get_progress()
@@ -288,6 +259,31 @@ def _cleanup_ready(cfg, session, get_condor_progress=None):
     return not _any_still_running(cfg, submissions, get_condor_progress, CLEANUP_PCT_COMPLETE_THRESHOLD)
 
 
+def _recovery_ready(cfg, session, get_condor_progress=None):
+    """Whether an exhausted campaign stage should be evaluated for recovery
+    now: opted in, not yet handled, and nothing still running per condor_q.
+    See docs/adr/0019-do-recovery-config-flag-and-internal-handled-marker.md."""
+    if not cfg["do_recovery"]:
+        logging.info("recovery: disabled (do_recovery=0 in config)")
+        return False
+    if recovery.is_handled(cfg):
+        logging.info(
+            "recovery: already handled (set recovery_handled to false in %s to re-evaluate)",
+            cfg.get("state_file"),
+        )
+        return False
+
+    submissions = session.get_progress()
+    if not submissions:
+        logging.info("recovery: no submission history yet -- waiting")
+        return False
+
+    if _any_still_running(cfg, submissions, get_condor_progress):
+        logging.info("recovery: a submission is still running per condor_q -- waiting")
+        return False
+    return True
+
+
 def _manage_stragglers(cfg, session, dry_run):
     try:
         submissions = session.get_progress()
@@ -295,7 +291,7 @@ def _manage_stragglers(cfg, session, dry_run):
         logging.exception("could not fetch POMS progress -- skipping straggler check")
         return
     try:
-        stragglers.manage(cfg, getattr(session, "campaign_stage_id", None), submissions, dry_run=dry_run)
+        stragglers.manage(cfg, submissions, dry_run=dry_run)
     except OSError:
         logging.exception("straggler check failed -- continuing with cleanup and recovery")
 
@@ -314,7 +310,7 @@ def submit_plan(cfg, session, plan):
             )
             return False
         cfg["last_split"] += 1
-        persist_last_split(cfg["config_path"], cfg["last_split"])
+        persist_last_split(cfg, cfg["last_split"])
     return True
 
 
@@ -344,7 +340,7 @@ def run(cfg, dry_run):
         logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    if not submit_plan(cfg, session, plan):
+    if not submit_plan(cfg, session, plan) and _recovery_ready(cfg, session):
         recovery.evaluate_and_run_recovery(cfg, session)
 
 
@@ -372,7 +368,7 @@ def main():
     logging.info("===== poms_auto_submit run start =====")
     try:
         if not cfg["switch"]:
-            logging.info("switch is off (switch=0 in config), skipping this run")
+            logging.info("switch is off in %s, skipping this run", cfg["state_file"])
             return 0
 
         lock_fh = acquire_lock(cfg["lock_file"])

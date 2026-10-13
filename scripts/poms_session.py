@@ -4,14 +4,13 @@ returns -- callers never see a raw (ok, data) tuple, bare string, or redirect
 URL.
 """
 
-import json
 import logging
-import os
 import re
 import time
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
+import state
 from poms_raw_client import raw_poms_call
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
@@ -57,12 +56,9 @@ class PomsSession:
 
     @property
     def cache_file(self):
-        """Where jobsub_job_id/subgroup get cached per submission_id, or None
-        if cfg has no cache_dir; see docs/adr/0008-cache-static-submission-fields.md."""
-        cache_dir = self.cfg.get("cache_dir")
-        if not cache_dir:
-            return None
-        return os.path.join(cache_dir, f"submission_cache_{self.campaign_stage_id}.json")
+        """The state file whose `submissions` section caches jobsub_job_id/subgroup
+        per submission_id, or None if cfg has none; see docs/adr/0008-cache-static-submission-fields.md."""
+        return self.cfg.get("state_file")
 
     @property
     def cache(self):
@@ -71,22 +67,16 @@ class PomsSession:
         return self._cache
 
     def _load_cache(self):
-        cache_file = self.cache_file
-        if not cache_file:
+        if not self.cache_file:
             return {}
-        try:
-            with open(cache_file) as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+        cache = state.read(self.cfg, "submissions", {})
+        return cache if isinstance(cache, dict) else {}
 
     def _cache_submission(self, submission_id, jobsub_job_id, subgroup):
-        cache_file = self.cache_file
-        if not cache_file:
+        if not self.cache_file:
             return
         self.cache[str(submission_id)] = {"jobsub_job_id": jobsub_job_id, "subgroup": subgroup}
-        with open(cache_file, "w") as f:
-            json.dump(self.cache, f, indent=2)
+        state.write(self.cfg, "submissions", self.cache)
 
     def _fetch_submission_details(self, submission_id):
         """submission_details(), caching jobsub_job_id/subgroup on success.

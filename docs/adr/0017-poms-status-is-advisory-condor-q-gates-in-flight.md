@@ -130,3 +130,9 @@ So POMS reported `pct_complete=100.0` on Submissions with 11 of 502 nodes done,
 and it flips Status again long after launch. Slice 3 shows the same signature
 as the 9/18 burst, so the 9/17 burst was already affected. `condor_q` was right
 in all three cases. Slices 4 to 7 were not pulled.
+
+## Update (2026-10-11): `recovery_handled` left the config
+
+The `recovery_handled=1` opt-out described above is replaced by a fixed `[decision] do_recovery`
+flag plus internal handled state in the per-ini state file (ADR-0020); see
+`docs/adr/0019-do-recovery-config-flag-and-internal-handled-marker.md`.

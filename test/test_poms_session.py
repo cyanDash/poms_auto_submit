@@ -236,12 +236,12 @@ def test_get_progress_subgroup_is_none_when_command_executed_is_missing():
 
 def test_get_progress_uses_cache_and_skips_submission_details(tmp_path):
     submissions = [{"submission_id": 100, "status": "Running"}]
-    (tmp_path / "submission_cache_42.json").write_text(
-        json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": "pro"}})
+    (tmp_path / "state.json").write_text(
+        json.dumps({"submissions": {"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": "pro"}}})
     )
     calls = []
     session = make_session(
-        cfg=make_cfg(cache_dir=str(tmp_path)),
+        cfg=make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")),
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
             True, {"data": {"submissions": submissions}},
         ),
@@ -265,7 +265,7 @@ def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
         },
     }
     session = make_session(
-        cfg=make_cfg(cache_dir=str(tmp_path)),
+        cfg=make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")),
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
             True, {"data": {"submissions": submissions}},
         ),
@@ -277,7 +277,7 @@ def test_get_progress_cache_miss_fetches_and_writes_cache(tmp_path):
     assert entry["jobsub_job_id"] == "100@jobsub01.fnal.gov"
     assert entry["subgroup"] == "pro"
 
-    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
+    written = json.loads((tmp_path / "state.json").read_text())["submissions"]
     assert written == {"100": {"jobsub_job_id": "100@jobsub01.fnal.gov", "subgroup": "pro"}}
 
 
@@ -286,13 +286,13 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
         {"submission_id": 100, "status": "Running"},
         {"submission_id": 101, "status": "Running"},
     ]
-    (tmp_path / "submission_cache_42.json").write_text(
-        json.dumps({"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None}})
+    (tmp_path / "state.json").write_text(
+        json.dumps({"submissions": {"100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None}}})
     )
     calls = []
     details = {"submission_id": "101", "submission": {"jobsub_job_id": "101@jobsub01.fnal.gov"}}
     session = make_session(
-        cfg=make_cfg(cache_dir=str(tmp_path)),
+        cfg=make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")),
         campaign_stage_submissions=lambda experiment, role, campaign_name, stage_name: (
             True, {"data": {"submissions": submissions}},
         ),
@@ -305,7 +305,7 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
     assert result[0]["jobsub_job_id"] == "cached@jobsub01.fnal.gov"
     assert result[1]["jobsub_job_id"] == "101@jobsub01.fnal.gov"
 
-    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
+    written = json.loads((tmp_path / "state.json").read_text())["submissions"]
     assert written == {
         "100": {"jobsub_job_id": "cached@jobsub01.fnal.gov", "subgroup": None},
         "101": {"jobsub_job_id": "101@jobsub01.fnal.gov", "subgroup": None},
@@ -314,7 +314,7 @@ def test_get_progress_only_fetches_uncached_submissions(tmp_path):
 
 def test_get_jobsub_job_id_writes_cache_on_success(tmp_path):
     session = make_session(
-        cfg=make_cfg(cache_dir=str(tmp_path)),
+        cfg=make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")),
         submission_details=lambda experiment, role, submission_id: (
             True,
             {"submission": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "command_executed": "... --subgroup=standard ..."}},
@@ -323,7 +323,7 @@ def test_get_jobsub_job_id_writes_cache_on_success(tmp_path):
 
     session._get_jobsub_job_id("555")
 
-    written = json.loads((tmp_path / "submission_cache_42.json").read_text())
+    written = json.loads((tmp_path / "state.json").read_text())["submissions"]
     assert written == {"555": {"jobsub_job_id": "71717566@jobsub03.fnal.gov", "subgroup": "standard"}}
 
 
@@ -651,15 +651,15 @@ def test_get_progress_window_carries_poms_status_as_data():
 
 
 def test_get_progress_window_reads_cache_for_terminal_submissions(tmp_path):
-    (tmp_path / "submission_cache_42.json").write_text(
-        json.dumps({"1": {"jobsub_job_id": "9@jobsub01.fnal.gov", "subgroup": "pro"}})
+    (tmp_path / "state.json").write_text(
+        json.dumps({"submissions": {"1": {"jobsub_job_id": "9@jobsub01.fnal.gov", "subgroup": "pro"}}})
     )
     calls = []
     session = window_session(
         [{"submission_id": 1, "status": "Located", "created": "2026-09-20T11:00:00"}],
         submission_details=lambda experiment, role, submission_id: calls.append(submission_id) or (True, {}),
     )
-    session.cfg["cache_dir"] = str(tmp_path)
+    session.cfg["state_file"] = str(tmp_path / "state.json")
 
     entry = session.get_progress(now=WINDOW_NOW)[0]
 

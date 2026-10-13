@@ -15,7 +15,8 @@ logged. Assumes that you have a well-tested campaign ready to be launched.
    `max_splits`. A submission that's crossed `pct_complete_threshold` no
    longer counts as in-flight, freeing its slot for a replacement even before
    it finishes. `last_split` is a counter the script maintains itself in
-   `config.ini`.
+   its state file, `logs/<campaign_name>/state_<ini name>.json`;
+   edit it there to reset or correct the count.
 3. **Decide subgroup, submit** — only one submission may hold the
    higher-priority `pro` subgroup at a time. A new slice takes it if no
    in-flight submission already does; when 2 slices go out in the same run,
@@ -51,11 +52,6 @@ campaign_name = override_me
 campaign_stage_name = override_me
 
 [decision]
-; master on/off switch; when false, the script just logs and exits without
-; checking progress or submitting. Useful in case you want to pause submitting
-; new jobs but do not want to delete and rewrite the crontab
-switch = 1
-
 ; what percentage of the total number of jobs must be completed before the
 ; next slice is submitted; 0-100
 pct_complete_threshold = 70
@@ -64,29 +60,25 @@ pct_complete_threshold = 70
 submit_two_slices = 0
 
 ; total number of slices this campaign stage needs; submission stops once
-; last_split reaches max_splits
+; the script has submitted that many (it keeps the count in its state file)
 max_splits = 5
-
-; counter of slices successfully submitted so far
-; updated by the script after each run, don't hand-edit while cron is active
-last_split = 0
 
 ; when true, every submission this run makes is a Test Launch (test_param_overrides
 ; instead of param_overrides); still counts against last_split/max_splits
 test_launch = 0
 
-; set by the script once it has fully evaluated (or run) recovery for the
-; current campaign; don't hand-edit while cron is active.
-recovery_handled = 0
+; when true, automatically build a Recovery Dataset and submit it once the
+; Input Dataset is exhausted. Never changed by the script.
+do_recovery = 1
 
 ; when true, automatically clean up duplicates once the campaign is fully
-; done, then turn switch off. Don't hand-edit while cron is active.
+; done, then turn the campaign off in its state file.
 do_cleanup = 0
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
 
-`switch = 0` is a kill switch: the script just logs that it's off and exits, without checking progress or submitting anything.
+The script never writes to the ini. Everything it tracks itself lives in one state file per ini, `logs/<campaign_name>/state_<ini name>.json`: the `last_split` counter, the `switch` that cleanup turns off when the campaign is done, the recovery flag, and its caches. To stop a campaign, stop its cron job. To re-run an ini that cleanup has switched off, set `"switch": true` in its state file.
 
 `submit_two_slices = 1` implies a pro and a non-pro submission can be 
 simultaneously run.

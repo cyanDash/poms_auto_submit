@@ -15,8 +15,12 @@ _Avoid_: "stage" alone when a Campaign Stage's internal Executables are the actu
 One step (`gen`, `g4`, `detsim`, `reco1`, `reco2`, `caf`, ...) run inside a single Campaign Stage under the current one-Campaign-Stage-per-pipeline convention. Configured by one `-Oglobal.fclfileN=` param override per Executable (`fclfile1`..`fclfile6` for a 6-step chain).
 
 **PomsSession**:
-The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns identity setup (`update_session_experiment`/`update_session_role`), resolves and caches `campaign_stage_id`, and normalizes every quirky `poms_client` response shape ((ok, data) tuples, bare strings, redirect URLs with the id in the query string) behind plain method returns. Decision logic never sees `pc` or a raw POMS response. Also owns a local on-disk cache (`<cache_dir>/<campaign_stage_id>.json`) of each Submission's immutable `jobsub_job_id`/`subgroup`, so a Submission already seen in a past run never needs a fresh `submission_details()` call for those two fields again (see docs/adr/0008-cache-static-submission-fields.md).
+The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns identity setup (`update_session_experiment`/`update_session_role`), resolves and caches `campaign_stage_id`, and normalizes every quirky `poms_client` response shape ((ok, data) tuples, bare strings, redirect URLs with the id in the query string) behind plain method returns. Decision logic never sees `pc` or a raw POMS response. Also owns a local on-disk cache (the `submissions` section of the State File) of each Submission's immutable `jobsub_job_id`/`subgroup`, so a Submission already seen in a past run never needs a fresh `submission_details()` call for those two fields again (see docs/adr/0008-cache-static-submission-fields.md).
 _Avoid_: PomsGateway, poms_client wrapper.
+
+**State File**:
+The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions`, `last_split`, `switch`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
+_Avoid_: cache file, marker file.
 
 **Submission**:
 POMS's general term for one `launch_jobs` call against a campaign stage. Has a `submission_id`, a Status, and `pct_complete`. This script makes no code-level distinction between a Submission and a Slice — mechanically it just launches jobs per the stage's configured parameters, for any campaign.

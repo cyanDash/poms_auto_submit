@@ -10,21 +10,18 @@ import logging
 import os
 import subprocess
 
+import state
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CLEANUP_SCRIPT = os.path.join(SCRIPT_DIR, "duplicate_cleanup.sh")
 CLEANUP_SCRIPT_TIMEOUT_SECONDS = 3600
 
 
-def _load_output_definitions(cache_dir, campaign_stage_id):
+def _load_output_definitions(cfg):
     """Unique output dataset names recovery.py has ever recorded for this
     campaign stage, in first-seen order. No recovery has ever run (or it
     never got past run_recovery.sh's dimension-building step) -> []."""
-    path = os.path.join(cache_dir, f"output_definitions_{campaign_stage_id}.txt")
-    try:
-        with open(path) as f:
-            lines = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        return []
+    lines = state.read(cfg, "output_definitions", [])
 
     seen = set()
     unique = []
@@ -43,7 +40,7 @@ def run_cleanup(cfg, session):
     nothing to clean), False if duplicate_cleanup.sh failed."""
     from poms_auto_submit import persist_switch
 
-    outputs = _load_output_definitions(cfg["cache_dir"], session.campaign_stage_id)
+    outputs = _load_output_definitions(cfg)
     if not outputs:
         logging.info("cleanup: no output definitions recorded -- nothing to clean")
     else:
@@ -57,7 +54,7 @@ def run_cleanup(cfg, session):
             return False
         logging.info("cleanup: submitted duplicate-cleanup for %d dataset(s)", len(outputs))
 
-    persist_switch(cfg["config_path"], False)
+    persist_switch(cfg, False)
     cfg["switch"] = False
     logging.info("cleanup: done -- switch turned off")
     return True

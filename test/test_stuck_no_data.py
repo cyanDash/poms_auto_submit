@@ -17,13 +17,13 @@ def entry(submission_id, status):
 
 
 def run(tmp_path, submissions, progress):
-    cfg = make_cfg(cache_dir=str(tmp_path))
-    return psc._in_flight_submissions(cfg, submissions, lambda e, j: progress[j], stuck_stage_id=42)
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
+    return psc._in_flight_submissions(cfg, submissions, lambda e, j: progress[j], track_stuck=True)
 
 
 def counts(tmp_path):
-    with open(tmp_path / "stuck_no_data_42.json") as f:
-        return {k: v["count"] for k, v in json.load(f).items()}
+    with open(tmp_path / "state.json") as f:
+        return {k: v["count"] for k, v in json.load(f)["stuck_no_data"].items()}
 
 
 def stuck_warnings(caplog):
@@ -86,15 +86,15 @@ def test_no_cache_dir_is_a_silent_noop(caplog):
 
 
 def test_recovery_gate_does_not_advance_stuck_counts(tmp_path):
-    cfg = make_cfg(cache_dir=str(tmp_path))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     subs = [{"submission_id": 1, "status": "Held", "jobsub_job_id": "1@s"}]
     no_data = lambda e, j: NO_DATA
     psc._any_still_running(cfg, subs, no_data)
-    assert not list(tmp_path.glob("stuck_no_data_*.json"))
+    assert not list(tmp_path.glob("state_*.json"))
 
 
 def test_malformed_cache_file_is_treated_as_empty(tmp_path):
-    (tmp_path / "stuck_no_data_42.json").write_text('{"1": "junk"}')
+    (tmp_path / "state.json").write_text('{"stuck_no_data": {"1": "junk"}}')
     run(tmp_path, [entry(1, "Held")], {"1@s": NO_DATA})
     assert counts(tmp_path) == {"1": 1}
 
@@ -107,12 +107,12 @@ class PlanSession:
 
 
 def test_dry_run_does_not_advance_stuck_counts(tmp_path):
-    cfg = make_cfg(cache_dir=str(tmp_path))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     psc.plan_next_slices(cfg, PlanSession(), lambda e, j: NO_DATA, dry_run=True)
-    assert not list(tmp_path.glob("stuck_no_data_*.json"))
+    assert not list(tmp_path.glob("state_*.json"))
 
 
 def test_real_run_advances_stuck_counts_via_plan(tmp_path):
-    cfg = make_cfg(cache_dir=str(tmp_path))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     psc.plan_next_slices(cfg, PlanSession(), lambda e, j: NO_DATA)
     assert counts(tmp_path) == {"1": 1}

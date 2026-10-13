@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 import types
@@ -32,33 +33,24 @@ def stub_poms_client(monkeypatch):
 # --- _load_output_definitions ---
 
 def test_load_output_definitions_missing_file_returns_empty(tmp_path):
-    assert _load_output_definitions(str(tmp_path), 42) == []
+    assert _load_output_definitions({"state_file": str(tmp_path / "state.json")}) == []
 
 
 def test_load_output_definitions_dedups_preserving_first_seen_order(tmp_path):
-    (tmp_path / "output_definitions_42.txt").write_text("ds_a\nds_b\nds_a\nds_c\nds_b\n")
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ['ds_a', 'ds_b', 'ds_a', 'ds_c', 'ds_b']}))
 
-    assert _load_output_definitions(str(tmp_path), 42) == ["ds_a", "ds_b", "ds_c"]
-
-
-def test_load_output_definitions_skips_blank_lines(tmp_path):
-    (tmp_path / "output_definitions_42.txt").write_text("ds_a\n\n\nds_b\n")
-
-    assert _load_output_definitions(str(tmp_path), 42) == ["ds_a", "ds_b"]
+    assert _load_output_definitions({"state_file": str(tmp_path / "state.json")}) == ["ds_a", "ds_b", "ds_c"]
 
 
 # --- run_cleanup ---
 
-def make_config_file(tmp_path, switch=1):
-    config_path = tmp_path / "config.ini"
-    config_path.write_text(f"[decision]\nswitch = {switch}\n")
-    return config_path
+def persisted_switch(tmp_path):
+    return json.loads((tmp_path / "state.json").read_text()).get("switch")
 
 
 def test_run_cleanup_invokes_script_with_outdir_and_datasets_then_turns_switch_off(tmp_path, monkeypatch):
-    (tmp_path / "output_definitions_42.txt").write_text("ds_a\nds_b\n")
-    config_path = make_config_file(tmp_path)
-    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path))
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ['ds_a', 'ds_b']}))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     calls = []
     monkeypatch.setattr(
         cleanup.subprocess, "run",
@@ -71,28 +63,26 @@ def test_run_cleanup_invokes_script_with_outdir_and_datasets_then_turns_switch_o
     assert args == [cleanup.CLEANUP_SCRIPT, str(tmp_path), "ds_a", "ds_b"]
     assert result is True
     assert cfg["switch"] is False
-    assert "switch = 0" in config_path.read_text()
+    assert persisted_switch(tmp_path) is False
 
 
 def test_run_cleanup_with_no_output_definitions_still_turns_switch_off(tmp_path):
-    config_path = make_config_file(tmp_path)
-    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
 
     result = run_cleanup(cfg, FakeSession())
 
     assert result is True
     assert cfg["switch"] is False
-    assert "switch = 0" in config_path.read_text()
+    assert persisted_switch(tmp_path) is False
 
 
 def test_run_cleanup_does_not_turn_switch_off_when_script_fails(tmp_path, monkeypatch):
-    (tmp_path / "output_definitions_42.txt").write_text("ds_a\n")
-    config_path = make_config_file(tmp_path)
-    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), switch=True)
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ['ds_a']}))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), switch=True)
     monkeypatch.setattr(cleanup.subprocess, "run", fake_run(exc=subprocess.TimeoutExpired(cmd="x", timeout=1)))
 
     result = run_cleanup(cfg, FakeSession())
 
     assert result is False
     assert cfg["switch"] is True
-    assert "switch = 1" in config_path.read_text()
+    assert persisted_switch(tmp_path) is None

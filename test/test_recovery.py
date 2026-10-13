@@ -45,8 +45,6 @@ def test_run_recovery_script_raises_on_nonzero_exit(monkeypatch):
         run_recovery_script("input_ds", "campaign", "/tmp/out.txt")
 
 
-# --- evaluate_and_run_recovery ---
-
 class FakeSession:
     def __init__(self, progress=None, stage=None, submit_result="new-id"):
         self.campaign_stage_id = 42
@@ -72,12 +70,25 @@ class FakeSession:
         return self._submit_result
 
 
-def make_config_file(tmp_path, last_split=3, recovery_handled=0):
+def make_config_file(tmp_path, last_split=3):
     config_path = tmp_path / "config.ini"
-    config_path.write_text(
-        f"[decision]\nlast_split = {last_split}\nmax_splits = 5\nrecovery_handled = {recovery_handled}\n"
-    )
+    config_path.write_text("[decision]\nmax_splits = 5\ndo_recovery = 1\n")
     return config_path
+
+
+def handled(tmp_path):
+    import state
+    return state.read({"state_file": str(tmp_path / "state.json")}, "recovery_handled", False)
+
+
+def persisted_last_split(tmp_path):
+    import state
+    return state.read({"state_file": str(tmp_path / "state.json")}, "last_split")
+
+
+def recorded_outputs(tmp_path):
+    import state
+    return state.read({"state_file": str(tmp_path / "state.json")}, "output_definitions")
 
 
 @pytest.fixture(autouse=True)
@@ -88,31 +99,7 @@ def stub_poms_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
 
 
-def test_already_handled_short_circuits(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=True)
-    session = FakeSession()
-
-    assert evaluate_and_run_recovery(cfg, session) == "already_handled"
-    assert session.calls == []
-
-
-def test_waiting_when_last_slice_still_active(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
-    session = FakeSession(progress=[{"submission_id": 1, "status": "Running"}])
-
-    assert evaluate_and_run_recovery(cfg, session) == "waiting"
-    assert session.calls == []
-
-
-def test_waiting_does_not_persist_recovery_handled(tmp_path):
-    config_path = make_config_file(tmp_path)
-    cfg = make_cfg(config_path=str(config_path), recovery_handled=False)
-    session = FakeSession(progress=[{"submission_id": 1, "status": "Running"}])
-
-    evaluate_and_run_recovery(cfg, session)
-
-    assert "recovery_handled = 0" in config_path.read_text()
-
+# --- _recovery_ready ---
 
 def _cp(outcome, pct=None):
     return recovery_condor_progress.Progress(outcome, pct)
@@ -126,114 +113,118 @@ def _by_job(outcomes):
     return lambda experiment, jobsub_job_id: outcomes[jobsub_job_id]
 
 
-def test_false_failed_does_not_set_recovery_handled(tmp_path):
+def _ready(tmp_path, progress, outcomes=None, **cfg_overrides):
+    import poms_auto_submit as psc
+    cfg = make_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
+    cfg.update(cfg_overrides)
+    get_condor_progress = _by_job(outcomes) if outcomes is not None else None
+    return psc._recovery_ready(cfg, FakeSession(progress=progress), get_condor_progress=get_condor_progress)
+
+
+def test_recovery_ready_true_when_all_finished(tmp_path):
+    progress = [_live_sub(1, "Failed", "1@s"), _live_sub(2, "Completed", "2@s")]
+    assert _ready(tmp_path, progress, {"1@s": _cp("finished", 100.0), "2@s": _cp("no_data")}) is True
+
+
+def test_recovery_ready_false_when_do_recovery_off(tmp_path):
+    progress = [_live_sub(1, "Completed", "1@s")]
+    assert _ready(tmp_path, progress, {"1@s": _cp("finished", 100.0)}, do_recovery=False) is False
+
+
+def test_recovery_ready_false_when_already_handled(tmp_path):
+    (tmp_path / "state.json").write_text('{"recovery_handled": true}')
+    assert _ready(tmp_path, [_live_sub(1, "Completed", "1@s")], {"1@s": _cp("finished", 100.0)}) is False
+
+
+def test_recovery_ready_false_when_no_submissions_yet(tmp_path):
+    assert _ready(tmp_path, [], {}) is False
+
+
+def test_recovery_ready_false_when_last_slice_still_active(tmp_path):
+    assert _ready(tmp_path, [{"submission_id": 1, "status": "Running"}]) is False
+
+
+def test_recovery_ready_false_for_false_failed_with_live_dag(tmp_path):
+    assert _ready(tmp_path, [_live_sub(1, "Failed", "1@s")], {"1@s": _cp("live", 40.0)}) is False
+
+
+def test_recovery_ready_false_for_false_located_with_live_dag(tmp_path):
+    assert _ready(tmp_path, [_live_sub(1, "Located", "1@s")], {"1@s": _cp("live", 99.9)}) is False
+
+
+def test_recovery_ready_false_when_earlier_slice_live_even_if_last_finished(tmp_path):
+    progress = [_live_sub(1, "Running", "1@s"), _live_sub(2, "Completed", "2@s")]
+    assert _ready(tmp_path, progress, {"1@s": _cp("live", 50.0), "2@s": _cp("finished", 100.0)}) is False
+
+
+def test_recovery_ready_false_when_active_status_has_no_condor_data(tmp_path):
+    assert _ready(tmp_path, [_live_sub(1, "Held", "1@s")], {"1@s": _cp("no_data")}) is False
+
+
+def test_recovery_ready_false_on_condor_q_error(tmp_path):
+    assert _ready(tmp_path, [_live_sub(1, "Completed", "1@s")], {"1@s": _cp("error")}) is False
+
+
+def test_recovery_ready_never_touches_the_config(tmp_path):
     config_path = make_config_file(tmp_path)
-    cfg = make_cfg(config_path=str(config_path), recovery_handled=False)
-    session = FakeSession(progress=[_live_sub(1, "Failed", "1@s")])
+    before = config_path.read_text()
 
-    result = evaluate_and_run_recovery(cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 40.0)}))
+    _ready(tmp_path, [{"submission_id": 1, "status": "Running"}], config_path=str(config_path))
 
-    assert result == "waiting"
-    assert "recovery_handled = 0" in config_path.read_text()
-
-
-def test_false_located_with_live_dag_waits(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
-    session = FakeSession(progress=[_live_sub(1, "Located", "1@s")])
-
-    assert evaluate_and_run_recovery(
-        cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 99.9)})
-    ) == "waiting"
+    assert config_path.read_text() == before
+    assert not handled(tmp_path)
 
 
-def test_earlier_live_slice_makes_recovery_wait_even_if_last_finished(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
-    session = FakeSession(progress=[_live_sub(1, "Running", "1@s"), _live_sub(2, "Completed", "2@s")])
-
-    result = evaluate_and_run_recovery(
-        cfg, session, get_condor_progress=_by_job({"1@s": _cp("live", 50.0), "2@s": _cp("finished", 100.0)})
-    )
-
-    assert result == "waiting"
-
-
-def test_active_status_without_condor_data_waits(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
-    session = FakeSession(progress=[_live_sub(1, "Held", "1@s")])
-
-    assert evaluate_and_run_recovery(
-        cfg, session, get_condor_progress=_by_job({"1@s": _cp("no_data")})
-    ) == "waiting"
-
-
-def test_condor_q_error_waits(tmp_path):
-    cfg = make_cfg(config_path=str(make_config_file(tmp_path)), recovery_handled=False)
-    session = FakeSession(progress=[_live_sub(1, "Completed", "1@s")])
-
-    assert evaluate_and_run_recovery(
-        cfg, session, get_condor_progress=_by_job({"1@s": _cp("error")})
-    ) == "waiting"
-
-
-def test_all_finished_proceeds_to_recovery_script(tmp_path, monkeypatch):
-    config_path = make_config_file(tmp_path)
-    cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
-    )
-    session = FakeSession(progress=[_live_sub(1, "Failed", "1@s"), _live_sub(2, "Completed", "2@s")])
-    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
-
-    result = evaluate_and_run_recovery(
-        cfg, session, get_condor_progress=_by_job({"1@s": _cp("finished", 100.0), "2@s": _cp("no_data")})
-    )
-
-    assert result == "no_recovery_needed"
-
+# --- evaluate_and_run_recovery ---
 
 def test_recovery_script_failure_does_not_persist_handled(tmp_path, monkeypatch):
     config_path = make_config_file(tmp_path)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
+        config_path=str(config_path),
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(progress=[{"submission_id": 1, "status": "Completed"}])
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
 
     assert evaluate_and_run_recovery(cfg, session) == "recovery_script_failed"
     assert session.calls == []
-    assert "recovery_handled = 0" in config_path.read_text()
+    assert not handled(tmp_path)
 
 
 def test_no_recovery_needed(tmp_path, monkeypatch):
     config_path = make_config_file(tmp_path)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
+        config_path=str(config_path),
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(progress=[{"submission_id": 1, "status": "Located"}])
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
 
     assert evaluate_and_run_recovery(cfg, session) == "no_recovery_needed"
     assert session.calls == []
-    assert "recovery_handled = 1" in config_path.read_text()
+    assert handled(tmp_path)
+    assert "do_recovery = 1" in config_path.read_text()
 
 
 def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch):
     config_path = make_config_file(tmp_path, last_split=5)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False, last_split=5,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
+        config_path=str(config_path), last_split=5,
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
         submit_result="new-sub-id",
     )
     calls = []
-    monkeypatch.setattr(
-        recovery, "run_recovery_script",
-        lambda *a, **kw: calls.append(a) or (0.5, 0.98, "recovery_dataset_name"),
-    )
+
+    def fake_script(input_dataset, campaign_name, output_path):
+        calls.append((input_dataset, campaign_name, output_path))
+        with open(output_path, "w") as f:
+            f.write("ds_reco1\nds_caf\n")
+        return 0.5, 0.98, "recovery_dataset_name"
+
+    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
 
     result = evaluate_and_run_recovery(cfg, session)
 
@@ -244,45 +235,52 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
         ("submit_next_slice",),
     ]
     assert cfg["last_split"] == 1
-    assert "last_split = 1" in config_path.read_text()
-    assert "recovery_handled = 1" in config_path.read_text()
+    assert persisted_last_split(tmp_path) == 1
+    assert handled(tmp_path)
+    assert "do_recovery = 1" in config_path.read_text()
     (input_dataset, campaign_name, output_path), = calls
     assert input_dataset == "input_dataset"
     assert campaign_name == "test_campaign"
     assert output_path.endswith("output_definitions_42.txt")
+    assert recorded_outputs(tmp_path) == ["ds_reco1", "ds_caf"]
+    assert not (tmp_path / "output_definitions_42.txt").exists()
 
 
 def test_recovery_diverts_output_defnames_for_test_launch(tmp_path, monkeypatch):
-    # cleanup.py's reader must never see a test-launch's output datasets --
-    # see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
+    # cleanup.py's reader must never see a test-launch's output datasets.
     config_path = make_config_file(tmp_path, last_split=5)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False, last_split=5,
-        cache_dir=str(tmp_path), campaign_name="test_campaign", test_launch=True,
+        config_path=str(config_path), last_split=5,
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign", test_launch=True,
     )
     session = FakeSession(
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
     )
     calls = []
-    monkeypatch.setattr(
-        recovery, "run_recovery_script",
-        lambda *a, **kw: calls.append(a) or (0.5, 0.98, "recovery_dataset_name"),
-    )
+
+    def fake_script(input_dataset, campaign_name, output_path):
+        calls.append((input_dataset, campaign_name, output_path))
+        with open(output_path, "w") as f:
+            f.write("ds_reco1\nds_caf\n")
+        return 0.5, 0.98, "recovery_dataset_name"
+
+    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
 
     evaluate_and_run_recovery(cfg, session)
 
     (_, _, output_path), = calls
     assert output_path.endswith("output_definitions_42_test_launch.txt")
+    assert recorded_outputs(tmp_path) is None
 
 
 def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
     # A transient POMS hiccup right after the dataset switch is retryable --
     # POMS's Input Dataset is already the recovery one, so the *ordinary*
-    # next-hour run() picks it up regardless of recovery_handled.
+    # next-hour run() picks it up regardless of the handled marker.
     config_path = make_config_file(tmp_path, last_split=5)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False, last_split=5,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
+        config_path=str(config_path), last_split=5,
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
@@ -304,16 +302,16 @@ def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
 
     assert result == "recovery_plan_failed"
     assert session.calls == [("set_recovery_input_dataset", "recovery_dataset_name")]
-    assert "recovery_handled = 0" in config_path.read_text()
+    assert not handled(tmp_path)
     assert cfg["last_split"] == 0
-    assert "last_split = 0" in config_path.read_text()
+    assert persisted_last_split(tmp_path) == 0
 
 
 def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
     config_path = make_config_file(tmp_path, last_split=5)
     cfg = make_cfg(
-        config_path=str(config_path), recovery_handled=False, last_split=5,
-        cache_dir=str(tmp_path), campaign_name="test_campaign",
+        config_path=str(config_path), last_split=5,
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
@@ -324,10 +322,11 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
     result = evaluate_and_run_recovery(cfg, session)
 
     assert result == "recovery_submit_failed"
-    assert "recovery_handled = 1" in config_path.read_text()
+    assert handled(tmp_path)
+    assert "do_recovery = 1" in config_path.read_text()
     # last_split was reset to 0 (new dataset) but never advanced to 1 since submit failed
     assert cfg["last_split"] == 0
-    assert "last_split = 0" in config_path.read_text()
+    assert persisted_last_split(tmp_path) == 0
 
 
 def test_any_still_running_true_for_live_dag_at_100_pct():

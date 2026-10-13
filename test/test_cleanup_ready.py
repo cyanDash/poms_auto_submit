@@ -1,9 +1,14 @@
+import logging
+
 import condor_progress
 import poms_auto_submit as psc
+import state
 from helpers import make_cfg
 
 
 class FakeSession:
+    campaign_stage_id = 42
+
     def __init__(self, progress):
         self._progress = progress
 
@@ -12,7 +17,7 @@ class FakeSession:
 
 
 def ready_cfg(**overrides):
-    cfg = make_cfg(do_cleanup=True, recovery_handled=True, last_split=5, max_splits=5)
+    cfg = make_cfg(do_cleanup=True, do_recovery=False, last_split=5, max_splits=5)
     cfg.update(overrides)
     return cfg
 
@@ -54,8 +59,15 @@ def test_cleanup_ready_false_when_do_cleanup_off():
     assert _ready(ready_cfg(do_cleanup=False), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
 
 
-def test_cleanup_ready_false_when_recovery_not_handled():
-    assert _ready(ready_cfg(recovery_handled=False), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
+def test_cleanup_ready_false_when_recovery_not_handled(tmp_path):
+    cfg = ready_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
+    assert _ready(cfg, [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
+
+
+def test_cleanup_ready_true_when_recovery_handled(tmp_path):
+    cfg = ready_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
+    (tmp_path / "state.json").write_text('{"recovery_handled": true}')
+    assert _ready(cfg, [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is True
 
 
 def test_cleanup_ready_false_when_splits_remain():
@@ -97,3 +109,23 @@ def test_cleanup_ready_true_when_terminal_status_has_no_data():
 
 def test_cleanup_ready_false_on_condor_q_error():
     assert _ready(ready_cfg(), [_job_sub(1)], {"1@s": _cp("error")}) is False
+
+
+def _recovery_not_done_lines(caplog):
+    return [r for r in caplog.records if "recovery: not done" in r.getMessage()]
+
+
+def test_max_splits_reached_logs_recovery_not_done_when_unhandled(tmp_path, caplog):
+    cfg = make_cfg(do_recovery=True, last_split=5, max_splits=5, state_file=str(tmp_path / "state.json"))
+    with caplog.at_level(logging.INFO):
+        assert psc._plan(cfg, [], None) == (0, [])
+    assert len(_recovery_not_done_lines(caplog)) == 1
+
+
+def test_max_splits_reached_is_quiet_about_recovery_when_handled_or_off(tmp_path, caplog):
+    handled = make_cfg(do_recovery=True, last_split=5, max_splits=5, state_file=str(tmp_path / "state.json"))
+    state.write(handled, "recovery_handled", True)
+    with caplog.at_level(logging.INFO):
+        psc._plan(handled, [], None)
+        psc._plan(make_cfg(do_recovery=False, last_split=5, max_splits=5), [], None)
+    assert _recovery_not_done_lines(caplog) == []

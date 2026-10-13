@@ -55,3 +55,12 @@ it back, so redirecting the destination doesn't change its behavior.
 `cleanup.py`'s reader also deduplicates (`_load_output_definitions()`,
 first-seen order) since the same dataset can legitimately be recorded by
 more than one recovery evaluation over a campaign's life.
+
+## Update (2026-10-11): `recovery_handled` left the config
+
+The `cfg["recovery_handled"]` gate term described above is replaced by a fixed `[decision] do_recovery`
+flag plus internal handled state; see
+`docs/adr/0019-do-recovery-config-flag-and-internal-handled-marker.md`.
+`switch` is turned off in the per-ini state file, not the ini, and a
+test-launch's output defnames are dropped instead of written to a sibling
+`_test_launch.txt`; see `docs/adr/0020-one-consolidated-state-file-per-config.md`.

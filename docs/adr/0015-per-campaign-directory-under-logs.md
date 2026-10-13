@@ -29,3 +29,8 @@ section at all — nothing to configure, nothing to collide.
 
 The whole `logs/` directory is `.gitignore`d (previously only `*.log`,
 `*.lock`, `*.json`, and `output_definitions_*.txt` were, individually).
+
+## Update (2026-10-11): script state left the ini and the per-feature files
+
+`last_split`, `recovery_handled`, the caches and the output definitions named above now live in one
+state file per ini; see `docs/adr/0020-one-consolidated-state-file-per-config.md`.

@@ -17,22 +17,22 @@ FINISHED = Progress("finished", 100.0, 0)
 
 class Env:
     def __init__(self, tmp_path):
-        self.cfg = make_cfg(cache_dir=str(tmp_path), max_splits=1, last_split=1)
+        self.cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), max_splits=1, last_split=1)
         self.tmp_path = tmp_path
         self.removed = []
         self.remove_result = True
 
-    def run(self, progress, submissions=None, dry_run=False, stage_id=42):
+    def run(self, progress, submissions=None, dry_run=False):
         subs = submissions if submissions is not None else [entry(1)]
         stragglers.manage(
-            self.cfg, stage_id, subs, dry_run=dry_run,
+            self.cfg, subs, dry_run=dry_run,
             get_progress=lambda e, j: progress[j],
             remove=lambda e, j: self.removed.append(j) or self.remove_result,
         )
 
     def records(self):
-        with open(self.tmp_path / "stragglers_42.json") as f:
-            return json.load(f)
+        with open(self.tmp_path / "state.json") as f:
+            return json.load(f)["stragglers"]
 
 
 def entry(submission_id, **extra):
@@ -144,7 +144,7 @@ def test_dry_run_never_removes_and_leaves_records_alone(tmp_path, caplog):
 
 def test_no_cache_dir_is_a_silent_noop(tmp_path, caplog):
     env = Env(tmp_path)
-    env.cfg["cache_dir"] = None
+    env.cfg["state_file"] = None
     with caplog.at_level(logging.WARNING):
         for _ in range(5):
             env.run({"1@s": live(50)})
@@ -153,7 +153,7 @@ def test_no_cache_dir_is_a_silent_noop(tmp_path, caplog):
 
 
 def test_malformed_cache_file_is_tolerated(tmp_path):
-    (tmp_path / "stragglers_42.json").write_text('{"1": "junk"}')
+    (tmp_path / "state.json").write_text('{"stragglers": {"1": "junk"}}')
     env = Env(tmp_path)
     env.run({"1@s": live(50)})
     assert env.records()["1"]["stagger_count"] == 0
