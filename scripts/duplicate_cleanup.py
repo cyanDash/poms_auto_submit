@@ -1,14 +1,25 @@
-"""duplicate_cleanup: decides which duplicate output files of a Campaign
-Stage to retire, keeping one worker's outputs per input across all of its
-output definitions. plan_cleanup() only reads SAM, through the client it is
-handed; write_plan() saves the result as a report. See issue #16.
+"""duplicate_cleanup: retires the duplicate output files of a Campaign
+Stage, keeping one worker's outputs per input across all of its output
+definitions. clean_definitions() is the entry point: it plans (or resumes
+an unfinished plan), retires in SAM and verifies, all through the SAM
+client it is handed. plan_cleanup() only reads SAM; write_plan() saves the
+plan as a report. Files are only ever retired: no location is removed and
+nothing on disk is deleted. See issue #16.
+
+By hand: python scripts/duplicate_cleanup.py --dataset A [--dataset B ...] [--dry_run]
 """
 
+import argparse
 import json
+import logging
 import os
+import sys
 from collections import defaultdict
 
+import state
+
 METADATA_BATCH_SIZE = 500
+LIVE_CHECK_BATCH_SIZE = 200
 
 
 def _input_key(name):
@@ -162,3 +173,232 @@ def write_plan(cfg, plan):
         json.dump(plan, f, indent=2)
     os.replace(tmp_path, path)
     return path
+
+
+def _live_files(sam, definition):
+    """The definition's files that are not retired."""
+    return set(sam.listFiles(defname=definition))
+
+
+def retired_files_definition(definition):
+    """(name, dimensions) of the definition holding `definition`'s retired
+    files."""
+    return f"{definition}_retired_files", f"dataset.tag {definition} and availability: retired"
+
+
+def _ensure_retired_files_definition(sam, definition):
+    """Creates the retired-files definition unless SAM already has it."""
+    name, dimensions = retired_files_definition(definition)
+    try:
+        sam.descDefinitionDict(name)
+    except Exception as e:
+        # samweb_client's own exception, matched by name so this module
+        # imports without samweb_client.
+        if type(e).__name__ != "DefinitionNotFound":
+            raise
+        sam.createDefinition(name, dimensions)
+        logging.info("cleanup: created definition %s (%s)", name, dimensions)
+    else:
+        logging.info("cleanup: definition %s already exists -- left as it is", name)
+
+
+def _apply_definition(entry, plan, sam, dry_run):
+    """Retires one definition's planned files, then records them in its
+    retired-files definition. Returns None, or the first failure as
+    {definition, file, error}."""
+    name = entry["name"]
+    f = None
+    try:
+        live = _live_files(sam, name) if entry["retire"] else set()
+        for row in entry["retire"]:
+            f = row["file"]
+            reason = "input %s, kept process id %s" % (
+                row["input"], plan["inputs"][row["input"]]["kept_process_id"],
+            )
+            if f not in live:
+                logging.info("cleanup: %s from %s is already retired (%s)", f, name, reason)
+            elif dry_run:
+                logging.info("cleanup: dry run: would retire %s from %s (%s)", f, name, reason)
+            else:
+                sam.retireFile(f)
+                logging.info("cleanup: retired %s from %s (%s)", f, name, reason)
+        f = None
+        if entry["retire"] and not dry_run:
+            _ensure_retired_files_definition(sam, name)
+    except Exception as e:
+        if f is None:
+            logging.exception("cleanup: %s failed", name)
+        else:
+            logging.exception("cleanup: retiring %s from %s failed", f, name)
+        return {"definition": name, "file": f, "error": str(e)}
+    return None
+
+
+def apply_plan(cfg, plan, sam, dry_run=False):
+    """Retires the plan's files in `sam`, one definition after another in
+    the plan's order (deepest first), stopping at the first failure. Each
+    finished definition is recorded in the State File's `cleanup` section
+    and skipped from then on. Returns None, or the failure as
+    {definition, file, error}. A dry run only logs."""
+    progress = state.read(cfg, "cleanup") or {}
+    done = list(progress.get("done", []))
+    for entry in plan["definitions"]:
+        if entry["name"] in done:
+            logging.info("cleanup: %s already cleaned -- skipped", entry["name"])
+            continue
+        failure = _apply_definition(entry, plan, sam, dry_run)
+        if failure:
+            return failure
+        if not dry_run:
+            done.append(entry["name"])
+            state.write(cfg, "cleanup", {**progress, "done": done})
+    return None
+
+
+def _live_names(sam, names):
+    """The subset of `names` that SAM lists as live files."""
+    names = sorted(set(names))
+    live = set()
+    for start in range(0, len(names), LIVE_CHECK_BATCH_SIZE):
+        batch = names[start:start + LIVE_CHECK_BATCH_SIZE]
+        live.update(sam.listFiles(dimensions="file_name " + ",".join(batch)))
+    return live
+
+
+def _parents(sam, files):
+    """{file: [parent names]} for every file SAM knows."""
+    files = sorted(files)
+    parents = {}
+    for start in range(0, len(files), METADATA_BATCH_SIZE):
+        for md in sam.getMultipleMetadata(files[start:start + METADATA_BATCH_SIZE]):
+            parents[md["file_name"]] = [p["file_name"] for p in md.get("parents") or []]
+    return parents
+
+
+def verify_plan(plan, sam):
+    """Checks `sam` against an applied plan: per input and definition the
+    live files are exactly the kept ones, and every kept file's parents are
+    live. Returns {input: [what is wrong]}, empty when all is well."""
+    names = [d["name"] for d in plan["definitions"]]
+    live = {name: _live_files(sam, name) for name in names}
+    kept_files = [f for i in plan["inputs"].values() for files in i["kept"].values() for f in files]
+    parents = _parents(sam, kept_files)
+    live_parents = _live_names(sam, [p for ps in parents.values() for p in ps])
+
+    bad = defaultdict(list)
+    for key, plan_input in plan["inputs"].items():
+        for name in names:
+            kept = plan_input["kept"].get(name, [])
+            others = plan_input["retired"].get(name, []) + [
+                s["file"] for s in plan_input["skipped"].get(name, [])
+            ]
+            for f in kept:
+                if f not in live[name]:
+                    bad[key].append(f"{name}: kept file {f} is not live")
+                for p in parents.get(f, []):
+                    if p not in live_parents:
+                        bad[key].append(f"{name}: parent {p} of kept file {f} is not live")
+            for f in others:
+                if f in live[name]:
+                    bad[key].append(f"{name}: {f} is live but not kept")
+    return dict(bad)
+
+
+def _unfinished_plan_path(cfg):
+    """Path of the plan a past run started applying and has not finished,
+    or None."""
+    progress = state.read(cfg, "cleanup") or {}
+    if progress.get("plan_path") and not progress.get("finished"):
+        return progress["plan_path"]
+    return None
+
+
+def clean_definitions(cfg, definitions, sam, dry_run=False):
+    """Cleans the duplicates of `definitions` ([{name, depth}]) through
+    `sam`: resumes the plan an earlier run left unfinished, or makes and
+    writes a new one; retires its files; verifies the result. Files are
+    only retired -- no location is removed and nothing on disk is deleted.
+    A dry run writes the plan, logs what would be retired and changes
+    nothing.
+
+    Returns {"ok", "dry_run", "plan_path", "failure", "bad_inputs"}.
+    `bad_inputs` is verify_plan()'s answer. `failure` is None,
+    or {definition, file, error} for what stopped the run.
+    """
+    result = {"ok": False, "dry_run": dry_run, "plan_path": None, "failure": None, "bad_inputs": {}}
+    try:
+        path = _unfinished_plan_path(cfg)
+        if path:
+            logging.info("cleanup: resuming the unfinished plan %s", path)
+            try:
+                with open(path) as f:
+                    plan = json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                raise RuntimeError(f"cannot read the saved plan {path}: {e}") from e
+            planned = sorted(d["name"] for d in plan["definitions"])
+            asked = sorted(d["name"] for d in definitions)
+            if planned != asked:
+                raise RuntimeError(
+                    f"the unfinished plan {path} is for {', '.join(planned)}, not {', '.join(asked)}"
+                )
+        else:
+            plan = plan_cleanup(definitions, sam)
+            path = write_plan(cfg, plan)
+            logging.info("cleanup: plan written to %s", path)
+            if not dry_run:
+                state.write(cfg, "cleanup", {"plan_path": path, "done": [], "finished": False})
+        result["plan_path"] = path
+    except Exception as e:
+        logging.exception("cleanup: planning failed")
+        result["failure"] = {"definition": None, "file": None, "error": str(e)}
+        return result
+
+    result["failure"] = apply_plan(cfg, plan, sam, dry_run)
+    if result["failure"]:
+        return result
+    if dry_run:
+        result["ok"] = True
+        return result
+
+    try:
+        result["bad_inputs"] = verify_plan(plan, sam)
+    except Exception as e:
+        logging.exception("cleanup: verification could not be done")
+        result["failure"] = {"definition": None, "file": None, "error": str(e)}
+        return result
+    for key, reasons in result["bad_inputs"].items():
+        logging.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
+    if result["bad_inputs"]:
+        return result
+    logging.info("cleanup: verified %d input(s)", len(plan["inputs"]))
+    state.write(cfg, "cleanup", {**state.read(cfg, "cleanup", {}), "finished": True})
+    result["ok"] = True
+    return result
+
+
+def main(argv=None, sam=None):
+    """Command line for running by hand; every dataset is taken as a direct
+    child of the input (depth 1). The plan and the progress file go in the
+    working directory. Returns the exit code."""
+    parser = argparse.ArgumentParser(
+        description="Retire duplicate output files in SAM, keeping one worker's outputs per input.",
+    )
+    parser.add_argument("-s", "--dataset", action="append", required=True,
+                        help="SAM definition to clean; repeat for every output definition of the stage")
+    parser.add_argument("-D", "--dry_run", action="store_true",
+                        help="write the plan and log what would be retired; change nothing")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if sam is None:
+        import samweb_client
+        sam = samweb_client.SAMWebClient()
+    cache_dir = os.getcwd()
+    cfg = {"cache_dir": cache_dir, "state_file": os.path.join(cache_dir, "state_duplicate_cleanup.json")}
+    definitions = [{"name": name, "depth": 1} for name in dict.fromkeys(args.dataset)]
+    result = clean_definitions(cfg, definitions, sam, dry_run=args.dry_run)
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

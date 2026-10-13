@@ -3,12 +3,19 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 import duplicate_cleanup
-from duplicate_cleanup import plan_cleanup, plan_path, write_plan
+import state
+from duplicate_cleanup import clean_definitions, plan_cleanup, plan_path, verify_plan, write_plan
 
 RECO1 = {"name": "reco1_def", "depth": 1}
 LARCV = {"name": "larcv_def", "depth": 1}
 CAF = {"name": "caf_def", "depth": 2}
+
+
+class DefinitionNotFound(Exception):
+    """Same name as samweb_client.exceptions.DefinitionNotFound."""
 
 
 class FakeSam:
@@ -22,6 +29,12 @@ class FakeSam:
         self.extra_children = {}
         self.lineage_calls = []
         self.batch_sizes = []
+        self.retired = set()
+        self.retire_calls = []
+        self.fail_on_retire = set()
+        self.location_removals = []
+        self.created_definitions = {}
+        self.dimension_queries = []
 
     def add(self, definition, file_name, parent, process_id=None):
         md = {
@@ -40,8 +53,32 @@ class FakeSam:
         """A live child that belongs to no definition under cleanup."""
         self.extra_children.setdefault(parent, []).append(child)
 
-    def listFiles(self, defname=None):
-        return list(self.definitions.get(defname, []))
+    def listFiles(self, defname=None, dimensions=None):
+        """Live files only, as SAM lists them by default."""
+        if dimensions is not None:
+            assert dimensions.startswith("file_name ")
+            self.dimension_queries.append(dimensions)
+            names = dimensions[len("file_name "):].split(",")
+            return [n for n in names if n in self.metadata and n not in self.retired]
+        return [n for n in self.definitions.get(defname, []) if n not in self.retired]
+
+    def retireFile(self, name):
+        self.retire_calls.append(name)
+        if name in self.fail_on_retire:
+            raise RuntimeError(f"500 Server Error retiring {name}")
+        self.retired.add(name)
+
+    def removeFileLocation(self, name, location):
+        self.location_removals.append((name, location))
+
+    def descDefinitionDict(self, defname):
+        if defname not in self.created_definitions:
+            raise DefinitionNotFound(defname)
+        return {"defname": defname, "dimensions": self.created_definitions[defname]}
+
+    def createDefinition(self, defname, dims):
+        assert defname not in self.created_definitions
+        self.created_definitions[defname] = dims
 
     def getMultipleMetadata(self, names):
         names = list(names)
@@ -384,3 +421,408 @@ def test_module_imports_without_samweb_client():
         "import duplicate_cleanup"
     )
     assert subprocess.run([sys.executable, "-c", code]).returncode == 0
+
+
+# --- apply ---
+
+def make_cfg(tmp_path):
+    return {
+        "cache_dir": str(tmp_path),
+        "state_file": str(tmp_path / "state_my_stage.json"),
+    }
+
+
+def duplicated_campaign():
+    """Two inputs, each run by two workers; the lower process id is kept."""
+    sam = FakeSam()
+    for i in (1, 2):
+        sam.add(None, f"gen_{i}.root", None)
+        for pid in (i * 100, i * 100 + 1):
+            sam.add("reco1_def", f"reco1_{pid}.root", f"gen_{i}.root", pid)
+            sam.add("larcv_def", f"larcv_{pid}.root", f"gen_{i}.root", pid)
+    return sam
+
+
+def test_apply_retires_the_other_workers_files_and_removes_no_location(tmp_path):
+    sam = duplicated_campaign()
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], sam)
+
+    assert result["ok"] is True
+    assert sam.retired == {"reco1_101.root", "larcv_101.root", "reco1_201.root", "larcv_201.root"}
+    assert sam.location_removals == []
+
+
+def test_nothing_on_disk_is_touched(tmp_path, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise AssertionError("cleanup must not delete files or run commands")
+
+    for target in ("os.remove", "os.unlink", "os.rmdir", "shutil.rmtree", "subprocess.run", "subprocess.Popen"):
+        monkeypatch.setattr(target, refuse)
+
+    assert clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], duplicated_campaign())["ok"] is True
+
+
+def test_each_retirement_is_logged_with_its_input_and_kept_process_id(tmp_path, caplog):
+    caplog.set_level("INFO")
+
+    clean_definitions(make_cfg(tmp_path), [RECO1], duplicated_campaign())
+
+    lines = [r.getMessage() for r in caplog.records if "reco1_201.root" in r.getMessage()]
+    assert lines == [
+        "cleanup: retired reco1_201.root from reco1_def (input gen_2.root, kept process id 200)",
+    ]
+
+
+def test_definitions_are_applied_in_series_deepest_first(tmp_path):
+    sam = two_level_campaign()
+
+    clean_definitions(make_cfg(tmp_path), [RECO1, CAF], sam)
+
+    assert sam.retire_calls == ["caf_200.root", "reco1_200.root"]
+
+
+def test_failure_in_one_definition_stops_the_rest_and_is_reported(tmp_path, caplog):
+    sam = two_level_campaign()
+    sam.fail_on_retire = {"caf_200.root"}
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, CAF], sam)
+
+    assert result["ok"] is False
+    assert result["failure"] == {
+        "definition": "caf_def", "file": "caf_200.root",
+        "error": "500 Server Error retiring caf_200.root",
+    }
+    assert sam.retire_calls == ["caf_200.root"]
+    assert sam.retired == set()
+    assert "cleanup: retiring caf_200.root from caf_def failed" in caplog.text
+
+
+def test_file_already_retired_counts_as_success(tmp_path, caplog):
+    caplog.set_level("INFO")
+    sam = duplicated_campaign()
+    sam.retired.add("reco1_101.root")
+    sam.fail_on_retire = {"reco1_101.root"}
+    cfg = make_cfg(tmp_path)
+    write_plan(cfg, plan_cleanup([RECO1], duplicated_campaign()))
+    state.write(cfg, "cleanup", {"plan_path": plan_path(cfg), "done": [], "finished": False})
+
+    result = clean_definitions(cfg, [RECO1], sam)
+
+    assert result["ok"] is True
+    assert sam.retire_calls == ["reco1_201.root"]
+    assert "cleanup: reco1_101.root from reco1_def is already retired" in caplog.text
+
+
+# --- retired-files definition ---
+
+def test_retired_files_definition_is_created_per_cleaned_definition(tmp_path):
+    sam = duplicated_campaign()
+    sam.add("caf_flat_def", "caf_100.root", "gen_1.root", 100)
+
+    clean_definitions(make_cfg(tmp_path), [RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
+
+    assert sam.created_definitions == {
+        "reco1_def_retired_files": "dataset.tag reco1_def and availability: retired",
+        "larcv_def_retired_files": "dataset.tag larcv_def and availability: retired",
+    }
+
+
+def test_existing_retired_files_definition_is_left_alone(tmp_path):
+    sam = duplicated_campaign()
+    sam.created_definitions["reco1_def_retired_files"] = "made by an earlier cleanup"
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1], sam)
+
+    assert result["ok"] is True
+    assert sam.created_definitions == {"reco1_def_retired_files": "made by an earlier cleanup"}
+
+
+def test_failure_looking_up_the_retired_files_definition_is_reported(tmp_path):
+    sam = duplicated_campaign()
+
+    def broken(defname):
+        raise RuntimeError("503 Service Unavailable")
+
+    sam.descDefinitionDict = broken
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], sam)
+
+    assert result["ok"] is False
+    assert result["failure"] == {
+        "definition": "larcv_def", "file": None, "error": "503 Service Unavailable",
+    }
+    assert sam.created_definitions == {}
+    assert not any(f.startswith("reco1") for f in sam.retire_calls)
+
+
+# --- dry run ---
+
+def test_dry_run_writes_the_plan_and_changes_nothing(tmp_path, caplog):
+    caplog.set_level("INFO")
+    sam = duplicated_campaign()
+    cfg = make_cfg(tmp_path)
+
+    result = clean_definitions(cfg, [RECO1], sam, dry_run=True)
+
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert result["plan_path"] == plan_path(cfg)
+    with open(plan_path(cfg)) as f:
+        assert json.load(f) == plan_cleanup([RECO1], duplicated_campaign())
+    assert sam.retire_calls == []
+    assert sam.created_definitions == {}
+    assert state.read(cfg, "cleanup") is None
+    assert (
+        "cleanup: dry run: would retire reco1_201.root from reco1_def "
+        "(input gen_2.root, kept process id 200)"
+    ) in caplog.text
+
+
+def test_real_run_writes_the_same_plan_as_a_dry_run(tmp_path):
+    dry, real = make_cfg(tmp_path / "dry"), make_cfg(tmp_path / "real")
+
+    clean_definitions(dry, [RECO1, LARCV], duplicated_campaign(), dry_run=True)
+    clean_definitions(real, [RECO1, LARCV], duplicated_campaign())
+
+    with open(plan_path(dry)) as f_dry, open(plan_path(real)) as f_real:
+        assert json.load(f_dry) == json.load(f_real)
+
+
+# --- resume ---
+
+def failed_first_run(tmp_path):
+    """larcv_def is cleaned, then reco1_def fails on its first file."""
+    sam = duplicated_campaign()
+    sam.fail_on_retire = {"reco1_101.root"}
+    cfg = make_cfg(tmp_path)
+    assert clean_definitions(cfg, [RECO1, LARCV], sam)["ok"] is False
+    sam.fail_on_retire = set()
+    sam.retire_calls.clear()
+    return cfg, sam
+
+
+def test_rerun_after_a_failure_skips_completed_definitions(tmp_path):
+    cfg, sam = failed_first_run(tmp_path)
+    assert state.read(cfg, "cleanup")["done"] == ["larcv_def"]
+
+    result = clean_definitions(cfg, [RECO1, LARCV], sam)
+
+    assert result["ok"] is True
+    assert sam.retire_calls == ["reco1_101.root", "reco1_201.root"]
+    assert state.read(cfg, "cleanup")["finished"] is True
+
+
+def test_rerun_applies_the_saved_plan_instead_of_planning_again(tmp_path):
+    cfg, sam = failed_first_run(tmp_path)
+    # A fresh plan would keep this new lowest process id and retire worker 100.
+    sam.add("reco1_def", "reco1_099.root", "gen_1.root", 99)
+    sam.add("larcv_def", "larcv_099.root", "gen_1.root", 99)
+
+    clean_definitions(cfg, [RECO1, LARCV], sam)
+
+    assert sam.retire_calls == ["reco1_101.root", "reco1_201.root"]
+
+
+def test_dry_run_after_a_failure_leaves_the_saved_plan_and_progress_alone(tmp_path):
+    cfg, sam = failed_first_run(tmp_path)
+    with open(plan_path(cfg)) as f:
+        saved = f.read()
+    progress = state.read(cfg, "cleanup")
+
+    result = clean_definitions(cfg, [RECO1, LARCV], sam, dry_run=True)
+
+    assert result["ok"] is True
+    with open(plan_path(cfg)) as f:
+        assert f.read() == saved
+    assert state.read(cfg, "cleanup") == progress
+    assert sam.retire_calls == []
+
+
+def test_finished_cleanup_is_planned_afresh_next_time(tmp_path):
+    cfg = make_cfg(tmp_path)
+    sam = duplicated_campaign()
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
+    sam.add("reco1_def", "reco1_102.root", "gen_1.root", 102)
+
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
+
+    assert "reco1_102.root" in sam.retired
+
+
+def test_unfinished_plan_for_other_definitions_is_not_applied(tmp_path):
+    cfg, sam = failed_first_run(tmp_path)
+
+    result = clean_definitions(cfg, [RECO1], sam)
+
+    assert result["ok"] is False
+    assert result["failure"]["error"] == (
+        f"the unfinished plan {plan_path(cfg)} is for larcv_def, reco1_def, not reco1_def"
+    )
+    assert sam.retire_calls == []
+
+
+def test_missing_saved_plan_is_reported_and_nothing_is_retired(tmp_path):
+    cfg, sam = failed_first_run(tmp_path)
+    os.rename(plan_path(cfg), plan_path(cfg) + ".moved")
+
+    result = clean_definitions(cfg, [RECO1, LARCV], sam)
+
+    assert result["ok"] is False
+    assert "cannot read the saved plan" in result["failure"]["error"]
+    assert sam.retire_calls == []
+
+
+# --- verify ---
+
+def test_verification_passes_on_a_correct_result(tmp_path):
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], duplicated_campaign())
+
+    assert result["ok"] is True
+    assert result["bad_inputs"] == {}
+
+
+def test_verification_passes_when_the_kept_worker_lacks_a_tier(tmp_path):
+    sam = duplicated_campaign()
+    sam.add("caf_flat_def", "caf_102.root", "gen_1.root", 102)
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
+
+    assert "caf_102.root" in sam.retired
+    assert result["ok"] is True
+
+
+def test_two_live_files_for_an_input_fail_verification_naming_it():
+    sam = duplicated_campaign()
+    plan = plan_cleanup([RECO1, LARCV], sam)
+    for f in ("larcv_101.root", "larcv_201.root", "reco1_201.root"):
+        sam.retireFile(f)
+
+    assert verify_plan(plan, sam) == {
+        "gen_1.root": ["reco1_def: reco1_101.root is live but not kept"],
+    }
+
+
+def test_retired_kept_file_fails_verification_naming_its_input():
+    sam = duplicated_campaign()
+    plan = plan_cleanup([RECO1], sam)
+    for f in ("reco1_101.root", "reco1_201.root", "reco1_200.root"):
+        sam.retireFile(f)
+
+    assert verify_plan(plan, sam) == {
+        "gen_2.root": ["reco1_def: kept file reco1_200.root is not live"],
+    }
+
+
+def test_retired_parent_fails_verification_naming_the_input(tmp_path, caplog):
+    sam = duplicated_campaign()
+    sam.retired.add("gen_2.root")
+    cfg = make_cfg(tmp_path)
+
+    result = clean_definitions(cfg, [RECO1], sam)
+
+    assert result["ok"] is False
+    assert result["failure"] is None
+    assert result["bad_inputs"] == {
+        "gen_2.root": ["reco1_def: parent gen_2.root of kept file reco1_200.root is not live"],
+    }
+    assert "cleanup: verification failed for input gen_2.root" in caplog.text
+    assert state.read(cfg, "cleanup")["finished"] is False
+
+
+def test_parent_inside_a_cleaned_definition_is_checked_too():
+    sam = two_level_campaign()
+    sam.add(None, "gen_1.root", None)
+    plan = plan_cleanup([RECO1, CAF], sam)
+    for f in ("caf_200.root", "reco1_200.root", "reco1_100.root"):
+        sam.retireFile(f)
+
+    assert verify_plan(plan, sam) == {
+        "gen_1.root": [
+            "caf_def: parent reco1_100.root of kept file caf_100.root is not live",
+            "reco1_def: kept file reco1_100.root is not live",
+        ],
+    }
+
+
+def test_file_skipped_by_the_children_guard_fails_verification(tmp_path):
+    sam = duplicated_campaign()
+    sam.add_child_outside("reco1_101.root", "other_campaign.root")
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1], sam)
+
+    assert result["ok"] is False
+    assert result["bad_inputs"] == {
+        "gen_1.root": ["reco1_def: reco1_101.root is live but not kept"],
+    }
+
+
+def test_rerun_after_a_failed_verification_only_verifies_again(tmp_path):
+    sam = duplicated_campaign()
+    sam.retired.add("gen_2.root")
+    cfg = make_cfg(tmp_path)
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is False
+    sam.retire_calls.clear()
+    sam.retired.discard("gen_2.root")
+
+    result = clean_definitions(cfg, [RECO1], sam)
+
+    assert result["ok"] is True
+    assert sam.retire_calls == []
+    assert state.read(cfg, "cleanup")["finished"] is True
+
+
+def test_dry_run_does_not_verify(tmp_path):
+    sam = duplicated_campaign()
+    sam.retired.add("gen_2.root")
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1], sam, dry_run=True)
+
+    assert result["ok"] is True
+    assert result["bad_inputs"] == {}
+
+
+# --- command line ---
+
+def test_command_line_dry_run_writes_the_plan_in_the_working_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    sam = duplicated_campaign()
+
+    code = duplicate_cleanup.main(["--dataset", "reco1_def", "--dataset", "larcv_def", "--dry_run"], sam=sam)
+
+    assert code == 0
+    with open(tmp_path / "cleanup_plan_duplicate_cleanup.json") as f:
+        assert json.load(f) == plan_cleanup([RECO1, LARCV], duplicated_campaign())
+    assert sam.retire_calls == []
+
+
+def test_command_line_retires_and_verifies(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    sam = duplicated_campaign()
+
+    assert duplicate_cleanup.main(["--dataset", "reco1_def"], sam=sam) == 0
+
+    assert sam.retired == {"reco1_101.root", "reco1_201.root"}
+    assert sam.location_removals == []
+
+
+def test_command_line_exits_non_zero_on_failure(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    sam = duplicated_campaign()
+    sam.fail_on_retire = {"reco1_101.root"}
+
+    assert duplicate_cleanup.main(["--dataset", "reco1_def"], sam=sam) == 1
+
+
+def test_parents_are_checked_in_batches(monkeypatch):
+    monkeypatch.setattr(duplicate_cleanup, "LIVE_CHECK_BATCH_SIZE", 2)
+    sam = FakeSam()
+    for i in range(5):
+        sam.add(None, f"gen_{i}.root", None)
+        sam.add("reco1_def", f"reco1_{i}.root", f"gen_{i}.root", i)
+    plan = plan_cleanup([RECO1], sam)
+
+    assert verify_plan(plan, sam) == {}
+    assert sam.dimension_queries == [
+        "file_name gen_0.root,gen_1.root", "file_name gen_2.root,gen_3.root", "file_name gen_4.root",
+    ]
