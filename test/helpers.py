@@ -53,6 +53,7 @@ class FakeSam:
         self.definitions = {}
         self.metadata = {}
         self.extra_children = {}
+        self.outside_files = set()
         self.lineage_calls = []
         self.batch_sizes = []
         self.retired = set()
@@ -78,6 +79,7 @@ class FakeSam:
     def add_child_outside(self, parent, child):
         """A live child that belongs to no definition under cleanup."""
         self.extra_children.setdefault(parent, []).append(child)
+        self.outside_files.add(child)
 
     def listFiles(self, defname=None, dimensions=None):
         """Live files only, as SAM lists them by default."""
@@ -85,7 +87,8 @@ class FakeSam:
             assert dimensions.startswith("file_name ")
             self.dimension_queries.append(dimensions)
             names = dimensions[len("file_name "):].split(",")
-            return [n for n in names if n in self.metadata and n not in self.retired]
+            known = set(self.metadata) | self.outside_files
+            return [n for n in names if n in known and n not in self.retired]
         return [n for n in self.definitions.get(defname, []) if n not in self.retired]
 
     def retireFile(self, name):

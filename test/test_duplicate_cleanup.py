@@ -7,12 +7,16 @@ import pytest
 
 import duplicate_cleanup
 import state
-from duplicate_cleanup import clean_definitions, plan_cleanup, plan_path, verify_plan, write_plan
+from duplicate_cleanup import clean_definitions, plan_cleanup, verify_plan
 from helpers import FakeSam, duplicated_campaign
 
 RECO1 = {"name": "reco1_def", "depth": 1}
 LARCV = {"name": "larcv_def", "depth": 1}
 CAF = {"name": "caf_def", "depth": 2}
+
+
+def plan_path(cfg):
+    return os.path.join(cfg["cache_dir"], "cleanup_plan_my_stage.json")
 
 
 def retired(plan):
@@ -237,6 +241,100 @@ def test_depth_two_ancestor_outside_the_definitions_is_fetched():
     assert plan["inputs"]["gen_1.root"]["retired"] == {"caf_def": ["caf_200.root"]}
 
 
+# --- chained stages: deeper tiers written by other jobs ---
+
+def chained_campaign():
+    """Two reco1 jobs for one input, each followed by its own caf job."""
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
+    sam.add("reco1_def", "reco1_b.root", "gen_1.root", 200)
+    sam.add("caf_def", "caf_a.root", "reco1_a.root", 300)
+    sam.add("caf_def", "caf_b.root", "reco1_b.root", 400)
+    return sam
+
+
+def test_one_chain_is_kept_and_the_other_retired():
+    plan = plan_cleanup([RECO1, CAF], chained_campaign())
+
+    assert plan["inputs"]["gen_1.root"]["kept_process_id"] == 100
+    assert plan["inputs"]["gen_1.root"]["kept"] == {
+        "caf_def": ["caf_a.root"], "reco1_def": ["reco1_a.root"],
+    }
+    assert plan["inputs"]["gen_1.root"]["retired"] == {
+        "caf_def": ["caf_b.root"], "reco1_def": ["reco1_b.root"],
+    }
+    assert plan["fallback_used"] is False
+
+
+def test_chain_with_more_tiers_is_kept_over_a_lower_process_id():
+    sam = chained_campaign()
+    sam.retired.add("caf_a.root")
+
+    plan = plan_cleanup([RECO1, CAF], sam)
+
+    assert plan["inputs"]["gen_1.root"]["kept_process_id"] == 200
+    assert plan["inputs"]["gen_1.root"]["kept"] == {
+        "caf_def": ["caf_b.root"], "reco1_def": ["reco1_b.root"],
+    }
+    assert plan["inputs"]["gen_1.root"]["retired"] == {"reco1_def": ["reco1_a.root"]}
+
+
+def test_duplicates_under_a_kept_parent_keep_one_worker():
+    sam = chained_campaign()
+    sam.add("caf_def", "caf_a_again.root", "reco1_a.root", 250)
+
+    plan = plan_cleanup([RECO1, CAF], sam)
+
+    assert plan["inputs"]["gen_1.root"]["kept"]["caf_def"] == ["caf_a_again.root"]
+    assert plan["inputs"]["gen_1.root"]["retired"] == {
+        "caf_def": ["caf_a.root", "caf_b.root"], "reco1_def": ["reco1_b.root"],
+    }
+
+
+def test_three_levels_keep_one_chain():
+    sam = chained_campaign()
+    sam.add("hist_def", "hist_a.root", "caf_a.root", 500)
+    sam.add("hist_def", "hist_b.root", "caf_b.root", 50)
+
+    plan = plan_cleanup([RECO1, CAF, {"name": "hist_def", "depth": 3}], sam)
+
+    assert plan["inputs"]["gen_1.root"]["kept"] == {
+        "caf_def": ["caf_a.root"], "hist_def": ["hist_a.root"], "reco1_def": ["reco1_a.root"],
+    }
+    assert plan["inputs"]["gen_1.root"]["retired"] == {
+        "hist_def": ["hist_b.root"], "caf_def": ["caf_b.root"], "reco1_def": ["reco1_b.root"],
+    }
+
+
+def test_chained_campaign_is_cleaned_and_verified(tmp_path, caplog):
+    caplog.set_level("INFO")
+    sam = chained_campaign()
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, CAF], sam)
+
+    assert result["ok"] is True
+    assert sam.retire_calls == ["caf_b.root", "reco1_b.root"]
+    assert (
+        "cleanup: retired caf_b.root from caf_def (input gen_1.root, parent reco1_b.root is retired)"
+    ) in caplog.text
+    assert (
+        "cleanup: retired reco1_b.root from reco1_def (input gen_1.root, kept process id 100)"
+    ) in caplog.text
+
+
+# --- children guard: retired children ---
+
+def test_retired_child_does_not_block_its_parent():
+    sam = two_level_campaign()
+    sam.retired.add("caf_200.root")
+
+    plan = plan_cleanup([RECO1, CAF], sam)
+
+    assert [r["file"] for r in retired(plan)["reco1_def"]] == ["reco1_200.root"]
+    assert plan["definitions"][1]["skipped"] == []
+
+
 # --- grouping ---
 
 def test_data_file_hashed_stream_suffix_is_stripped():
@@ -283,6 +381,62 @@ def test_file_that_cannot_be_grouped_is_reported_and_not_retired():
     assert retired(plan) == {"reco1_def": []}
 
 
+def test_file_whose_recorded_depth_stops_at_an_output_file_is_ungrouped():
+    too_shallow = {"name": "caf_def", "depth": 1}
+
+    plan = plan_cleanup([RECO1, too_shallow], chained_campaign())
+
+    by_name = {d["name"]: d for d in plan["definitions"]}
+    assert [u["file"] for u in by_name["caf_def"]["ungrouped"]] == ["caf_a.root", "caf_b.root"]
+    assert "depth 1 does not lead to an input" in by_name["caf_def"]["ungrouped"][0]["reason"]
+
+
+def ungrouped_campaign():
+    sam = duplicated_campaign()
+    sam.add("reco1_def", "reco1_orphan.root", None, 103)
+    sam.definitions["reco1_def"].append("reco1_unknown.root")
+    return sam
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_ungrouped_files_fail_the_cleanup_before_anything_is_retired(tmp_path, dry_run):
+    sam = ungrouped_campaign()
+    cfg = make_cfg(tmp_path)
+
+    result = clean_definitions(cfg, [RECO1, LARCV], sam, dry_run=dry_run)
+
+    assert result["ok"] is False
+    assert "reco1_orphan.root" in result["failure"]["error"]
+    assert "reco1_unknown.root" in result["failure"]["error"]
+    assert sam.retire_calls == []
+    assert sam.created_definitions == {}
+    assert state.read(cfg, "cleanup") is None
+    with open(result["plan_path"]) as f:
+        assert len(json.load(f)["definitions"][1]["ungrouped"]) == 2
+
+
+def test_wrong_recorded_depth_fails_the_cleanup(tmp_path):
+    sam = chained_campaign()
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, {"name": "caf_def", "depth": 1}], sam)
+
+    assert result["ok"] is False
+    assert "caf_a.root" in result["failure"]["error"]
+    assert sam.retire_calls == []
+
+
+def test_cleanup_is_planned_afresh_once_the_ungrouped_file_is_gone(tmp_path):
+    sam = ungrouped_campaign()
+    cfg = make_cfg(tmp_path)
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is False
+    sam.definitions["reco1_def"].remove("reco1_orphan.root")
+    sam.definitions["reco1_def"].remove("reco1_unknown.root")
+
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
+
+    assert sam.retired == {"reco1_101.root", "reco1_201.root"}
+
+
 # --- bulk reads and totals ---
 
 def test_metadata_is_read_in_batches(monkeypatch):
@@ -323,13 +477,12 @@ def test_plan_file_is_named_after_the_ini_and_reads_back(tmp_path):
     sam = FakeSam()
     sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
     sam.add("reco1_def", "reco1_b.root", "gen_1.root", 200)
-    plan = plan_cleanup([RECO1], sam)
 
-    path = write_plan(cfg, plan)
+    result = clean_definitions(cfg, [RECO1], sam, dry_run=True)
 
-    assert path == plan_path(cfg) == str(tmp_path / "campaign" / "cleanup_plan_my_stage.json")
-    with open(path) as f:
-        assert json.load(f) == plan
+    assert result["plan_path"] == str(tmp_path / "campaign" / "cleanup_plan_my_stage.json")
+    with open(result["plan_path"]) as f:
+        assert json.load(f) == plan_cleanup([RECO1], sam)
     assert [p.name for p in (tmp_path / "campaign").iterdir()] == ["cleanup_plan_my_stage.json"]
 
 
@@ -409,11 +562,12 @@ def test_failure_in_one_definition_stops_the_rest_and_is_reported(tmp_path, capl
 def test_file_already_retired_counts_as_success(tmp_path, caplog):
     caplog.set_level("INFO")
     sam = duplicated_campaign()
-    sam.retired.add("reco1_101.root")
-    sam.fail_on_retire = {"reco1_101.root"}
     cfg = make_cfg(tmp_path)
-    write_plan(cfg, plan_cleanup([RECO1], duplicated_campaign()))
-    state.write(cfg, "cleanup", {"plan_path": plan_path(cfg), "done": [], "finished": False})
+    sam.fail_on_retire = {"reco1_201.root"}
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is False
+    assert sam.retired == {"reco1_101.root"}
+    sam.fail_on_retire = {"reco1_101.root"}
+    sam.retire_calls.clear()
 
     result = clean_definitions(cfg, [RECO1], sam)
 
@@ -473,9 +627,9 @@ def test_dry_run_writes_the_plan_and_changes_nothing(tmp_path, caplog):
 
     result = clean_definitions(cfg, [RECO1], sam, dry_run=True)
 
-    assert result["ok"] is True
-    assert result["dry_run"] is True
-    assert result["plan_path"] == plan_path(cfg)
+    assert result == {
+        "ok": True, "plan_path": plan_path(cfg), "failure": None, "bad_inputs": {}, "skipped": [],
+    }
     with open(plan_path(cfg)) as f:
         assert json.load(f) == plan_cleanup([RECO1], duplicated_campaign())
     assert sam.retire_calls == []
@@ -628,13 +782,6 @@ def test_live_file_that_is_not_in_the_plan_fails_verification_naming_its_input(t
     }
 
 
-def test_file_the_plan_could_not_group_does_not_fail_verification(tmp_path):
-    sam = duplicated_campaign()
-    sam.add("reco1_def", "reco1_orphan.root", None, 103)
-
-    assert clean_definitions(make_cfg(tmp_path), [RECO1], sam)["ok"] is True
-
-
 def test_retired_kept_file_fails_verification_naming_its_input():
     sam = duplicated_campaign()
     plan = plan_cleanup([RECO1], sam)
@@ -688,7 +835,6 @@ def test_file_skipped_by_the_children_guard_is_left_in_place_and_passes_verifica
     assert result["ok"] is True
     assert result["bad_inputs"] == {}
     assert "reco1_101.root" not in sam.retired
-    assert result["skipped_count"] == 1
     assert result["skipped"] == [
         {"definition": "reco1_def", "input": "gen_1.root", "file": "reco1_101.root"},
     ]
@@ -698,16 +844,30 @@ def test_file_skipped_by_the_children_guard_is_left_in_place_and_passes_verifica
     assert state.read(cfg, "cleanup")["finished"] is True
 
 
-def test_dry_run_and_clean_results_carry_the_skipped_count(tmp_path):
+def test_dry_run_lists_the_skipped_files_too(tmp_path):
     sam = duplicated_campaign()
     sam.add_child_outside("reco1_101.root", "other_campaign.root")
 
-    dry = clean_definitions(make_cfg(tmp_path / "dry"), [RECO1], sam, dry_run=True)
-    clean = clean_definitions(make_cfg(tmp_path / "clean"), [LARCV], duplicated_campaign())
+    dry = clean_definitions(make_cfg(tmp_path), [RECO1], sam, dry_run=True)
 
-    assert dry["skipped_count"] == 1
-    assert clean["skipped_count"] == 0
-    assert clean["skipped"] == []
+    assert dry["skipped"] == [{"definition": "reco1_def", "input": "gen_1.root", "file": "reco1_101.root"}]
+
+
+def test_restart_after_a_partial_apply_plans_afresh_and_finishes(tmp_path):
+    sam = two_level_campaign()
+    sam.add(None, "gen_1.root", None)
+    sam.fail_on_retire = {"reco1_200.root"}
+    cfg = make_cfg(tmp_path)
+    assert clean_definitions(cfg, [RECO1, CAF], sam)["ok"] is False
+    assert sam.retired == {"caf_200.root"}
+    sam.fail_on_retire = set()
+
+    # The README's restart: delete the `cleanup` section.
+    os.remove(cfg["state_file"])
+    result = clean_definitions(cfg, [RECO1, CAF], sam)
+
+    assert result["ok"] is True
+    assert sam.retired == {"caf_200.root", "reco1_200.root"}
 
 
 def test_rerun_after_a_failed_verification_only_verifies_again(tmp_path):
@@ -741,12 +901,13 @@ def test_command_line_dry_run_writes_the_plan_in_the_working_directory(tmp_path,
     monkeypatch.chdir(tmp_path)
     sam = duplicated_campaign()
 
-    code = duplicate_cleanup.main(["--dataset", "reco1_def", "--dataset", "larcv_def", "--dry_run"], sam=sam)
+    code = duplicate_cleanup.main(["--dataset", "reco1_def", "--dataset", "larcv_def", "--dry-run"], sam=sam)
 
     assert code == 0
     with open(tmp_path / "cleanup_plan_duplicate_cleanup.json") as f:
         assert json.load(f) == plan_cleanup([RECO1, LARCV], duplicated_campaign())
     assert sam.retire_calls == []
+    assert os.listdir(tmp_path) == ["cleanup_plan_duplicate_cleanup.json"]
 
 
 def test_command_line_retires_and_verifies(tmp_path, monkeypatch):

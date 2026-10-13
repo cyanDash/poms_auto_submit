@@ -1,12 +1,13 @@
 """duplicate_cleanup: retires the duplicate output files of a Campaign
-Stage, keeping one worker's outputs per input across all of its output
-definitions. clean_definitions() is the entry point: it plans (or resumes
-an unfinished plan), retires in SAM and verifies, all through the SAM
-client it is handed. plan_cleanup() only reads SAM; write_plan() saves the
-plan as a report. Files are only ever retired: no location is removed and
-nothing on disk is deleted. See issue #16.
+Stage, keeping one worker's chain of outputs per input across its Output
+Definitions. Files are only ever retired: no location is removed and nothing
+on disk is deleted. See docs/adr/0021.
 
-By hand: python scripts/duplicate_cleanup.py --dataset A [--dataset B ...] [--dry_run]
+Public: clean_definitions() is the entry point (plan or resume, retire,
+verify); plan_cleanup() and verify_plan() are its two read-only halves;
+main() is the command line. Everything else is private.
+
+By hand: python scripts/duplicate_cleanup.py --dataset A [--dataset B ...] [--dry-run]
 """
 
 import argparse
@@ -20,6 +21,15 @@ import state
 
 METADATA_BATCH_SIZE = 500
 LIVE_CHECK_BATCH_SIZE = 200
+# Files named in one failure message; the plan file lists them all.
+MAX_FILES_NAMED = 20
+
+
+def _batches(names, size):
+    """`names`, deduplicated and sorted, in lists of at most `size`."""
+    names = sorted(set(names))
+    for start in range(0, len(names), size):
+        yield names[start:start + size]
 
 
 def _input_key(name):
@@ -33,21 +43,28 @@ def _input_key(name):
 
 
 def _fetch_metadata(sam, names, known):
-    """Adds {name: {process_id, parent}} to `known` for every name SAM
-    knows; `parent` is the first parent's name, or None."""
-    missing = sorted(set(names) - set(known))
-    for start in range(0, len(missing), METADATA_BATCH_SIZE):
-        for md in sam.getMultipleMetadata(missing[start:start + METADATA_BATCH_SIZE]):
-            parents = md.get("parents") or []
+    """Adds {name: {process_id, parents}} to `known` for every name SAM
+    knows and `known` lacks."""
+    for batch in _batches(set(names) - set(known), METADATA_BATCH_SIZE):
+        for md in sam.getMultipleMetadata(batch):
             known[md["file_name"]] = {
                 "process_id": md.get("process_id"),
-                "parent": parents[0]["file_name"] if parents else None,
+                "parents": [p["file_name"] for p in md.get("parents") or []],
             }
 
 
-def _root_ancestors(sam, files, depth, known):
-    """{file: (ancestor name, None) or (None, reason)}, the ancestor being
-    `depth` first-parent steps above the file."""
+def _live_names(sam, names):
+    """The subset of `names` that SAM lists as live files."""
+    live = set()
+    for batch in _batches(names, LIVE_CHECK_BATCH_SIZE):
+        live.update(sam.listFiles(dimensions="file_name " + ",".join(batch)))
+    return live
+
+
+def _ancestor_chains(sam, files, depth, known):
+    """({file: [first parent, its first parent, ...] of length `depth`},
+    {file: why the chain stops early})."""
+    chains = {f: [] for f in files}
     current = {f: f for f in files}
     failed = {}
     for _ in range(depth):
@@ -56,87 +73,156 @@ def _root_ancestors(sam, files, depth, known):
         for f, name in current.items():
             if name not in known:
                 failed[f] = f"no metadata in SAM for {name}"
-            elif known[name]["parent"] is None:
+            elif not known[name]["parents"]:
                 failed[f] = f"{name} has no parent"
             else:
-                above[f] = known[name]["parent"]
+                above[f] = known[name]["parents"][0]
+                chains[f].append(above[f])
         current = above
-    result = {f: (name, None) for f, name in current.items()}
-    result.update({f: (None, reason) for f, reason in failed.items()})
-    return result
+    return {f: chains[f] for f in current}, failed
 
 
-def _kept_process_id(by_definition, known):
-    """The process id with files in the most definitions, lowest id on a
-    tie; None when any file has no process id."""
-    present = defaultdict(set)
-    for name, files in by_definition.items():
-        for f in files:
-            pid = known[f]["process_id"]
-            if pid is None:
-                return None
-            present[pid].add(name)
-    return min(present, key=lambda pid: (-len(present[pid]), pid))
+def _depth_fault(chain, depth, definition_of, depth_of, ungrouped):
+    """Why a file's recorded `depth` does not lead to an input, or None.
+    `chain` is its ancestors, nearest first."""
+    if not chain:
+        return f"depth {depth} does not lead to an input"
+    root = chain[-1]
+    if root in definition_of:
+        return f"depth {depth} does not lead to an input: it reaches {root} of {definition_of[root]}"
+    for steps, ancestor in enumerate(chain[:-1], start=1):
+        if ancestor in ungrouped:
+            return f"its ancestor {ancestor} could not be grouped"
+        if ancestor in definition_of and depth_of[definition_of[ancestor]] != depth - steps:
+            return (
+                f"depth {depth} disagrees with depth {depth_of[definition_of[ancestor]]} "
+                f"of its ancestor {ancestor} in {definition_of[ancestor]}"
+            )
+    return None
+
+
+def _kept_files(group, known, definition_of, covered):
+    """(the files of `group` to keep, the kept process id). The kept worker
+    is the process id whose files and their descendants cover the most
+    definitions, lowest id on a tie. When a file has no process id the id is
+    None and the first file by name is kept in each definition."""
+    by_pid = defaultdict(set)
+    for f in group:
+        pid = known[f]["process_id"]
+        if pid is None:
+            first = {}
+            for name in sorted(group):
+                first.setdefault(definition_of[name], name)
+            return set(first.values()), None
+        by_pid[pid] |= covered(f)
+    kept_pid = min(by_pid, key=lambda pid: (-len(by_pid[pid]), pid))
+    return {f for f in group if known[f]["process_id"] == kept_pid}, kept_pid
 
 
 def plan_cleanup(definitions, sam):
     """The cleanup plan for `definitions` ([{name, depth}]), read from `sam`
     (listFiles, getMultipleMetadata, getFileLineage); nothing is changed.
 
+    Per input, one worker is kept among the files nearest the input, then
+    one among the files under each kept file, and so on down; everything
+    under a file that is not kept is retired with it.
+
     Returns {"definitions": [...], "inputs": {...}, "fallback_used": bool}.
     "definitions" is deepest first, each {name, depth, retire, skipped,
     ungrouped, totals}. "inputs" maps each input to {kept_process_id,
     fallback, kept, retired, skipped}, the last three keyed by definition.
+    A plan with any `ungrouped` file must not be applied.
     """
     ordered = sorted(definitions, key=lambda d: (-d["depth"], d["name"]))
+    depth_of = {d["name"]: d["depth"] for d in ordered}
     known = {}
-    by_input = defaultdict(lambda: defaultdict(list))
     report = {}
+    listed = {}
+    definition_of = {}
     for d in ordered:
-        files = sorted(sam.listFiles(defname=d["name"]))
-        entry = {
+        listed[d["name"]] = sorted(sam.listFiles(defname=d["name"]))
+        report[d["name"]] = {
             "name": d["name"], "depth": d["depth"],
             "retire": [], "skipped": [], "ungrouped": [],
-            "totals": {"files": len(files), "kept": 0},
+            "totals": {"files": len(listed[d["name"]]), "kept": 0},
         }
-        report[d["name"]] = entry
-        ancestors = _root_ancestors(sam, files, d["depth"], known)
-        for f in files:
-            ancestor, reason = ancestors[f]
-            if ancestor is None:
-                entry["ungrouped"].append({"file": f, "reason": reason})
+        definition_of.update({f: d["name"] for f in listed[d["name"]]})
+
+    # Shallowest first, so a file's ancestors are grouped before it is.
+    ungrouped = set()
+    input_of = {}
+    by_input = defaultdict(list)
+    under = defaultdict(list)
+    for d in reversed(ordered):
+        chains, failed = _ancestor_chains(sam, listed[d["name"]], d["depth"], known)
+        for f in listed[d["name"]]:
+            reason = failed.get(f) or _depth_fault(chains[f], d["depth"], definition_of, depth_of, ungrouped)
+            if reason:
+                ungrouped.add(f)
+                report[d["name"]]["ungrouped"].append({"file": f, "reason": reason})
+                continue
+            input_of[f] = _input_key(chains[f][-1])
+            parent = next((a for a in chains[f][:-1] if a in definition_of), None)
+            if parent is None:
+                by_input[input_of[f]].append(f)
             else:
-                by_input[_input_key(ancestor)][d["name"]].append(f)
+                under[parent].append(f)
+
+    covers = {}
+
+    def covered(f):
+        if f not in covers:
+            covers[f] = {definition_of[f]}.union(*(covered(child) for child in under[f]))
+        return covers[f]
 
     inputs = {}
     candidates = defaultdict(list)
+
+    def retire_with_descendants(f, reason):
+        row = {"file": f, "input": input_of[f], "process_id": known[f]["process_id"]}
+        candidates[definition_of[f]].append({**row, "reason": reason} if reason else row)
+        for child in under[f]:
+            retire_with_descendants(child, f"parent {f} is retired")
+
     for key in sorted(by_input):
-        by_definition = by_input[key]
-        kept_pid = _kept_process_id(by_definition, known)
-        plan_input = {
-            "kept_process_id": kept_pid, "fallback": kept_pid is None,
-            "kept": {}, "retired": {}, "skipped": {},
-        }
+        plan_input = {"kept_process_id": None, "fallback": False, "kept": {}, "retired": {}, "skipped": {}}
         inputs[key] = plan_input
-        for name in sorted(by_definition):
-            files = by_definition[name]
-            if kept_pid is None:
-                kept = files[:1]
+        groups = [(None, by_input[key])]
+        while groups:
+            parent, group = groups.pop()
+            kept, kept_pid = _kept_files(group, known, definition_of, covered)
+            if parent is None:
+                plan_input["kept_process_id"] = kept_pid
+                reason = None
+            elif kept_pid is None:
+                reason = f"under {parent}, first file by name kept"
             else:
-                kept = [f for f in files if known[f]["process_id"] == kept_pid]
-            if kept:
-                plan_input["kept"][name] = kept
-                report[name]["totals"]["kept"] += len(kept)
-            candidates[name] += [(f, key) for f in files if f not in kept]
+                reason = f"under {parent}, kept process id {kept_pid}"
+            plan_input["fallback"] = plan_input["fallback"] or kept_pid is None
+            for f in sorted(group):
+                if f in kept:
+                    plan_input["kept"].setdefault(definition_of[f], []).append(f)
+                    report[definition_of[f]]["totals"]["kept"] += 1
+                    if under[f]:
+                        groups.append((f, under[f]))
+                else:
+                    retire_with_descendants(f, reason)
+        plan_input["kept"] = {name: sorted(files) for name, files in sorted(plan_input["kept"].items())}
 
     # Deepest first, so a file's children are settled before the file is.
     retiring = set()
     for d in ordered:
         entry = report[d["name"]]
-        for f, key in candidates[d["name"]]:
-            children = [c["file_name"] for c in sam.getFileLineage("children", f)]
-            blocking = sorted(c for c in children if c not in retiring)
-            row = {"file": f, "input": key, "process_id": known[f]["process_id"]}
+        rows = sorted(candidates[d["name"]], key=lambda row: (row["input"], row["file"]))
+        children = {
+            row["file"]: [c["file_name"] for c in sam.getFileLineage("children", row["file"])]
+            for row in rows
+        }
+        # A retired child does not hold its parent back.
+        live = _live_names(sam, {c for cs in children.values() for c in cs if c not in retiring})
+        for row in rows:
+            f, key = row["file"], row["input"]
+            blocking = sorted(c for c in children[f] if c in live)
             if blocking:
                 reason = "has children that are not being retired: " + ", ".join(blocking)
                 entry["skipped"].append({**row, "reason": reason})
@@ -157,16 +243,16 @@ def plan_cleanup(definitions, sam):
     }
 
 
-def plan_path(cfg):
+def _plan_path(cfg):
     """<cache_dir>/cleanup_plan_<ini name>.json, next to the State File."""
     state_name = os.path.splitext(os.path.basename(cfg["state_file"]))[0]
     ini_name = state_name[len("state_"):] if state_name.startswith("state_") else state_name
     return os.path.join(cfg["cache_dir"], f"cleanup_plan_{ini_name}.json")
 
 
-def write_plan(cfg, plan):
-    """Writes `plan` to plan_path(cfg) and returns that path."""
-    path = plan_path(cfg)
+def _write_plan(cfg, plan):
+    """Writes `plan` to its plan file and returns the path."""
+    path = _plan_path(cfg)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp_path = f"{path}.tmp"
     with open(tmp_path, "w") as f:
@@ -175,20 +261,10 @@ def write_plan(cfg, plan):
     return path
 
 
-def _live_files(sam, definition):
-    """The definition's files that are not retired."""
-    return set(sam.listFiles(defname=definition))
-
-
-def retired_files_definition(definition):
-    """(name, dimensions) of the definition holding `definition`'s retired
-    files."""
-    return f"{definition}_retired_files", f"dataset.tag {definition} and availability: retired"
-
-
 def _ensure_retired_files_definition(sam, definition):
-    """Creates the retired-files definition unless SAM already has it."""
-    name, dimensions = retired_files_definition(definition)
+    """Creates `<definition>_retired_files` unless SAM already has it."""
+    name = f"{definition}_retired_files"
+    dimensions = f"dataset.tag {definition} and availability: retired"
     try:
         sam.descDefinitionDict(name)
     except Exception as e:
@@ -202,19 +278,22 @@ def _ensure_retired_files_definition(sam, definition):
         logging.info("cleanup: definition %s already exists -- left as it is", name)
 
 
+def _retire_reason(row, plan):
+    why = row.get("reason") or "kept process id %s" % plan["inputs"][row["input"]]["kept_process_id"]
+    return f"input {row['input']}, {why}"
+
+
 def _apply_definition(entry, plan, sam, dry_run):
-    """Retires one definition's planned files, then records them in its
-    retired-files definition. Returns None, or the first failure as
+    """Retires one definition's planned files, then makes sure its
+    retired-files definition exists. Returns None, or the first failure as
     {definition, file, error}."""
     name = entry["name"]
     f = None
     try:
-        live = _live_files(sam, name) if entry["retire"] else set()
+        live = set(sam.listFiles(defname=name)) if entry["retire"] else set()
         for row in entry["retire"]:
             f = row["file"]
-            reason = "input %s, kept process id %s" % (
-                row["input"], plan["inputs"][row["input"]]["kept_process_id"],
-            )
+            reason = _retire_reason(row, plan)
             if f not in live:
                 logging.info("cleanup: %s from %s is already retired (%s)", f, name, reason)
             elif dry_run:
@@ -234,12 +313,12 @@ def _apply_definition(entry, plan, sam, dry_run):
     return None
 
 
-def apply_plan(cfg, plan, sam, dry_run=False):
-    """Retires the plan's files in `sam`, one definition after another in
-    the plan's order (deepest first), stopping at the first failure. Each
-    finished definition is recorded in the State File's `cleanup` section
-    and skipped from then on. Returns None, or the failure as
-    {definition, file, error}. A dry run only logs."""
+def _apply_plan(cfg, plan, sam, dry_run):
+    """Retires the plan's files, one definition after another in the plan's
+    order, stopping at the first failure. Each finished definition is
+    recorded in the State File's `cleanup` section and skipped from then
+    on. Returns None, or the failure as {definition, file, error}. A dry
+    run only logs."""
     progress = state.read(cfg, "cleanup") or {}
     done = list(progress.get("done", []))
     for entry in plan["definitions"]:
@@ -255,45 +334,25 @@ def apply_plan(cfg, plan, sam, dry_run=False):
     return None
 
 
-def _live_names(sam, names):
-    """The subset of `names` that SAM lists as live files."""
-    names = sorted(set(names))
-    live = set()
-    for start in range(0, len(names), LIVE_CHECK_BATCH_SIZE):
-        batch = names[start:start + LIVE_CHECK_BATCH_SIZE]
-        live.update(sam.listFiles(dimensions="file_name " + ",".join(batch)))
-    return live
-
-
-def _parents(sam, files):
-    """{file: [parent names]} for every file SAM knows."""
-    files = sorted(files)
-    parents = {}
-    for start in range(0, len(files), METADATA_BATCH_SIZE):
-        for md in sam.getMultipleMetadata(files[start:start + METADATA_BATCH_SIZE]):
-            parents[md["file_name"]] = [p["file_name"] for p in md.get("parents") or []]
-    return parents
-
-
 def verify_plan(plan, sam):
     """Checks `sam` against an applied plan: per input and definition the
     live files are the kept ones plus those the children guard skipped, and
     every kept file's parents are live. Returns {input: [what is wrong]},
     empty when all is well."""
     names = [d["name"] for d in plan["definitions"]]
-    live = {name: _live_files(sam, name) for name in names}
+    live = {name: set(sam.listFiles(defname=name)) for name in names}
     kept_files = [f for i in plan["inputs"].values() for files in i["kept"].values() for f in files]
-    parents = _parents(sam, kept_files)
-    live_parents = _live_names(sam, [p for ps in parents.values() for p in ps])
+    known = {}
+    _fetch_metadata(sam, kept_files, known)
+    live_parents = _live_names(sam, [p for f in kept_files if f in known for p in known[f]["parents"]])
 
     bad = defaultdict(list)
     for key, plan_input in plan["inputs"].items():
         for name in names:
-            kept = plan_input["kept"].get(name, [])
-            for f in kept:
+            for f in plan_input["kept"].get(name, []):
                 if f not in live[name]:
                     bad[key].append(f"{name}: kept file {f} is not live")
-                for p in parents.get(f, []):
+                for p in known.get(f, {}).get("parents", []):
                     if p not in live_parents:
                         bad[key].append(f"{name}: parent {p} of kept file {f} is not live")
             for f in plan_input["retired"].get(name, []):
@@ -302,95 +361,105 @@ def verify_plan(plan, sam):
 
     for entry in plan["definitions"]:
         name = entry["name"]
-        planned = {u["file"] for u in entry["ungrouped"]}
+        planned = set()
         for plan_input in plan["inputs"].values():
             planned.update(plan_input["kept"].get(name, []))
             planned.update(plan_input["retired"].get(name, []))
             planned.update(s["file"] for s in plan_input["skipped"].get(name, []))
         extra = sorted(live[name] - planned)
-        ancestors = _root_ancestors(sam, extra, entry["depth"], {}) if extra else {}
+        chains, failed = _ancestor_chains(sam, extra, entry["depth"], {}) if extra else ({}, {})
         for f in extra:
-            ancestor, reason = ancestors[f]
-            if ancestor is None:
-                bad[f].append(f"{name}: {f} is live but not in the plan ({reason})")
+            if f in failed:
+                bad[f].append(f"{name}: {f} is live but not in the plan ({failed[f]})")
             else:
-                bad[_input_key(ancestor)].append(f"{name}: {f} is live but not in the plan")
+                bad[_input_key(chains[f][-1])].append(f"{name}: {f} is live but not in the plan")
     return dict(bad)
 
 
-def _skipped_files(plan):
-    """The files the children guard left in place, as [{definition, input,
-    file}] in the plan's order."""
-    return [
-        {"definition": entry["name"], "input": row["input"], "file": row["file"]}
-        for entry in plan["definitions"] for row in entry["skipped"]
-    ]
+def _ungrouped_error(plan, path):
+    """Error text naming the plan's ungrouped files, or None."""
+    rows = [(entry["name"], u) for entry in plan["definitions"] for u in entry["ungrouped"]]
+    if not rows:
+        return None
+    named = "; ".join(f"{u['file']} in {name} ({u['reason']})" for name, u in rows[:MAX_FILES_NAMED])
+    more = f"; and {len(rows) - MAX_FILES_NAMED} more" if len(rows) > MAX_FILES_NAMED else ""
+    return (
+        f"{len(rows)} file(s) cannot be grouped under an input, nothing retired "
+        f"(all listed in {path}): {named}{more}"
+    )
 
 
-def _unfinished_plan_path(cfg):
-    """Path of the plan a past run started applying and has not finished,
-    or None."""
+def _load_unfinished_plan(cfg, definitions):
+    """(plan, path) of the plan a past run started applying and has not
+    finished, or (None, None). Raises RuntimeError when that plan cannot be
+    read or is for other definitions."""
     progress = state.read(cfg, "cleanup") or {}
-    if progress.get("plan_path") and not progress.get("finished"):
-        return progress["plan_path"]
-    return None
+    path = progress.get("plan_path")
+    if not path or progress.get("finished"):
+        return None, None
+    logging.info("cleanup: resuming the unfinished plan %s", path)
+    try:
+        with open(path) as f:
+            plan = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        raise RuntimeError(f"cannot read the saved plan {path}: {e}") from e
+    planned = sorted(d["name"] for d in plan["definitions"])
+    asked = sorted(d["name"] for d in definitions)
+    if planned != asked:
+        raise RuntimeError(f"the unfinished plan {path} is for {', '.join(planned)}, not {', '.join(asked)}")
+    return plan, path
 
 
 def clean_definitions(cfg, definitions, sam, dry_run=False):
     """Cleans the duplicates of `definitions` ([{name, depth}]) through
-    `sam`: resumes the plan an earlier run left unfinished, or makes and
-    writes a new one; retires its files; verifies the result. Files are
-    only retired -- no location is removed and nothing on disk is deleted.
-    A dry run writes the plan, logs what would be retired and changes
-    nothing.
+    `sam`: resumes the plan an earlier run left unfinished, or makes a new
+    one and writes its plan file; retires its files; verifies the result. A
+    plan with a file that cannot be grouped under an input fails before
+    anything is retired. A dry run writes the plan file, logs what would be
+    retired and changes nothing else: no SAM change, no State File.
 
-    Returns {"ok", "dry_run", "plan_path", "failure", "bad_inputs",
-    "skipped", "skipped_count"}. `bad_inputs` is verify_plan()'s answer.
+    Returns {"ok", "plan_path", "failure", "bad_inputs", "skipped"}.
     `failure` is None, or {definition, file, error} for what stopped the
-    run. `skipped` lists the files left in place because they have children
-    outside the plan, as {definition, input, file}; they do not fail
-    verification.
+    run. `bad_inputs` is verify_plan()'s answer. `skipped` lists the files
+    left in place because they have live children outside the plan, as
+    {definition, input, file}; they do not fail verification.
     """
-    result = {
-        "ok": False, "dry_run": dry_run, "plan_path": None, "failure": None, "bad_inputs": {},
-        "skipped": [], "skipped_count": 0,
-    }
+    result = {"ok": False, "plan_path": None, "failure": None, "bad_inputs": {}, "skipped": []}
+
+    def failed(error):
+        result["failure"] = {"definition": None, "file": None, "error": str(error)}
+        return result
+
     try:
-        path = _unfinished_plan_path(cfg)
-        if path:
-            logging.info("cleanup: resuming the unfinished plan %s", path)
-            try:
-                with open(path) as f:
-                    plan = json.load(f)
-            except (OSError, json.JSONDecodeError) as e:
-                raise RuntimeError(f"cannot read the saved plan {path}: {e}") from e
-            planned = sorted(d["name"] for d in plan["definitions"])
-            asked = sorted(d["name"] for d in definitions)
-            if planned != asked:
-                raise RuntimeError(
-                    f"the unfinished plan {path} is for {', '.join(planned)}, not {', '.join(asked)}"
-                )
-        else:
+        plan, path = _load_unfinished_plan(cfg, definitions)
+        resumed = plan is not None
+        if not resumed:
             plan = plan_cleanup(definitions, sam)
-            path = write_plan(cfg, plan)
+            path = _write_plan(cfg, plan)
             logging.info("cleanup: plan written to %s", path)
-            if not dry_run:
-                state.write(cfg, "cleanup", {"plan_path": path, "done": [], "finished": False})
         result["plan_path"] = path
     except Exception as e:
         logging.exception("cleanup: planning failed")
-        result["failure"] = {"definition": None, "file": None, "error": str(e)}
-        return result
+        return failed(e)
 
-    result["skipped"] = _skipped_files(plan)
-    result["skipped_count"] = len(result["skipped"])
+    ungrouped = _ungrouped_error(plan, path)
+    if ungrouped:
+        logging.error("cleanup: %s", ungrouped)
+        return failed(ungrouped)
+    if not (resumed or dry_run):
+        state.write(cfg, "cleanup", {"plan_path": path, "done": [], "finished": False})
+
+    result["skipped"] = [
+        {"definition": entry["name"], "input": row["input"], "file": row["file"]}
+        for entry in plan["definitions"] for row in entry["skipped"]
+    ]
     for row in result["skipped"]:
         logging.info(
             "cleanup: %s from %s left in place, has children outside the plan (input %s)",
             row["file"], row["definition"], row["input"],
         )
 
-    result["failure"] = apply_plan(cfg, plan, sam, dry_run)
+    result["failure"] = _apply_plan(cfg, plan, sam, dry_run)
     if result["failure"]:
         return result
     if dry_run:
@@ -401,8 +470,7 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
         result["bad_inputs"] = verify_plan(plan, sam)
     except Exception as e:
         logging.exception("cleanup: verification could not be done")
-        result["failure"] = {"definition": None, "file": None, "error": str(e)}
-        return result
+        return failed(e)
     for key, reasons in result["bad_inputs"].items():
         logging.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
     if result["bad_inputs"]:
@@ -414,22 +482,23 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
 
 
 def main(argv=None, sam=None):
-    """Command line for running by hand; every dataset is taken as a direct
-    child of the input (depth 1). The plan and the progress file go in the
-    working directory. Returns the exit code."""
+    """Command line for running by hand. Every Output Definition is taken
+    at depth 1. The plan file and the State File go in the working
+    directory. Returns the exit code."""
     parser = argparse.ArgumentParser(
         description="Retire duplicate output files in SAM, keeping one worker's outputs per input.",
     )
     parser.add_argument("-s", "--dataset", action="append", required=True,
-                        help="SAM definition to clean; repeat for every output definition of the stage")
-    parser.add_argument("-D", "--dry_run", action="store_true",
-                        help="write the plan and log what would be retired; change nothing")
+                        help="Output Definition to clean; repeat for every Output Definition of the Campaign Stage")
+    parser.add_argument("-D", "--dry-run", action="store_true",
+                        help="write the plan file and log what would be retired; "
+                             "change nothing in SAM and write no State File")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if sam is None:
-        import samweb_client
-        sam = samweb_client.SAMWebClient(experiment=os.environ.get("SAM_EXPERIMENT", "sbnd"))
+        import sam_client
+        sam = sam_client.get_sam_client(os.environ.get("SAM_EXPERIMENT", "sbnd"))
     cache_dir = os.getcwd()
     cfg = {"cache_dir": cache_dir, "state_file": os.path.join(cache_dir, "state_duplicate_cleanup.json")}
     definitions = [{"name": name, "depth": 1} for name in dict.fromkeys(args.dataset)]
