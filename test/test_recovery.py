@@ -235,6 +235,15 @@ def test_failure_to_infer_output_definitions_is_retried_not_handled(tmp_path, mo
     assert "will retry next run" in caplog.text
 
 
+def test_recorded_definitions_need_no_sam_client(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "samweb_client", None)  # importing it raises
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    record_outputs(tmp_path)
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
+
+    assert evaluate_and_run_recovery(cfg, FakeSession()) == "no_recovery_needed"
+
+
 def test_no_depth_one_definition_is_retried_not_handled(tmp_path, monkeypatch):
     cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
     record_outputs(tmp_path, [{"name": "ds_ana", "depth": 2}])

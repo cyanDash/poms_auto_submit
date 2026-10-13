@@ -69,6 +69,13 @@ recovery handled.
 - The launch command comes from the newest Submission that is not a Test
   Launch: a Test Launch runs with `test_param_overrides`, whose `MT_*`
   values can differ from the real ones.
+- The disagreement check uses the production name as exported, `test_`
+  included, so a test campaign sharing inputs and version with its real twin
+  does not disagree with the twin's names. The fallback ignores the prefix
+  and so cannot tell the two apart: it records both campaigns' names.
+- The real SAM client is `output_definitions.LazySamClient(experiment)`,
+  which imports `samweb_client` on first use, so a filled section needs no
+  SAM setup at all.
 - After a recovery run the stage's Input Dataset is the Recovery Dataset, so
   an inference done only then samples the recovery subset. In practice the
   section is filled when recovery is first evaluated, before the switch.

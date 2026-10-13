@@ -191,6 +191,40 @@ def test_disagreement_records_nothing_and_raises(tmp_path, caplog):
     assert f"{STAGE}_calib_sbnd" in caplog.text
 
 
+def test_real_twin_of_a_test_campaign_is_not_a_disagreement(tmp_path):
+    # Same inputs, same version, production name without the test_ prefix.
+    twin = STAGE.replace("_test_PDS_detvar_Sample3_", "_PDS_detvar_Sample3_")
+    tags = {**stage_files("in1", ALL_TIERS), "twin_reco1.root": f"{twin}_reco1_sbnd"}
+    sam = FakeSam(["in1"], {"in1": list(tags)}, tags)
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+
+
+def test_lazy_sam_client_is_built_on_first_use_only(monkeypatch):
+    import sys
+    import types
+
+    from output_definitions import LazySamClient
+    built = []
+
+    class SAMWebClient:
+        def __init__(self, experiment):
+            built.append(experiment)
+
+        def listFiles(self, defname=None):
+            return [defname]
+
+    monkeypatch.setitem(sys.modules, "samweb_client", types.SimpleNamespace(SAMWebClient=SAMWebClient))
+
+    sam = LazySamClient("sbnd")
+    assert built == []
+    assert sam.listFiles(defname="ds") == ["ds"]
+    assert sam.listFiles(defname="ds2") == ["ds2"]
+    assert built == ["sbnd"]
+
+
 def test_missing_postscript_falls_back_to_scoped_lineage_and_logs_it(tmp_path, caplog):
     cfg = make_state_cfg(tmp_path)
     session = FakeSession(launch_command(tmp_path / "metadata_postscripts_gone.sh"))

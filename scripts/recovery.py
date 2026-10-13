@@ -28,17 +28,11 @@ def _mark_handled(cfg):
     state.write(cfg, "recovery_handled", True)
 
 
-def _sam_client(cfg):
-    """The real SAM client, built only once recovery is being evaluated."""
-    import samweb_client
-    return samweb_client.SAMWebClient(experiment=cfg["experiment"])
-
-
 def _direct_output_names(cfg, session, sam):
     """Names of the depth-one output definitions. Raises
     OutputDefinitionsError when there are none."""
     if sam is None:
-        sam = _sam_client(cfg)
+        sam = output_definitions.LazySamClient(cfg["experiment"])
     names = output_definitions.depth_one_names(output_definitions.get_output_definitions(cfg, session, sam))
     if not names:
         raise output_definitions.OutputDefinitionsError("no output definition is a direct child of the input")

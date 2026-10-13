@@ -34,6 +34,20 @@ class OutputDefinitionsError(RuntimeError):
     """The output definitions could not be inferred; nothing was recorded."""
 
 
+class LazySamClient:
+    """The real SAM client, built on first use."""
+
+    def __init__(self, experiment):
+        self._experiment = experiment
+        self._client = None
+
+    def __getattr__(self, name):
+        if self._client is None:
+            import samweb_client
+            self._client = samweb_client.SAMWebClient(experiment=self._experiment)
+        return getattr(self._client, name)
+
+
 def read_recorded(cfg):
     """The recorded [{name, depth}] entries, [] when none. A flat list of
     names is read as depth 1."""
@@ -74,7 +88,10 @@ def _infer(session, sam):
 
     if patterns:
         names = [tag for tag in lineage if _matches(tag, patterns)]
-        unexpected = [tag for tag in lineage if tag not in names and _in_scope(tag, launch)]
+        unexpected = [
+            tag for tag in lineage
+            if tag not in names and _carries(tag, launch["production_name"], launch["version"])
+        ]
         if unexpected:
             logging.error(
                 "output definitions: postscript and lineage disagree -- postscript patterns=%s lineage names=%s",
@@ -82,12 +99,17 @@ def _infer(session, sam):
             )
             raise OutputDefinitionsError(f"lineage names match no postscript pattern: {unexpected}")
     else:
-        if not (launch["production_name"] and launch["version"]):
+        # The postscript is gone, so is the knowledge of whether it wrote
+        # the test_ prefix into the names: ignore it.
+        production_name = launch["production_name"] or ""
+        if production_name.startswith(TEST_PREFIX):
+            production_name = production_name[len(TEST_PREFIX):]
+        if not (production_name and launch["version"]):
             raise OutputDefinitionsError("launch command has no production name and version to scope lineage by")
-        names = [tag for tag in lineage if _in_scope(tag, launch)]
+        names = [tag for tag in lineage if _carries(tag, production_name, launch["version"])]
         logging.warning(
             "output definitions: postscript %s not readable -- fallback to lineage names carrying %s and %s",
-            launch["postscript"], launch["production_name"], launch["version"],
+            launch["postscript"], production_name, launch["version"],
         )
 
     if not names:
@@ -101,15 +123,12 @@ def _parse_launch_command(command):
     variables = dict(MT_EXPORT_PATTERN.findall(command))
     version = VERSION_PATTERN.search(command)
     postscript = POSTSCRIPT_PATH_PATTERN.search(command)
-    production_name = variables.get(PRODUCTION_NAME_VARIABLE, "")
-    if production_name.startswith(TEST_PREFIX):
-        production_name = production_name[len(TEST_PREFIX):]
     if version:
         variables[VERSION_VARIABLE] = version.group(1)
     return {
         "variables": variables,
         "version": version.group(1) if version else None,
-        "production_name": production_name or None,
+        "production_name": variables.get(PRODUCTION_NAME_VARIABLE),
         "postscript": postscript.group(1) if postscript else None,
     }
 
@@ -147,12 +166,12 @@ def _matches(tag, patterns):
     return any(fnmatchcase(tag, pattern) for pattern in patterns)
 
 
-def _in_scope(tag, launch):
-    """Whether a Dataset.Tag carries the stage's production name and version."""
-    if not (launch["production_name"] and launch["version"]):
+def _carries(tag, production_name, version):
+    """Whether a Dataset.Tag carries a production name and a version."""
+    if not (production_name and version):
         return False
     padded = f"_{tag}_"
-    return f"_{launch['production_name']}_" in padded and f"_{launch['version']}_" in padded
+    return f"_{production_name}_" in padded and f"_{version}_" in padded
 
 
 def _lineage_tags(sam, input_dataset):
