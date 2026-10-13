@@ -7,8 +7,7 @@ import pytest
 
 import state
 from cleanup import run_cleanup
-from duplicate_cleanup import plan_path
-from helpers import duplicated_campaign, make_cfg
+from helpers import FakeSam, duplicated_campaign, make_cfg
 
 DEFINITIONS = [{"name": "reco1_def", "depth": 1}, {"name": "larcv_def", "depth": 1}]
 DUPLICATES = {"reco1_101.root", "larcv_101.root", "reco1_201.root", "larcv_201.root"}
@@ -47,6 +46,10 @@ def make_cleanup_cfg(tmp_path, recorded=DEFINITIONS):
     if recorded is not None:
         state.write(cfg, "output_definitions", recorded)
     return cfg
+
+
+def plan_path(cfg):
+    return os.path.join(cfg["cache_dir"], "cleanup_plan_my_stage.json")
 
 
 def assert_switch_still_on(cfg):
@@ -193,3 +196,54 @@ def test_dry_run_writes_the_plan_and_retires_nothing(tmp_path, caplog):
     assert_switch_still_on(cfg)
     assert state.read(cfg, "cleanup") is None
     assert f"dry-run: plan written to {plan_path(cfg)}" in caplog.text
+
+
+def inferable_campaign():
+    """A duplicated campaign whose Output Definitions can be inferred: the
+    session's launch command and a SAM that also holds the Input Dataset."""
+    import test_output_definitions as tod
+
+    reco1, larcv = f"{tod.STAGE}_reco1_sbnd", f"{tod.STAGE}_larcvreco1_sbnd"
+    sam = FakeSam()
+    sam.add(tod.INPUT_DATASET, "gen_1.root", None)
+    for pid in (100, 101):
+        sam.add(reco1, f"reco1_{pid}.root", "gen_1.root", pid)
+        sam.add(larcv, f"larcv_{pid}.root", "gen_1.root", pid)
+    session = tod.FakeSession(tod.launch_command())
+    return session, sam, [{"name": reco1, "depth": 1}, {"name": larcv, "depth": 1}]
+
+
+def by_name(definitions):
+    return sorted(definitions, key=lambda d: d["name"])
+
+
+def test_real_run_records_the_inferred_output_definitions(tmp_path):
+    cfg = make_cleanup_cfg(tmp_path, recorded=None)
+    session, sam, definitions = inferable_campaign()
+
+    assert run_cleanup(cfg, session, sam=sam) is True
+
+    assert by_name(state.read(cfg, "output_definitions")) == by_name(definitions)
+    assert sam.retired == {"reco1_101.root", "larcv_101.root"}
+
+
+def test_dry_run_writes_no_state(tmp_path):
+    cfg = make_cleanup_cfg(tmp_path, recorded=None)
+    session, sam, _ = inferable_campaign()
+
+    assert run_cleanup(cfg, session, sam=sam, dry_run=True) is True
+
+    assert os.path.exists(plan_path(cfg))
+    assert not os.path.exists(cfg["state_file"])
+    assert sam.retire_calls == []
+
+
+def test_dry_run_does_not_overwrite_a_flat_list(tmp_path):
+    cfg = make_cleanup_cfg(tmp_path, recorded=["some_other_campaigns_def"])
+    session, sam, _ = inferable_campaign()
+
+    assert run_cleanup(cfg, session, sam=sam, dry_run=True) is True
+
+    assert state.read(cfg, "output_definitions") == ["some_other_campaigns_def"]
+    with open(plan_path(cfg)) as f:
+        assert len(json.load(f)["definitions"]) == 2

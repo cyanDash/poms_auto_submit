@@ -10,23 +10,23 @@ import logging
 
 import duplicate_cleanup
 import output_definitions
+import sam_client
 
 RETRY_NOTE = "switch stays on, will retry next run"
 
 
 def run_cleanup(cfg, session, sam=None, dry_run=False):
-    """Plans, retires and verifies the duplicates of the stage's output
-    definitions, then turns the switch off in the State File. `sam` is the
+    """Plans, retires and verifies the duplicates of the stage's Output
+    Definitions, then turns the switch off in the State File. `sam` is the
     SAM client; the real one when None. Any failure leaves the switch on.
-    A dry run writes the plan and changes nothing in SAM or the switch.
-    Returns True when the cleanup (or the dry run) went through."""
+    A dry run writes the plan file and nothing else: no State File, no SAM
+    change. Returns True when the cleanup (or the dry run) went through."""
     from poms_auto_submit import persist_switch
 
-    if sam is None:
-        sam = output_definitions.LazySamClient(cfg["experiment"])
+    sam = sam_client.get_sam_client(cfg["experiment"], sam)
 
     try:
-        definitions = output_definitions.get_output_definitions(cfg, session, sam, trust_flat_list=False)
+        definitions = output_definitions.get_output_definitions(cfg, session, sam, dry_run=dry_run)
     except Exception:
         # Any SAM, POMS or import failure: nothing was cleaned.
         logging.exception("cleanup: could not get the output definitions -- %s", RETRY_NOTE)
@@ -34,10 +34,10 @@ def run_cleanup(cfg, session, sam=None, dry_run=False):
 
     result = duplicate_cleanup.clean_definitions(cfg, definitions, sam, dry_run=dry_run)
 
-    if result["skipped_count"]:
+    if result["skipped"]:
         logging.info(
             "cleanup: %d file(s) left in place, has children outside the plan (listed in %s)",
-            result["skipped_count"], result["plan_path"],
+            len(result["skipped"]), result["plan_path"],
         )
     if result["failure"]:
         logging.error("cleanup: failed (%s) -- %s", result["failure"]["error"], RETRY_NOTE)

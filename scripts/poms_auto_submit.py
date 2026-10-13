@@ -249,6 +249,9 @@ def _cleanup_ready(cfg, session, get_condor_progress=None):
     docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
     if not (cfg["do_cleanup"] and _no_splits_left(cfg)):
         return False
+    if cfg.get("test_launch"):
+        logging.info("cleanup: not run under test_launch")
+        return False
     if cfg["do_recovery"] and not recovery.is_handled(cfg):
         return False
 

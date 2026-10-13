@@ -59,6 +59,16 @@ def test_cleanup_ready_false_when_do_cleanup_off():
     assert _ready(ready_cfg(do_cleanup=False), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
 
 
+def test_cleanup_ready_false_under_test_launch_and_says_so_once(caplog):
+    caplog.set_level(logging.INFO)
+
+    assert _ready(ready_cfg(test_launch=True), [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False
+
+    assert [r.getMessage() for r in caplog.records if "cleanup" in r.getMessage()] == [
+        "cleanup: not run under test_launch",
+    ]
+
+
 def test_cleanup_ready_false_when_recovery_not_handled(tmp_path):
     cfg = ready_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     assert _ready(cfg, [_job_sub(1)], {"1@s": _cp("finished", 100.0)}) is False

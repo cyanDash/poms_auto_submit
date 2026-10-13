@@ -1,7 +1,7 @@
-"""output_definitions: infers a Campaign Stage's output definitions and is
+"""output_definitions: infers a Campaign Stage's Output Definitions and is
 the only writer of the State File's `output_definitions` section.
-get_output_definitions() is the module's one interface; recovery.py and
-cleanup.py otherwise only read the section. See docs/adr/0022.
+get_output_definitions() is the module's one interface; it raises
+OutputDefinitionsError. See docs/adr/0022.
 """
 
 import logging
@@ -12,11 +12,17 @@ import state
 
 SECTION = "output_definitions"
 
-# Inputs with children whose descendants are read; an Input Dataset with
-# fewer is read whole. Fixed constants, not config knobs.
+# Fixed constants, not config knobs. An Input Dataset of at most
+# LINEAGE_MAX_PROBED_INPUTS files is read in full; a larger one is probed
+# until LINEAGE_SAMPLE_SIZE inputs with children were read, or
+# LINEAGE_MAX_PROBED_INPUTS inputs were probed.
 LINEAGE_SAMPLE_SIZE = 20
 LINEAGE_MAX_PROBED_INPUTS = 200
 LINEAGE_MAX_DEPTH = 6
+
+# scripts/run_recovery.sh names the Recovery Dataset
+# <input>_<campaign_name>_recovery_campaign.
+RECOVERY_DATASET_SUFFIX = "_{campaign_name}_recovery_campaign"
 
 POSTSCRIPT_PATH_PATTERN = re.compile(r"-f\s+dropbox://(\S*metadata_postscripts[^/\s]*\.sh)")
 MT_EXPORT_PATTERN = re.compile(r"export\s+(MT_\w+)=(\S+)")
@@ -34,63 +40,39 @@ class OutputDefinitionsError(RuntimeError):
     """The output definitions could not be inferred; nothing was recorded."""
 
 
-class LazySamClient:
-    """The real SAM client, built on first use."""
+def get_output_definitions(cfg, session, sam, dry_run=False):
+    """The Campaign Stage's Output Definitions as [{name, depth}]: what the
+    State File holds, else inferred and recorded. A flat list of names is
+    never trusted: it is inferred again and replaced. A dry run and a Test
+    Launch record nothing. Raises OutputDefinitionsError when the
+    definitions cannot be inferred; the State File is then left as it is."""
+    recorded = state.read(cfg, SECTION, []) or []
+    if recorded and all(isinstance(entry, dict) for entry in recorded):
+        return [dict(entry) for entry in recorded]
 
-    def __init__(self, experiment):
-        self._experiment = experiment
-        self._client = None
-
-    def __getattr__(self, name):
-        if self._client is None:
-            import samweb_client
-            self._client = samweb_client.SAMWebClient(experiment=self._experiment)
-        return getattr(self._client, name)
-
-
-def read_recorded(cfg):
-    """The recorded [{name, depth}] entries, [] when none. A flat list of
-    names is read as depth 1."""
-    entries = state.read(cfg, SECTION, []) or []
-    return [
-        dict(entry) if isinstance(entry, dict) else {"name": entry, "depth": 1}
-        for entry in entries
-    ]
-
-
-def depth_one_names(definitions):
-    """Names of the definitions whose files are direct children of an input."""
-    return [d["name"] for d in definitions if d["depth"] == 1]
-
-
-def _is_flat_list(cfg):
-    """Whether the recorded section holds bare names, which were recorded
-    without scoping to this Campaign Stage."""
-    return any(not isinstance(entry, dict) for entry in state.read(cfg, SECTION, []) or [])
-
-
-def get_output_definitions(cfg, session, sam, trust_flat_list=True):
-    """The Campaign Stage's output definitions as [{name, depth}]: what the
-    State File holds, else inferred and recorded. With trust_flat_list
-    False, a recorded flat list of names is inferred again and replaced.
-    Raises OutputDefinitionsError when they cannot be inferred."""
-    recorded = read_recorded(cfg)
-    if recorded and (trust_flat_list or not _is_flat_list(cfg)):
-        return recorded
-
-    definitions = _infer(session, sam)
-    if not cfg.get("test_launch"):
+    definitions = _infer(cfg, session, sam)
+    if not (dry_run or cfg.get("test_launch")):
         state.write(cfg, SECTION, definitions)
     return definitions
 
 
-def _infer(session, sam):
+def _original_input_dataset(dataset, campaign_name):
+    """The Input Dataset the stage started with: `dataset` without the
+    Recovery Dataset suffix."""
+    suffix = RECOVERY_DATASET_SUFFIX.format(campaign_name=campaign_name)
+    while dataset.endswith(suffix) and len(dataset) > len(suffix):
+        dataset = dataset[:-len(suffix)]
+    return dataset
+
+
+def _infer(cfg, session, sam):
     command = session.get_launch_command()
     if not command:
         raise OutputDefinitionsError("no Submission with a launch command -- cannot tell this stage's outputs apart")
     launch = _parse_launch_command(command)
 
-    lineage = _lineage_tags(sam, session.get_stage_params()["dataset"])
+    input_dataset = _original_input_dataset(session.get_stage_params()["dataset"], cfg["campaign_name"])
+    lineage = _lineage_tags(sam, input_dataset)
     patterns = _postscript_patterns(launch)
 
     if patterns:
@@ -113,10 +95,11 @@ def _infer(session, sam):
             production_name = production_name[len(TEST_PREFIX):]
         if not (production_name and launch["version"]):
             raise OutputDefinitionsError("launch command has no production name and version to scope lineage by")
-        names = [tag for tag in lineage if _carries(tag, production_name, launch["version"])]
+        scope = f"{production_name}_{launch['version']}"
+        names = [tag for tag in lineage if f"_{scope}_" in f"_{tag}_"]
         logging.warning(
-            "output definitions: postscript %s not readable -- fallback to lineage names carrying %s and %s",
-            launch["postscript"], production_name, launch["version"],
+            "output definitions: postscript %s not readable -- fallback to lineage names carrying %s",
+            launch["postscript"], scope,
         )
 
     if not names:
@@ -182,16 +165,18 @@ def _carries(tag, production_name, version):
 
 
 def _lineage_tags(sam, input_dataset):
-    """{Dataset.Tag: depth below the input} over the descendants of a sample
-    of the Input Dataset's files that have children."""
+    """{Dataset.Tag: depth below the input} over the descendants of the
+    Input Dataset's files, or of a sample of them when it is large."""
+    inputs = list(sam.listFiles(defname=input_dataset))
+    read_all = len(inputs) <= LINEAGE_MAX_PROBED_INPUTS
     tags = {}
     sampled = 0
-    for probed, input_file in enumerate(sam.listFiles(defname=input_dataset), start=1):
+    for probed, input_file in enumerate(inputs, start=1):
         level = _children(sam, input_file)
         if level:
             sampled += 1
             _walk_descendants(sam, level, tags)
-        if sampled >= LINEAGE_SAMPLE_SIZE or probed >= LINEAGE_MAX_PROBED_INPUTS:
+        if not read_all and (sampled >= LINEAGE_SAMPLE_SIZE or probed >= LINEAGE_MAX_PROBED_INPUTS):
             break
     return tags
 

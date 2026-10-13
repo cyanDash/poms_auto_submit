@@ -274,6 +274,25 @@ def test_recovery_infers_definitions_when_none_are_recorded(tmp_path, monkeypatc
     assert sorted(d["name"] for d in recorded_outputs(tmp_path)) == sorted(output_names)
 
 
+def test_recorded_flat_list_is_not_trusted_by_recovery(tmp_path, monkeypatch):
+    import test_output_definitions as tod
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    record_outputs(tmp_path, [f"{tod.LY094}_reco1_sbnd"])
+    session = FakeSession(stage={"dataset": tod.INPUT_DATASET})
+    session.get_launch_command = tod.launch_command
+    script_calls = []
+
+    def fake_script(input_dataset, campaign_name, prestage_log, output_names):
+        script_calls.append(output_names)
+        return 0.99, 0.98, None
+
+    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
+
+    assert evaluate_and_run_recovery(cfg, session, tod.shared_input_sam()) == "no_recovery_needed"
+    assert sorted(script_calls[0]) == sorted(f"{tod.STAGE}_{tier}" for tier in tod.ALL_TIERS)
+    assert sorted(d["name"] for d in recorded_outputs(tmp_path)) == sorted(script_calls[0])
+
+
 def test_no_recovery_needed(tmp_path, monkeypatch):
     config_path = make_config_file(tmp_path)
     cfg = make_cfg(

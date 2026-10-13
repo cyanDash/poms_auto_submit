@@ -5,7 +5,7 @@ import pytest
 
 import state
 from helpers import make_cfg
-from output_definitions import OutputDefinitionsError, depth_one_names, get_output_definitions, read_recorded
+from output_definitions import OutputDefinitionsError, get_output_definitions
 
 RAW = Path(__file__).resolve().parent.parent / "docs" / "raw"
 
@@ -35,24 +35,6 @@ def test_filled_section_is_returned_without_any_poms_or_sam_call(tmp_path):
     (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
 
     assert get_output_definitions(make_state_cfg(tmp_path), NoCallSession(), NoCallSam()) == entries
-
-
-def test_flat_list_of_names_is_read_as_depth_one(tmp_path):
-    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ["ds_reco1", "ds_caf"]}))
-
-    assert read_recorded(make_state_cfg(tmp_path)) == [
-        {"name": "ds_reco1", "depth": 1}, {"name": "ds_caf", "depth": 1},
-    ]
-
-
-def test_read_recorded_is_empty_when_nothing_was_recorded(tmp_path):
-    assert read_recorded(make_state_cfg(tmp_path)) == []
-
-
-def test_depth_one_names_drops_deeper_definitions():
-    entries = [{"name": "a", "depth": 1}, {"name": "b", "depth": 2}, {"name": "c", "depth": 1}]
-
-    assert depth_one_names(entries) == ["a", "c"]
 
 
 # --- inference: fakes built from docs/raw ---
@@ -169,33 +151,120 @@ def test_input_shared_by_four_campaigns_yields_only_this_stages_definitions(tmp_
     assert recorded(tmp_path) == definitions
 
 
-def test_untrusted_flat_list_is_inferred_again_and_overwritten(tmp_path):
+def test_flat_list_is_inferred_again_and_overwritten(tmp_path):
     (tmp_path / "state.json").write_text(json.dumps({"output_definitions": [f"{LY094}_reco1_sbnd"]}))
 
-    definitions = get_output_definitions(
-        make_state_cfg(tmp_path), FakeSession(launch_command()), shared_input_sam(), trust_flat_list=False,
-    )
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), shared_input_sam())
 
     assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
     assert recorded(tmp_path) == definitions
 
 
-def test_untrusted_flat_list_is_kept_when_inference_fails(tmp_path):
+def test_flat_list_is_left_when_inference_fails(tmp_path):
     (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ["ds_reco1"]}))
 
     with pytest.raises(OutputDefinitionsError):
-        get_output_definitions(make_state_cfg(tmp_path), FakeSession(None), NoCallSam(), trust_flat_list=False)
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(None), NoCallSam())
 
     assert recorded(tmp_path) == ["ds_reco1"]
 
 
-def test_name_depth_entries_are_trusted_either_way(tmp_path):
-    entries = [{"name": "ds_reco1", "depth": 1}]
-    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
+# --- dry run ---
 
-    assert get_output_definitions(
-        make_state_cfg(tmp_path), NoCallSession(), NoCallSam(), trust_flat_list=False,
-    ) == entries
+def test_dry_run_infers_but_records_nothing(tmp_path):
+    cfg = make_state_cfg(tmp_path)
+
+    definitions = get_output_definitions(cfg, FakeSession(launch_command()), shared_input_sam(), dry_run=True)
+
+    assert len(definitions) == 5
+    assert recorded(tmp_path) is None
+
+
+def test_dry_run_does_not_overwrite_a_flat_list(tmp_path):
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ["ds_reco1"]}))
+
+    definitions = get_output_definitions(
+        make_state_cfg(tmp_path), FakeSession(launch_command()), shared_input_sam(), dry_run=True,
+    )
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+    assert recorded(tmp_path) == ["ds_reco1"]
+
+
+# --- which Input Dataset is sampled ---
+
+def test_after_recovery_the_original_input_dataset_is_sampled(tmp_path):
+    cfg = make_state_cfg(tmp_path, campaign_name="my_campaign")
+    session = FakeSession(launch_command(), dataset=f"{INPUT_DATASET}_my_campaign_recovery_campaign")
+
+    # FakeSam.listFiles refuses any definition but INPUT_DATASET.
+    definitions = get_output_definitions(cfg, session, shared_input_sam())
+
+    assert len(definitions) == 5
+
+
+def test_small_input_dataset_is_read_in_full(tmp_path):
+    most = ["histreco2_sbnd", "caf_sbnd", "flatcaf_sbnd", "larcvreco1_sbnd"]
+    inputs = [f"in{i}" for i in range(25)]
+    files = {name: stage_files(name, ALL_TIERS if name == "in24" else most) for name in inputs}
+    tags = {f: tag for per_input in files.values() for f, tag in per_input.items()}
+    sam = FakeSam(inputs, {name: list(files[name]) for name in inputs}, tags)
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert f"{STAGE}_reco1_sbnd" in names(definitions)
+
+
+def test_large_input_dataset_is_sampled(tmp_path):
+    most = ["histreco2_sbnd", "caf_sbnd", "flatcaf_sbnd", "larcvreco1_sbnd"]
+    inputs = [f"in{i}" for i in range(201)]
+    files = {name: stage_files(name, ALL_TIERS if name == "in24" else most) for name in inputs}
+    tags = {f: tag for per_input in files.values() for f, tag in per_input.items()}
+    sam = FakeSam(inputs, {name: list(files[name]) for name in inputs}, tags)
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert f"{STAGE}_reco1_sbnd" not in names(definitions)
+    assert len(definitions) == 4
+
+
+# --- scoping ---
+
+@pytest.mark.parametrize("tag", [f"{STAGE}_reco1_sbnd_extra", f"extra_{STAGE}_reco1_sbnd"])
+def test_postscript_pattern_must_match_the_whole_name(tmp_path, tag):
+    tags = {**stage_files("in1", ALL_TIERS), "odd.root": tag}
+    sam = FakeSam(["in1"], {"in1": list(tags)}, tags)
+
+    with pytest.raises(OutputDefinitionsError, match="extra"):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert recorded(tmp_path) is None
+
+
+SIBLING = "mc_SBND2026A_prodgenie_corsika_proton_rockbox0p1_sbnd_PDS_detvar_v10_14_02_0602"
+
+
+def sibling_sam():
+    """One input run by this stage (Sample3) and by its sibling PDS_detvar,
+    same version."""
+    tags = {**stage_files("in1", ALL_TIERS), "sibling_reco1.root": f"{SIBLING}_reco1_sbnd"}
+    return FakeSam(["in1"], {"in1": list(tags)}, tags)
+
+
+def test_fallback_does_not_take_a_longer_named_siblings_definitions(tmp_path):
+    command = launch_command(tmp_path / "metadata_postscripts_gone.sh").replace("test_PDS_detvar_Sample3", "PDS_detvar")
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(command), sibling_sam())
+
+    assert names(definitions) == [f"{SIBLING}_reco1_sbnd"]
+
+
+def test_fallback_does_not_take_a_shorter_named_siblings_definitions(tmp_path):
+    command = launch_command(tmp_path / "metadata_postscripts_gone.sh")
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(command), sibling_sam())
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
 
 
 def test_postscript_pattern_with_no_file_under_it_is_fine(tmp_path):
@@ -229,29 +298,6 @@ def test_real_twin_of_a_test_campaign_is_not_a_disagreement(tmp_path):
     definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
 
     assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
-
-
-def test_lazy_sam_client_is_built_on_first_use_only(monkeypatch):
-    import sys
-    import types
-
-    from output_definitions import LazySamClient
-    built = []
-
-    class SAMWebClient:
-        def __init__(self, experiment):
-            built.append(experiment)
-
-        def listFiles(self, defname=None):
-            return [defname]
-
-    monkeypatch.setitem(sys.modules, "samweb_client", types.SimpleNamespace(SAMWebClient=SAMWebClient))
-
-    sam = LazySamClient("sbnd")
-    assert built == []
-    assert sam.listFiles(defname="ds") == ["ds"]
-    assert sam.listFiles(defname="ds2") == ["ds2"]
-    assert built == ["sbnd"]
 
 
 def test_missing_postscript_falls_back_to_scoped_lineage_and_logs_it(tmp_path, caplog):

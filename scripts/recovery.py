@@ -9,6 +9,7 @@ import os
 import subprocess
 
 import output_definitions
+import sam_client
 import state
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,11 +30,11 @@ def _mark_handled(cfg):
 
 
 def _direct_output_names(cfg, session, sam):
-    """Names of the depth-one output definitions. Raises
+    """Names of the depth-one Output Definitions. Raises
     OutputDefinitionsError when there are none."""
-    if sam is None:
-        sam = output_definitions.LazySamClient(cfg["experiment"])
-    names = output_definitions.depth_one_names(output_definitions.get_output_definitions(cfg, session, sam))
+    sam = sam_client.get_sam_client(cfg["experiment"], sam)
+    definitions = output_definitions.get_output_definitions(cfg, session, sam)
+    names = [d["name"] for d in definitions if d["depth"] == 1]
     if not names:
         raise output_definitions.OutputDefinitionsError("no output definition is a direct child of the input")
     return names
@@ -56,7 +57,7 @@ def run_recovery_script(input_dataset, campaign_name, prestage_log, output_names
 
 def evaluate_and_run_recovery(cfg, session, sam=None):
     """Runs at most once per campaign stage. `sam` is the SAM client the
-    output definitions are inferred with; the real one when None. Returns
+    Output Definitions are inferred with; the real one when None. Returns
     'output_definitions_failed' | 'recovery_script_failed' |
     'no_recovery_needed' | 'recovery_plan_failed' | 'recovery_submitted' |
     'recovery_submit_failed'."""
