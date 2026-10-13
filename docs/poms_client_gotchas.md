@@ -290,6 +290,35 @@ without it.
   `docs/raw/sam_getMetadata_reco1.json`; a file SAM does not know is left
   out, not an error.
 
+## A retired file is gone from every SAM query but its parent's children
+
+Probed read-only on 2026-10-13 (`docs/raw/sam_retired_file_2026-10-13.txt`).
+SAM answers for a retired file exactly as for a file it never had:
+
+- `getMetadata(f)`, `getFileLineage("children", f)`,
+  `getFileLineage("parents", f)` and `locateFile(f)` raise
+  `samweb_client.exceptions.FileNotFound`.
+- `getMultipleMetadata([f])` leaves it out.
+- `listFiles` never returns it, not even with `availability: retired` or
+  `availability: anylocation`. A definition built on
+  `availability: retired` is therefore empty.
+- `getFileLineage("children", <its parent>)` still lists it. This is the
+  only query that shows it.
+
+What follows for this repo:
+
+- A list of children can hold names that cannot be read. Code that walks
+  down the lineage must take `FileNotFound` on such a child as "nothing to
+  read here" (`output_definitions._children`, `duplicate_cleanup._children`).
+  `sam_client.is_file_not_found()` matches the exception by class name.
+- A retired file's Dataset.Tag and parents cannot be read. A file under a
+  retired parent can be recognised (its own metadata names a parent SAM does
+  not have), but its input cannot be found through that parent.
+- Retired files cannot be found again through SAM. Cleanup writes their
+  full paths to `logs/<campaign_name>/<definition>_retired_files.txt`
+  before it retires them (docs/adr/0021).
+- `test/helpers.py`'s `FakeSam` behaves this way.
+
 ## samweb CLI output shapes (scripts/run_recovery.sh)
 
 Confirmed live 2026-09-02 against

@@ -336,9 +336,58 @@ def test_file_under_an_already_retired_parent_is_retired_not_promoted():
 
     assert plan["inputs"]["gen_1.root"]["kept_process_id"] == 100
     assert plan["inputs"]["gen_1.root"]["kept"] == {"reco1_def": ["reco1_a.root"]}
-    assert plan["inputs"]["gen_1.root"]["retired"] == {"hist_def": ["hist_b.root"], "caf_def": ["caf_b.root"]}
+    assert plan["inputs"]["gen_1.root"]["retired"] == {}
+    # SAM cannot read a retired file's parents, so the input is unknown:
+    # the files are planned under the retired ancestor's name.
+    assert plan["inputs"]["reco1_b.root"]["kept"] == {}
+    assert plan["inputs"]["reco1_b.root"]["retired"] == {"hist_def": ["hist_b.root"], "caf_def": ["caf_b.root"]}
     by_name = {d["name"]: d for d in plan["definitions"]}
-    assert by_name["caf_def"]["retire"][0]["reason"] == "parent reco1_b.root is retired"
+    assert by_name["caf_def"]["retire"] == [{
+        "file": "caf_b.root", "input": "reco1_b.root", "process_id": 50,
+        "reason": "parent reco1_b.root is retired",
+    }]
+    assert by_name["hist_def"]["retire"][0]["reason"] == "parent caf_b.root is retired"
+    assert all(d["ungrouped"] == [] for d in plan["definitions"])
+
+
+def test_file_under_a_retired_ancestor_outside_the_definitions_is_retired():
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add(None, "reco1_b.root", "gen_1.root", 200)
+    sam.add(None, "reco2_b.root", "reco1_b.root", 200)
+    sam.add("hist_def", "hist_b.root", "reco2_b.root", 40)
+    sam.retired.add("reco1_b.root")
+
+    plan = plan_cleanup([{"name": "hist_def", "depth": 3}], sam)
+
+    assert plan["definitions"][0]["retire"] == [{
+        "file": "hist_b.root", "input": "reco1_b.root", "process_id": 40,
+        "reason": "ancestor reco1_b.root is retired",
+    }]
+
+
+def test_ancestor_left_out_of_a_bulk_read_but_readable_by_name_is_not_taken_as_retired():
+    sam = chained_campaign()
+    bulk = sam.getMultipleMetadata
+    sam.getMultipleMetadata = lambda names: [md for md in bulk(names) if md["file_name"] != "reco1_b.root"]
+
+    plan = plan_cleanup([CAF], sam)
+
+    assert plan["inputs"]["gen_1.root"]["kept"] == {"caf_def": ["caf_a.root"]}
+    assert plan["inputs"]["gen_1.root"]["retired"] == {"caf_def": ["caf_b.root"]}
+
+
+def test_error_reading_an_ancestor_by_name_fails_the_plan():
+    sam = chained_campaign()
+    sam.retired.add("reco1_b.root")
+
+    def broken(name):
+        raise RuntimeError("503 Service Unavailable")
+
+    sam.getMetadata = broken
+
+    with pytest.raises(RuntimeError, match="503"):
+        plan_cleanup([RECO1, CAF], sam)
 
 
 def test_input_whose_only_files_hang_under_a_retired_parent_is_still_planned(tmp_path):
@@ -354,14 +403,17 @@ def test_input_whose_only_files_hang_under_a_retired_parent_is_still_planned(tmp
     assert sam.retired == {"reco1_b.root", "caf_b.root"}
 
 
-def test_recorded_depth_that_stops_at_a_retired_output_file_is_ungrouped():
+def test_recorded_depth_that_stops_at_a_retired_output_file_fails_the_cleanup(tmp_path):
     sam = chained_campaign()
     sam.retired.add("reco1_b.root")
 
-    plan = plan_cleanup([RECO1, {"name": "caf_def", "depth": 1}], sam)
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, {"name": "caf_def", "depth": 1}], sam)
 
-    by_name = {d["name"]: d for d in plan["definitions"]}
-    assert [u["file"] for u in by_name["caf_def"]["ungrouped"]] == ["caf_a.root", "caf_b.root"]
+    # caf_b's parent cannot be read, so it cannot be told from an input;
+    # its sibling under the live reco1_a still stops the cleanup.
+    assert result["ok"] is False
+    assert "caf_a.root" in result["failure"]["error"]
+    assert sam.retire_calls == []
 
 
 # --- children guard: retired children ---
@@ -374,6 +426,34 @@ def test_retired_child_does_not_block_its_parent():
 
     assert [r["file"] for r in retired(plan)["reco1_def"]] == ["reco1_200.root"]
     assert plan["definitions"][1]["skipped"] == []
+
+
+def test_file_retired_while_planning_counts_as_having_no_children():
+    sam = duplicated_campaign()
+    lineage = sam.getFileLineage
+
+    def retired_meanwhile(kind, name):
+        sam.retired.add(name)
+        return lineage(kind, name)
+
+    sam.getFileLineage = retired_meanwhile
+
+    plan = plan_cleanup([RECO1], sam)
+
+    assert [r["file"] for r in retired(plan)["reco1_def"]] == ["reco1_101.root", "reco1_201.root"]
+    assert plan["definitions"][0]["skipped"] == []
+
+
+def test_other_error_reading_children_fails_the_plan():
+    sam = duplicated_campaign()
+
+    def broken(kind, name):
+        raise RuntimeError("503 Service Unavailable")
+
+    sam.getFileLineage = broken
+
+    with pytest.raises(RuntimeError, match="503"):
+        plan_cleanup([RECO1], sam)
 
 
 # --- grouping ---
@@ -450,7 +530,6 @@ def test_ungrouped_files_fail_the_cleanup_before_anything_is_retired(tmp_path, d
     assert "reco1_orphan.root" in result["failure"]["error"]
     assert "reco1_unknown.root" in result["failure"]["error"]
     assert sam.retire_calls == []
-    assert sam.created_definitions == {}
     assert state.read(cfg, "cleanup") is None
     with open(result["plan_path"]) as f:
         assert len(json.load(f)["definitions"][1]["ungrouped"]) == 2
@@ -488,8 +567,8 @@ def test_metadata_is_read_in_batches(monkeypatch):
 
     plan = plan_cleanup([RECO1], sam)
 
-    # The output files, then their inputs.
-    assert sam.batch_sizes == [2, 2, 1, 2, 2, 1]
+    # Only the output files: the inputs themselves are not read.
+    assert sam.batch_sizes == [2, 2, 1]
     assert len(plan["inputs"]) == 5
 
 
@@ -625,48 +704,6 @@ def test_file_already_retired_counts_as_success(tmp_path, caplog):
     assert "cleanup: reco1_101.root from reco1_def is already retired" in cleanup_log(tmp_path)
 
 
-# --- retired-files definition ---
-
-def test_retired_files_definition_is_created_per_cleaned_definition(tmp_path):
-    sam = duplicated_campaign()
-    sam.add("caf_flat_def", "caf_100.root", "gen_1.root", 100)
-
-    clean_definitions(make_cfg(tmp_path), [RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
-
-    assert sam.created_definitions == {
-        "reco1_def_retired_files": "dataset.tag reco1_def and availability: retired",
-        "larcv_def_retired_files": "dataset.tag larcv_def and availability: retired",
-    }
-
-
-def test_existing_retired_files_definition_is_left_alone(tmp_path):
-    sam = duplicated_campaign()
-    sam.created_definitions["reco1_def_retired_files"] = "made by an earlier cleanup"
-
-    result = clean_definitions(make_cfg(tmp_path), [RECO1], sam)
-
-    assert result["ok"] is True
-    assert sam.created_definitions == {"reco1_def_retired_files": "made by an earlier cleanup"}
-
-
-def test_failure_looking_up_the_retired_files_definition_is_reported(tmp_path):
-    sam = duplicated_campaign()
-
-    def broken(defname):
-        raise RuntimeError("503 Service Unavailable")
-
-    sam.descDefinitionDict = broken
-
-    result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], sam)
-
-    assert result["ok"] is False
-    assert result["failure"] == {
-        "definition": "larcv_def", "file": None, "error": "503 Service Unavailable",
-    }
-    assert sam.created_definitions == {}
-    assert not any(f.startswith("reco1") for f in sam.retire_calls)
-
-
 # --- list of the retired files' full paths ---
 
 def retired_list(tmp_path, definition="reco1_def"):
@@ -747,14 +784,33 @@ def test_resume_keeps_the_entries_already_listed(tmp_path):
     sam.fail_on_retire = {"reco1_201.root"}
     assert clean_definitions(cfg, [RECO1], sam)["ok"] is False
     sam.fail_on_retire = set()
-    # SAM may not locate a file once it is retired.
-    sam.locations["reco1_101.root"] = []
 
     assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
 
     assert retired_list(tmp_path).read_text() == (
         "/pnfs/sbnd/fake/reco1_def/reco1_101.root\n/pnfs/sbnd/fake/reco1_def/reco1_201.root\n"
     )
+
+
+def test_resume_without_the_list_names_the_files_already_retired(tmp_path):
+    sam = duplicated_campaign()
+    cfg = make_cfg(tmp_path)
+    sam.fail_on_retire = {"reco1_201.root"}
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is False
+    sam.fail_on_retire = set()
+    retired_list(tmp_path).unlink()
+
+    assert clean_definitions(cfg, [RECO1], sam)["ok"] is True
+
+    assert retired_list(tmp_path).read_text() == "reco1_101.root\n/pnfs/sbnd/fake/reco1_def/reco1_201.root\n"
+    assert "cleanup: reco1_101.root from reco1_def is not in SAM any more" in cleanup_log(tmp_path)
+
+
+def test_no_sam_definition_is_created(tmp_path):
+    sam = duplicated_campaign()
+    sam.createDefinition = lambda *args, **kwargs: pytest.fail("createDefinition called")
+
+    assert clean_definitions(make_cfg(tmp_path), [RECO1, LARCV], sam)["ok"] is True
 
 
 def test_dry_run_writes_the_list_too(tmp_path):
@@ -785,7 +841,6 @@ def test_dry_run_writes_the_plan_and_changes_nothing(tmp_path, caplog):
     with open(plan_path(cfg)) as f:
         assert json.load(f) == plan_cleanup([RECO1], duplicated_campaign())
     assert sam.retire_calls == []
-    assert sam.created_definitions == {}
     assert state.read(cfg, "cleanup") is None
     assert (
         "INFO [dry run] cleanup: would retire reco1_201.root from reco1_def "
@@ -965,6 +1020,18 @@ def test_retired_parent_fails_verification_naming_the_input(tmp_path, caplog):
     assert state.read(cfg, "cleanup")["finished"] is False
 
 
+def test_live_file_under_a_retired_parent_that_is_not_in_the_plan_fails_verification():
+    sam = chained_campaign()
+    plan = plan_cleanup([RECO1, CAF], sam)
+    for f in ("caf_b.root", "reco1_b.root"):
+        sam.retireFile(f)
+    sam.add("caf_def", "caf_late.root", "reco1_b.root", 500)
+
+    assert verify_plan(plan, sam) == {
+        "reco1_b.root": ["caf_def: caf_late.root is live but not in the plan (parent reco1_b.root is retired)"],
+    }
+
+
 def test_parent_inside_a_cleaned_definition_is_checked_too():
     sam = two_level_campaign()
     sam.add(None, "gen_1.root", None)
@@ -1078,7 +1145,6 @@ def test_per_file_lines_go_to_the_cleanup_log_and_not_the_main_log(tmp_path, cap
     assert "cleanup: larcv_def: start, 1 file(s) to retire" in detail
     assert "cleanup: retired larcv_201.root from larcv_def" in detail
     assert "cleanup: larcv_101.root from larcv_def left in place" in detail
-    assert "cleanup: larcv_def: created definition larcv_def_retired_files" in detail
 
 
 def test_failure_is_in_both_logs(tmp_path, caplog):

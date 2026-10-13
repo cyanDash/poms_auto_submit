@@ -2,7 +2,8 @@
 Stage, keeping one worker's chain of outputs per input across its Output
 Definitions. Files are only ever retired: no location is removed and nothing
 on disk is deleted. Before a definition's files are retired their full paths
-are listed in <cache_dir>/<definition>_retired_files.txt. Per-file lines are
+are listed in <cache_dir>/<definition>_retired_files.txt, the only record of
+them: SAM cannot list a retired file. Per-file lines are
 logged to <cache_dir>/<campaign_stage_name>_cleanup.log only; the root logger
 gets the summary lines. See docs/adr/0021.
 
@@ -22,6 +23,7 @@ import re
 import sys
 from collections import defaultdict
 
+import sam_client
 import state
 
 METADATA_BATCH_SIZE = 500
@@ -77,16 +79,46 @@ def _input_key(name):
     return name if dash < 0 else name[:dash]
 
 
+def _metadata_row(md):
+    return {
+        "process_id": md.get("process_id"),
+        "parents": [p["file_name"] for p in md.get("parents") or []],
+        "tag": md.get("Dataset.Tag"),
+    }
+
+
 def _fetch_metadata(sam, names, known):
     """Adds {name: {process_id, parents, tag}} to `known` for every name
-    SAM knows and `known` lacks."""
+    SAM has and `known` lacks. SAM leaves out a retired file."""
     for batch in _batches(set(names) - set(known), METADATA_BATCH_SIZE):
         for md in sam.getMultipleMetadata(batch):
-            known[md["file_name"]] = {
-                "process_id": md.get("process_id"),
-                "parents": [p["file_name"] for p in md.get("parents") or []],
-                "tag": md.get("Dataset.Tag"),
-            }
+            known[md["file_name"]] = _metadata_row(md)
+
+
+def _is_gone(sam, name, known, gone):
+    """Whether SAM no longer has `name`, a file the bulk read left out. A
+    file readable by name is added to `known`; one that is not, to `gone`."""
+    if name in gone:
+        return True
+    try:
+        known[name] = _metadata_row(sam.getMetadata(name))
+    except Exception as e:
+        if not sam_client.is_file_not_found(e):
+            raise
+        gone.add(name)
+        return True
+    return False
+
+
+def _children(sam, name):
+    """The children of `name`, retired ones included; none when SAM no
+    longer has `name` itself."""
+    try:
+        return [c["file_name"] for c in sam.getFileLineage("children", name)]
+    except Exception as e:
+        if not sam_client.is_file_not_found(e):
+            raise
+        return []
 
 
 def _live_names(sam, names):
@@ -97,31 +129,41 @@ def _live_names(sam, names):
     return live
 
 
-def _ancestor_chains(sam, files, depth, known):
-    """({file: [first parent, its first parent, ...] of length `depth`},
-    {file: why the chain stops early})."""
+def _ancestor_chains(sam, files, depth, known, gone):
+    """({file: [first parent, its first parent, ...]}, {file: why it has no
+    chain}, {file: its retired ancestor}). A chain is `depth` long, or ends
+    at the retired ancestor: a parent named by a file SAM has, which SAM
+    itself no longer has. `gone` collects those names."""
     chains = {f: [] for f in files}
     current = {f: f for f in files}
     failed = {}
+    retired_ancestor = {}
     for _ in range(depth):
         _fetch_metadata(sam, current.values(), known)
         above = {}
         for f, name in current.items():
-            if name not in known:
+            if name not in known and name == f:
                 failed[f] = f"no metadata in SAM for {name}"
+            elif name not in known and _is_gone(sam, name, known, gone):
+                retired_ancestor[f] = name
             elif not known[name]["parents"]:
                 failed[f] = f"{name} has no parent"
             else:
                 above[f] = known[name]["parents"][0]
                 chains[f].append(above[f])
         current = above
-    return {f: chains[f] for f in current}, failed
+    return {f: chain for f, chain in chains.items() if f not in failed}, failed, retired_ancestor
+
+
+def _retired_ancestor_reason(chain):
+    """Why a file whose chain ends at a retired ancestor is retired."""
+    return f"{'parent' if len(chain) == 1 else 'ancestor'} {chain[-1]} is retired"
 
 
 def _depth_fault(chain, depth, stage_definition, depth_of, ungrouped):
     """Why a file's recorded `depth` does not lead to an input, or None.
     `chain` is its ancestors, nearest first; `stage_definition(name)` is the
-    cleaned definition a file belongs to, live or retired, or None."""
+    cleaned definition a live file belongs to, or None."""
     if not chain:
         return f"depth {depth} does not lead to an input"
     root = chain[-1]
@@ -159,7 +201,8 @@ def _kept_files(group, known, definition_of, covered):
 
 def plan_cleanup(definitions, sam):
     """The cleanup plan for `definitions` ([{name, depth}]), read from `sam`
-    (listFiles, getMultipleMetadata, getFileLineage); nothing is changed.
+    (listFiles, getMultipleMetadata, getMetadata, getFileLineage); nothing
+    is changed.
 
     Per input, one worker is kept among the files nearest the input, then
     one among the files under each kept file, and so on down; everything
@@ -170,11 +213,14 @@ def plan_cleanup(definitions, sam):
     "definitions" is deepest first, each {name, depth, retire, skipped,
     ungrouped, totals}. "inputs" maps each input to {kept_process_id,
     fallback, kept, retired, skipped}, the last three keyed by definition.
-    A plan with any `ungrouped` file must not be applied.
+    SAM cannot read the parents of a retired file, so files under an
+    already retired ancestor are listed under that ancestor's name instead
+    of their input's. A plan with any `ungrouped` file must not be applied.
     """
     ordered = sorted(definitions, key=lambda d: (-d["depth"], d["name"]))
     depth_of = {d["name"]: d["depth"] for d in ordered}
     known = {}
+    gone = set()
     report = {}
     listed = {}
     definition_of = {}
@@ -187,11 +233,6 @@ def plan_cleanup(definitions, sam):
         }
         definition_of.update({f: d["name"] for f in listed[d["name"]]})
 
-    def stage_definition(name):
-        """The cleaned definition `name` belongs to, live or retired."""
-        tag = known.get(name, {}).get("tag")
-        return definition_of.get(name) or (tag if tag in depth_of else None)
-
     # Shallowest first, so a file's ancestors are grouped before it is.
     ungrouped = set()
     input_of = {}
@@ -199,23 +240,23 @@ def plan_cleanup(definitions, sam):
     under = defaultdict(list)
     orphans = defaultdict(list)
     for d in reversed(ordered):
-        chains, failed = _ancestor_chains(sam, listed[d["name"]], d["depth"], known)
-        _fetch_metadata(sam, [chain[-1] for chain in chains.values() if chain], known)
+        chains, failed, retired_ancestor = _ancestor_chains(sam, listed[d["name"]], d["depth"], known, gone)
         for f in listed[d["name"]]:
-            reason = failed.get(f) or _depth_fault(chains[f], d["depth"], stage_definition, depth_of, ungrouped)
+            reason = failed.get(f)
+            if not reason and f not in retired_ancestor:
+                reason = _depth_fault(chains[f], d["depth"], definition_of.get, depth_of, ungrouped)
             if reason:
                 ungrouped.add(f)
                 report[d["name"]]["ungrouped"].append({"file": f, "reason": reason})
                 continue
             input_of[f] = _input_key(chains[f][-1])
-            parent = next((a for a in chains[f][:-1] if stage_definition(a)), None)
-            if parent is None:
-                by_input[input_of[f]].append(f)
-            elif parent in definition_of:
+            parent = next((a for a in chains[f][:-1] if a in definition_of), None)
+            if parent is not None:
                 under[parent].append(f)
+            elif f in retired_ancestor:
+                orphans[input_of[f]].append((f, _retired_ancestor_reason(chains[f])))
             else:
-                # The parent is one of the stage's files and already retired.
-                orphans[input_of[f]].append((f, parent))
+                by_input[input_of[f]].append(f)
 
     covers = {}
 
@@ -236,8 +277,8 @@ def plan_cleanup(definitions, sam):
     for key in sorted(set(by_input) | set(orphans)):
         plan_input = {"kept_process_id": None, "fallback": False, "kept": {}, "retired": {}, "skipped": {}}
         inputs[key] = plan_input
-        for f, parent in orphans[key]:
-            retire_with_descendants(f, f"parent {parent} is retired")
+        for f, reason in orphans[key]:
+            retire_with_descendants(f, reason)
         groups = [(None, by_input[key])] if by_input[key] else []
         while groups:
             parent, group = groups.pop()
@@ -265,10 +306,7 @@ def plan_cleanup(definitions, sam):
     for d in ordered:
         entry = report[d["name"]]
         rows = sorted(candidates[d["name"]], key=lambda row: (row["input"], row["file"]))
-        children = {
-            row["file"]: [c["file_name"] for c in sam.getFileLineage("children", row["file"])]
-            for row in rows
-        }
+        children = {row["file"]: _children(sam, row["file"]) for row in rows}
         # A retired child does not hold its parent back.
         live = _live_names(sam, {c for cs in children.values() for c in cs if c not in retiring})
         for row in rows:
@@ -323,8 +361,8 @@ def _retired_files_list_path(cfg, definition):
 def _list_retired_files(cfg, definition, files, sam):
     """Adds the full path of each of `files` to the definition's
     retired-files list, one `<path>/<file name>` per line, keeping the
-    lines already there. A file SAM has no location for is listed by name.
-    Locations are only read."""
+    lines already there. A file SAM has no location for, or no longer has,
+    is listed by name. Locations are only read."""
     path = _retired_files_list_path(cfg, definition)
     try:
         with open(path) as f:
@@ -335,7 +373,14 @@ def _list_retired_files(cfg, definition, files, sam):
     for name in files:
         if name in listed:
             continue
-        locations = sam.locateFile(name)
+        try:
+            locations = sam.locateFile(name)
+        except Exception as e:
+            if not sam_client.is_file_not_found(e):
+                raise
+            _DETAIL.warning("cleanup: %s from %s is not in SAM any more -- listed by name only", name, definition)
+            lines.append(name)
+            continue
         if locations:
             directory = LOCATION_PREFIX_PATTERN.sub("", locations[0]["full_path"]).rstrip("/")
             lines.append(f"{directory}/{name}")
@@ -346,32 +391,15 @@ def _list_retired_files(cfg, definition, files, sam):
     _DETAIL.info("cleanup: %s: full paths of the %d file(s) to retire written to %s", definition, len(files), path)
 
 
-def _ensure_retired_files_definition(sam, definition):
-    """Creates `<definition>_retired_files` unless SAM already has it."""
-    name = f"{definition}_retired_files"
-    dimensions = f"dataset.tag {definition} and availability: retired"
-    try:
-        sam.descDefinitionDict(name)
-    except Exception as e:
-        # samweb_client's own exception, matched by name so this module
-        # imports without samweb_client.
-        if type(e).__name__ != "DefinitionNotFound":
-            raise
-        sam.createDefinition(name, dimensions)
-        _DETAIL.info("cleanup: %s: created definition %s (%s)", definition, name, dimensions)
-    else:
-        _DETAIL.info("cleanup: %s: definition %s already exists -- left as it is", definition, name)
-
-
 def _retire_reason(row, plan):
     why = row.get("reason") or "kept process id %s" % plan["inputs"][row["input"]]["kept_process_id"]
     return f"input {row['input']}, {why}"
 
 
 def _apply_definition(cfg, entry, plan, sam, dry_run):
-    """Lists the full paths of one definition's planned files, retires
-    them, then makes sure its retired-files definition exists. Returns
-    None, or the first failure as {definition, file, error}."""
+    """Lists the full paths of one definition's planned files, then
+    retires them. Returns None, or the first failure as {definition, file,
+    error}."""
     name = entry["name"]
     f = None
     _DETAIL.info("cleanup: %s: start, %d file(s) to retire", name, len(entry["retire"]))
@@ -392,8 +420,6 @@ def _apply_definition(cfg, entry, plan, sam, dry_run):
                 sam.retireFile(f)
                 _DETAIL.info("cleanup: retired %s from %s (%s)", f, name, reason)
         f = None
-        if entry["retire"] and not dry_run:
-            _ensure_retired_files_definition(sam, name)
     except Exception as e:
         if f is None:
             _summary(logging.ERROR, "cleanup: %s failed", name, exc_info=True)
@@ -463,10 +489,14 @@ def verify_plan(plan, sam):
             planned.update(plan_input["retired"].get(name, []))
             planned.update(s["file"] for s in plan_input["skipped"].get(name, []))
         extra = sorted(live[name] - planned)
-        chains, failed = _ancestor_chains(sam, extra, entry["depth"], {}) if extra else ({}, {})
+        chains, failed, retired_ancestor = _ancestor_chains(sam, extra, entry["depth"], {}, set())
         for f in extra:
             if f in failed:
                 bad[f].append(f"{name}: {f} is live but not in the plan ({failed[f]})")
+            elif f in retired_ancestor:
+                bad[_input_key(chains[f][-1])].append(
+                    f"{name}: {f} is live but not in the plan ({_retired_ancestor_reason(chains[f])})"
+                )
             else:
                 bad[_input_key(chains[f][-1])].append(f"{name}: {f} is live but not in the plan")
     return dict(bad)

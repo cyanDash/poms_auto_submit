@@ -1,4 +1,4 @@
-from sam_client import get_sam_client
+from sam_client import get_sam_client, is_file_not_found
 
 
 def test_real_client_is_built_on_first_use_only(monkeypatch):
@@ -21,6 +21,13 @@ def test_real_client_is_built_on_first_use_only(monkeypatch):
     assert sam.listFiles(defname="ds") == ["ds"]
     assert sam.listFiles(defname="ds2") == ["ds2"]
     assert built == ["sbnd"]
+
+
+def test_file_not_found_is_recognised_by_class_name_only():
+    from helpers import FileNotFound
+
+    assert is_file_not_found(FileNotFound("File 'f' not found")) is True
+    assert is_file_not_found(RuntimeError("File 'f' not found")) is False
 
 
 def test_given_client_is_returned_as_it_is():

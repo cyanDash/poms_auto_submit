@@ -8,6 +8,7 @@ import logging
 import re
 from fnmatch import fnmatchcase
 
+import sam_client
 import state
 
 SECTION = "output_definitions"
@@ -197,4 +198,11 @@ def _walk_descendants(sam, level, tags):
 
 
 def _children(sam, file_name):
-    return [child["file_name"] for child in sam.getFileLineage("children", file_name)]
+    """The children of `file_name`; none when SAM does not have the file
+    (it is retired or unknown)."""
+    try:
+        return [child["file_name"] for child in sam.getFileLineage("children", file_name)]
+    except Exception as e:
+        if not sam_client.is_file_not_found(e):
+            raise
+        return []

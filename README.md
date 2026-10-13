@@ -111,8 +111,7 @@ What it does, in one run, under the same lock:
 3. **Retire.** The marked files are retired in SAM, one definition at a
    time, deepest tier first. Before a definition's first file is retired,
    the full paths of its marked files are written to
-   `logs/<campaign_name>/<definition>_retired_files.txt`. For each
-   definition a SAM definition `<definition>_retired_files` is created.
+   `logs/<campaign_name>/<definition>_retired_files.txt`.
 4. **Verify.** Each input must have only its kept files live, with live
    parents.
 5. **Switch off.** Only when verification passes, `"switch": false` is
@@ -122,13 +121,18 @@ Things to know:
 
 - **Nothing is deleted.** Files are only retired in SAM. No location is
   removed and no file is deleted from disk. Delete them yourself later,
-  using `<definition>_retired_files` as the list.
-- **To put retired files back**, build a new definition from the cleaned one
-  plus the retired-files one:
-  `samweb create-definition <new name> "defname: <definition> or defname: <definition>_retired_files"`.
-  Check its file count before you use it. If SAM cannot list the retired
-  files, `<definition>_retired_files.txt` has their full paths for
-  fife_utils' `sam_add_dataset`.
+  using `<definition>_retired_files.txt` as the list.
+- **Keep `<definition>_retired_files.txt`.** It is the only record of what
+  was retired. SAM cannot list a retired file, not even with
+  `availability: retired` (see `docs/poms_client_gotchas.md`), so no SAM
+  definition of the retired files is made.
+- **A retirement cannot be undone with a SAM query.** To put files back,
+  declare them again from the paths in `<definition>_retired_files.txt`
+  with fife_utils' `sam_add_dataset`. This has not been tried yet. Test it
+  on a few files first.
+- **Files under an already retired file are retired too.** SAM cannot say
+  which input they belong to, so the plan lists them under the retired
+  file's name instead of an input's.
 - **A file that cannot be placed under an input stops the cleanup** before
   anything is retired (no metadata, no parent, or a wrong depth in
   `output_definitions`). The error names the files; the plan lists them as

@@ -192,7 +192,6 @@ def test_dry_run_writes_the_plan_and_retires_nothing(tmp_path, caplog):
         "larcv_def": ["larcv_101.root"], "reco1_def": ["reco1_101.root"],
     }
     assert sam.retire_calls == []
-    assert sam.created_definitions == {}
     assert_switch_still_on(cfg)
     assert state.read(cfg, "cleanup") is None
     assert f"dry-run: plan written to {plan_path(cfg)}" in caplog.text

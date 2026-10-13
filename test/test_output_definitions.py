@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 import state
-from helpers import make_cfg
+from helpers import FileNotFound, make_cfg
 from output_definitions import OutputDefinitionsError, get_output_definitions
 
 RAW = Path(__file__).resolve().parent.parent / "docs" / "raw"
@@ -107,10 +107,11 @@ class FakeSession:
 class FakeSam:
     """children: {file: [child, ...]}; tags: {file: Dataset.Tag}."""
 
-    def __init__(self, inputs, children, tags):
+    def __init__(self, inputs, children, tags, gone=()):
         self.inputs = inputs
         self.children = children
         self.tags = tags
+        self.gone = set(gone)
 
     def listFiles(self, dimensions=None, defname=None):
         assert defname == INPUT_DATASET
@@ -118,10 +119,15 @@ class FakeSam:
 
     def getFileLineage(self, lineagetype, name):
         assert lineagetype == "children"
+        if name in self.gone:
+            raise FileNotFound(f"File '{name}' not found")
         return [{"file_name": c, "file_id": i} for i, c in enumerate(self.children.get(name, []))]
 
     def getMultipleMetadata(self, names):
-        return [{"file_name": n, "Dataset.Tag": self.tags[n]} for n in names if n in self.tags]
+        return [
+            {"file_name": n, "Dataset.Tag": self.tags[n]}
+            for n in names if n in self.tags and n not in self.gone
+        ]
 
 
 def shared_input_sam():
@@ -362,6 +368,49 @@ def test_depth_two_descendants_are_recorded_with_depth_two(tmp_path):
         {"name": f"{STAGE}_reco1_sbnd", "depth": 1},
         {"name": f"{STAGE}_caf_sbnd", "depth": 2},
     ]
+
+
+# --- retired files: docs/raw/sam_retired_file_2026-10-13.txt ---
+
+def test_retired_descendant_is_skipped(tmp_path):
+    children = {"in1": ["reco1_old.root", "reco1.root"], "reco1.root": ["caf.root"], "reco1_old.root": ["caf_old.root"]}
+    tags = {
+        "reco1.root": f"{STAGE}_reco1_sbnd", "caf.root": f"{STAGE}_caf_sbnd",
+        "reco1_old.root": f"{STAGE}_larcvreco1_sbnd", "caf_old.root": f"{STAGE}_histreco2_sbnd",
+    }
+    sam = FakeSam(["in1"], children, tags, gone={"reco1_old.root"})
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert definitions == [
+        {"name": f"{STAGE}_reco1_sbnd", "depth": 1},
+        {"name": f"{STAGE}_caf_sbnd", "depth": 2},
+    ]
+
+
+def test_input_that_is_gone_is_skipped(tmp_path):
+    files = stage_files("in2", ALL_TIERS)
+    sam = FakeSam(["in1", "in2"], {"in1": ["never_read.root"], "in2": list(files)}, files, gone={"in1"})
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert len(definitions) == 5
+
+
+def test_other_sam_error_in_the_lineage_walk_propagates(tmp_path):
+    sam = FakeSam(["in1"], {"in1": ["reco1.root"]}, {"reco1.root": f"{STAGE}_reco1_sbnd"})
+    lineage = sam.getFileLineage
+
+    def broken(lineagetype, name):
+        if name == "reco1.root":
+            raise RuntimeError("503 Service Unavailable")
+        return lineage(lineagetype, name)
+
+    sam.getFileLineage = broken
+
+    with pytest.raises(RuntimeError, match="503"):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+    assert recorded(tmp_path) is None
 
 
 def test_test_launch_returns_definitions_but_never_writes_the_section(tmp_path):

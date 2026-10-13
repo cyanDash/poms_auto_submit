@@ -43,6 +43,13 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   under one kept parent are
   grouped by that parent and settled by the same rule. A flat campaign has
   one group per input, so nothing changes for it.
+- **A parent retired before the plan is recognised by its absence.** SAM
+  answers for a retired file as for one it never had (see "What SAM says
+  about a retired file" below). So an ancestor that a live file's metadata
+  names, that the bulk metadata read leaves out, and that `getMetadata`
+  reports as `FileNotFound`, is taken as retired. Its parents cannot be
+  read, so the input of the files under it is unknown: the plan lists them
+  under the retired ancestor's name instead of an input's.
 - **Fallback.** If any file of a group has no process id (seen on aurora
   outputs), that group keeps the first file by name in each definition. The
   plan marks the input as `fallback`.
@@ -58,20 +65,21 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
 - **Children guard.** A file is retired only if it has no live children, or
   all its live children are retired by the same plan. A child that is
   already retired does not count, so a plan made after a partial apply still
-  retires the parent. A file with other live children (for example a later
+  retires the parent. A file that SAM no longer has when its children are
+  read has none. A file with other live children (for example a later
   campaign used it as input) is left in place. It is listed in the plan and
   the log, and does not fail verification.
 - **Retire only.** A duplicate is retired in SAM. No location is removed and
-  nothing is deleted from disk. For each cleaned definition a definition
-  `<definition>_retired_files` is created
-  (`dataset.tag <definition> and availability: retired`), so the retired
-  files stay easy to find.
-- **Full paths are listed first.** Before the first file of a definition is
-  retired, the full paths of its files to retire are written to
-  `logs/<campaign_name>/<definition>_retired_files.txt`, one per line, as a
-  fallback for putting files back with `sam_add_dataset` if SAM cannot list
-  retired files. If the list cannot be written, nothing in that definition
-  is retired. A resume keeps the lines already written.
+  nothing is deleted from disk. No SAM definition of the retired files is
+  made: SAM cannot list a retired file, so it would be empty.
+- **Full paths are listed first, and that list is the record.** Before the
+  first file of a definition is retired, the full paths of its files to
+  retire are written to
+  `logs/<campaign_name>/<definition>_retired_files.txt`, one per line. If
+  the list cannot be written, nothing in that definition is retired. A
+  resume keeps the lines already written; a file already retired that is
+  missing from the list is added by name only, since SAM no longer gives
+  its location.
 - **Plan, apply, verify.** The plan is written to
   `logs/<campaign_name>/cleanup_plan_<ini name>.json` before anything
   changes. Progress is kept in the State File's `cleanup` section
@@ -89,17 +97,34 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   `cleanup` section is made.
 - **No cleanup under `test_launch`.** The gate stays shut.
 
+## What SAM says about a retired file
+
+Probed on live SAM on 2026-10-13
+(`docs/raw/sam_retired_file_2026-10-13.txt`, summarised in
+`docs/poms_client_gotchas.md`). A retired file is still listed among its
+parent's children. Every query on the file itself fails or leaves it out:
+`getMetadata`, `getFileLineage` and `locateFile` raise `FileNotFound`,
+`getMultipleMetadata` omits it, and `listFiles` never returns it, not even
+with `availability: retired`.
+
+An earlier version of this decision created a definition
+`<definition>_retired_files` (`dataset.tag <definition> and availability:
+retired`) for each cleaned definition. That definition would be empty, so
+it was dropped.
+
 ## Putting files back, or deleting them
 
 The script does neither. Both are left to the operator.
 
-- **Put files back.** Build a new definition from the cleaned one plus its
-  retired-files one, for example
-  `samweb create-definition <new name> "defname: <definition> or defname: <definition>_retired_files"`.
-  The files are still on disk with their locations, so the new definition is
-  usable as it is. This recipe has not been tried on live SAM yet; check the
-  file count of the new definition before using it.
-- **Delete from disk.** Take the file list from `<definition>_retired_files`
+- **A retirement cannot be undone through a SAM query.** No definition can
+  select the retired files. `<definition>_retired_files.txt` is the only
+  record of them, so it must be kept.
+- **Put files back.** Declare the files again from the paths in
+  `<definition>_retired_files.txt` with fife_utils' `sam_add_dataset`. The
+  files are still on disk. This is untested: it has not been tried on live
+  SAM, and it is not known whether the new declarations get the old
+  metadata and parents. Try it on a few files first.
+- **Delete from disk.** Take the paths from `<definition>_retired_files.txt`
   and delete by hand, once the cleaned definitions have been checked.
 
 ## Consequences
@@ -113,6 +138,12 @@ The script does neither. Both are left to the operator.
   fails verification, which names its input. To plan again, delete the
   `cleanup` section from the State File. This is safe after a partial apply:
   the children guard ignores the children already retired.
+- A recorded depth that is too shallow is caught when the walk stops at one
+  of the stage's live files. If it stops at a retired one, that file cannot
+  be told from a retired input: the file under it is grouped under it and
+  kept, and verification then fails because its parent is not live. A wrong
+  depth shows on the live files of the same definition first, and those stop
+  the cleanup before anything is retired.
 - A recorded depth that is too deep is only caught when the walk runs out of
   parents. If the input itself has a parent, the file is grouped under that
   parent instead.
@@ -124,3 +155,4 @@ The script does neither. Both are left to the operator.
   touched and not used.
 - A dry run with the gate open reads SAM (lineage, metadata, locations) and
   changes nothing there.
+- No production code creates a SAM definition for cleanup.

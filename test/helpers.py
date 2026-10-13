@@ -40,14 +40,16 @@ def sub(submission_id, subgroup=None):
     }
 
 
-class DefinitionNotFound(Exception):
-    """Same name as samweb_client.exceptions.DefinitionNotFound."""
+class FileNotFound(Exception):
+    """Same name as samweb_client.exceptions.FileNotFound."""
 
 
 class FakeSam:
     """Stands in for samweb_client.SAMWebClient: definitions, metadata in
     the shape of docs/raw/sam_getMetadata_reco1.json, and children derived
-    from the declared parents (docs/raw/sam_lineage.json)."""
+    from the declared parents (docs/raw/sam_lineage.json). A retired file,
+    like a file SAM never had, cannot be read by name and is only seen
+    among its parent's children (docs/raw/sam_retired_file_2026-10-13.txt)."""
 
     def __init__(self):
         self.definitions = {}
@@ -60,7 +62,6 @@ class FakeSam:
         self.retire_calls = []
         self.fail_on_retire = set()
         self.location_removals = []
-        self.created_definitions = {}
         self.dimension_queries = []
         self.locations = {}
         self.fail_on_locate = set()
@@ -83,6 +84,11 @@ class FakeSam:
         """A live child that belongs to no definition under cleanup."""
         self.extra_children.setdefault(parent, []).append(child)
         self.outside_files.add(child)
+
+    def _require(self, name):
+        known = name in self.metadata or name in self.outside_files
+        if name in self.retired or not known:
+            raise FileNotFound(f"File '{name}' not found")
 
     def listFiles(self, defname=None, dimensions=None):
         """Live files only, as SAM lists them by default."""
@@ -107,28 +113,27 @@ class FakeSam:
         """Shape of docs/raw/sam_lineage.json's `locate`."""
         if name in self.fail_on_locate:
             raise RuntimeError(f"500 Server Error locating {name}")
+        self._require(name)
         return [
             {"location_type": "disk", "full_path": full_path, "location": full_path}
             for full_path in self.locations.get(name, [])
         ]
 
-    def descDefinitionDict(self, defname):
-        if defname not in self.created_definitions:
-            raise DefinitionNotFound(defname)
-        return {"defname": defname, "dimensions": self.created_definitions[defname]}
-
-    def createDefinition(self, defname, dims):
-        assert defname not in self.created_definitions
-        self.created_definitions[defname] = dims
+    def getMetadata(self, name):
+        self._require(name)
+        return self.metadata[name]
 
     def getMultipleMetadata(self, names):
         names = list(names)
         self.batch_sizes.append(len(names))
-        return [self.metadata[n] for n in names if n in self.metadata]
+        return [self.metadata[n] for n in names if n in self.metadata and n not in self.retired]
 
     def getFileLineage(self, lineage, name):
-        assert lineage == "children"
+        assert lineage in ("children", "parents")
         self.lineage_calls.append(name)
+        self._require(name)
+        if lineage == "parents":
+            return [dict(p) for p in self.metadata.get(name, {}).get("parents", [])]
         children = [
             n for n, md in self.metadata.items()
             if md["parents"] and md["parents"][0]["file_name"] == name
