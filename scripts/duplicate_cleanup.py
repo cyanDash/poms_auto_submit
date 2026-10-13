@@ -1,7 +1,10 @@
 """duplicate_cleanup: retires the duplicate output files of a Campaign
 Stage, keeping one worker's chain of outputs per input across its Output
 Definitions. Files are only ever retired: no location is removed and nothing
-on disk is deleted. See docs/adr/0021.
+on disk is deleted. Before a definition's files are retired their full paths
+are listed in <cache_dir>/<definition>_retired_files.txt. Per-file lines are
+logged to <cache_dir>/<campaign_stage_name>_cleanup.log only; the root logger
+gets the summary lines. See docs/adr/0021.
 
 Public: clean_definitions() is the entry point (plan or resume, retire,
 verify); plan_cleanup() and verify_plan() are its two read-only halves;
@@ -11,9 +14,11 @@ By hand: python scripts/duplicate_cleanup.py --dataset A [--dataset B ...] [--dr
 """
 
 import argparse
+import contextlib
 import json
 import logging
 import os
+import re
 import sys
 from collections import defaultdict
 
@@ -23,6 +28,36 @@ METADATA_BATCH_SIZE = 500
 LIVE_CHECK_BATCH_SIZE = 200
 # Files named in one failure message; the plan file lists them all.
 MAX_FILES_NAMED = 20
+# The "dcache:" or "enstore:" in front of a location's full_path.
+LOCATION_PREFIX_PATTERN = re.compile(r"^\w+:")
+
+# Per-file lines; clean_definitions() gives it a file handler while it runs.
+_DETAIL = logging.getLogger("duplicate_cleanup.detail")
+_DETAIL.propagate = False
+_DETAIL.setLevel(logging.INFO)
+
+
+def _summary(level, message, *args, exc_info=False):
+    """Logs a summary line to the main log and to the cleanup log."""
+    logging.log(level, message, *args, exc_info=exc_info)
+    _DETAIL.log(level, message, *args, exc_info=exc_info)
+
+
+@contextlib.contextmanager
+def _cleanup_log(cfg, dry_run):
+    """Appends the per-file lines to the stage's cleanup log for the
+    duration; yields its path."""
+    path = os.path.join(cfg["cache_dir"], f"{cfg['campaign_stage_name']}_cleanup.log")
+    os.makedirs(cfg["cache_dir"], exist_ok=True)
+    handler = logging.FileHandler(path)
+    mark = "[dry run] " if dry_run else ""
+    handler.setFormatter(logging.Formatter(f"%(asctime)s %(levelname)s {mark}%(message)s"))
+    _DETAIL.addHandler(handler)
+    try:
+        yield path
+    finally:
+        _DETAIL.removeHandler(handler)
+        handler.close()
 
 
 def _batches(names, size):
@@ -250,15 +285,49 @@ def _plan_path(cfg):
     return os.path.join(cfg["cache_dir"], f"cleanup_plan_{ini_name}.json")
 
 
-def _write_plan(cfg, plan):
-    """Writes `plan` to its plan file and returns the path."""
-    path = _plan_path(cfg)
+def _write_atomically(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp_path = f"{path}.tmp"
     with open(tmp_path, "w") as f:
-        json.dump(plan, f, indent=2)
+        f.write(text)
     os.replace(tmp_path, path)
+
+
+def _write_plan(cfg, plan):
+    """Writes `plan` to its plan file and returns the path."""
+    path = _plan_path(cfg)
+    _write_atomically(path, json.dumps(plan, indent=2))
     return path
+
+
+def _retired_files_list_path(cfg, definition):
+    return os.path.join(cfg["cache_dir"], f"{definition}_retired_files.txt")
+
+
+def _list_retired_files(cfg, definition, files, sam):
+    """Adds the full path of each of `files` to the definition's
+    retired-files list, one `<path>/<file name>` per line, keeping the
+    lines already there. A file SAM has no location for is listed by name.
+    Locations are only read."""
+    path = _retired_files_list_path(cfg, definition)
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except FileNotFoundError:
+        lines = []
+    listed = {os.path.basename(line) for line in lines}
+    for name in files:
+        if name in listed:
+            continue
+        locations = sam.locateFile(name)
+        if locations:
+            directory = LOCATION_PREFIX_PATTERN.sub("", locations[0]["full_path"]).rstrip("/")
+            lines.append(f"{directory}/{name}")
+        else:
+            _DETAIL.warning("cleanup: %s from %s has no location in SAM -- listed by name only", name, definition)
+            lines.append(name)
+    _write_atomically(path, "".join(f"{line}\n" for line in lines))
+    _DETAIL.info("cleanup: %s: full paths of the %d file(s) to retire written to %s", definition, len(files), path)
 
 
 def _ensure_retired_files_definition(sam, definition):
@@ -273,9 +342,9 @@ def _ensure_retired_files_definition(sam, definition):
         if type(e).__name__ != "DefinitionNotFound":
             raise
         sam.createDefinition(name, dimensions)
-        logging.info("cleanup: created definition %s (%s)", name, dimensions)
+        _DETAIL.info("cleanup: %s: created definition %s (%s)", definition, name, dimensions)
     else:
-        logging.info("cleanup: definition %s already exists -- left as it is", name)
+        _DETAIL.info("cleanup: %s: definition %s already exists -- left as it is", definition, name)
 
 
 def _retire_reason(row, plan):
@@ -283,33 +352,44 @@ def _retire_reason(row, plan):
     return f"input {row['input']}, {why}"
 
 
-def _apply_definition(entry, plan, sam, dry_run):
-    """Retires one definition's planned files, then makes sure its
-    retired-files definition exists. Returns None, or the first failure as
-    {definition, file, error}."""
+def _apply_definition(cfg, entry, plan, sam, dry_run):
+    """Lists the full paths of one definition's planned files, retires
+    them, then makes sure its retired-files definition exists. Returns
+    None, or the first failure as {definition, file, error}."""
     name = entry["name"]
     f = None
+    _DETAIL.info("cleanup: %s: start, %d file(s) to retire", name, len(entry["retire"]))
+    for row in entry["skipped"]:
+        _DETAIL.info("cleanup: %s from %s left in place (input %s): %s", row["file"], name, row["input"], row["reason"])
     try:
+        if entry["retire"]:
+            _list_retired_files(cfg, name, [row["file"] for row in entry["retire"]], sam)
         live = set(sam.listFiles(defname=name)) if entry["retire"] else set()
         for row in entry["retire"]:
             f = row["file"]
             reason = _retire_reason(row, plan)
             if f not in live:
-                logging.info("cleanup: %s from %s is already retired (%s)", f, name, reason)
+                _DETAIL.info("cleanup: %s from %s is already retired (%s)", f, name, reason)
             elif dry_run:
-                logging.info("cleanup: dry run: would retire %s from %s (%s)", f, name, reason)
+                _DETAIL.info("cleanup: would retire %s from %s (%s)", f, name, reason)
             else:
                 sam.retireFile(f)
-                logging.info("cleanup: retired %s from %s (%s)", f, name, reason)
+                _DETAIL.info("cleanup: retired %s from %s (%s)", f, name, reason)
         f = None
         if entry["retire"] and not dry_run:
             _ensure_retired_files_definition(sam, name)
     except Exception as e:
         if f is None:
-            logging.exception("cleanup: %s failed", name)
+            _summary(logging.ERROR, "cleanup: %s failed", name, exc_info=True)
         else:
-            logging.exception("cleanup: retiring %s from %s failed", f, name)
+            _summary(logging.ERROR, "cleanup: retiring %s from %s failed", f, name, exc_info=True)
         return {"definition": name, "file": f, "error": str(e)}
+    totals = entry["totals"]
+    _summary(
+        logging.INFO, "cleanup: %s: %d file(s), %d kept, %d %s, %d left in place",
+        name, totals["files"], totals["kept"], totals["retired"], "to retire" if dry_run else "retired",
+        totals["skipped"],
+    )
     return None
 
 
@@ -318,14 +398,14 @@ def _apply_plan(cfg, plan, sam, dry_run):
     order, stopping at the first failure. Each finished definition is
     recorded in the State File's `cleanup` section and skipped from then
     on. Returns None, or the failure as {definition, file, error}. A dry
-    run only logs."""
+    run retires nothing and records nothing."""
     progress = state.read(cfg, "cleanup") or {}
     done = list(progress.get("done", []))
     for entry in plan["definitions"]:
         if entry["name"] in done:
-            logging.info("cleanup: %s already cleaned -- skipped", entry["name"])
+            _summary(logging.INFO, "cleanup: %s already cleaned -- skipped", entry["name"])
             continue
-        failure = _apply_definition(entry, plan, sam, dry_run)
+        failure = _apply_definition(cfg, entry, plan, sam, dry_run)
         if failure:
             return failure
         if not dry_run:
@@ -397,7 +477,7 @@ def _load_unfinished_plan(cfg, definitions):
     path = progress.get("plan_path")
     if not path or progress.get("finished"):
         return None, None
-    logging.info("cleanup: resuming the unfinished plan %s", path)
+    _summary(logging.INFO, "cleanup: resuming the unfinished plan %s", path)
     try:
         with open(path) as f:
             plan = json.load(f)
@@ -415,20 +495,41 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
     `sam`: resumes the plan an earlier run left unfinished, or makes a new
     one and writes its plan file; retires its files; verifies the result. A
     plan with a file that cannot be grouped under an input fails before
-    anything is retired. A dry run writes the plan file, logs what would be
-    retired and changes nothing else: no SAM change, no State File.
+    anything is retired. A dry run writes the plan file and the lists of
+    full paths, logs what would be retired and changes nothing else: no SAM
+    change, no State File. Per-file lines go to the cleanup log.
 
-    Returns {"ok", "plan_path", "failure", "bad_inputs", "skipped"}.
-    `failure` is None, or {definition, file, error} for what stopped the
-    run. `bad_inputs` is verify_plan()'s answer. `skipped` lists the files
-    left in place because they have live children outside the plan, as
-    {definition, input, file}; they do not fail verification.
+    Returns {"ok", "plan_path", "failure", "bad_inputs", "skipped",
+    "retired_files_lists"}. `failure` is None, or {definition, file, error}
+    for what stopped the run. `bad_inputs` is verify_plan()'s answer.
+    `skipped` lists the files left in place because they have live children
+    outside the plan, as {definition, input, file}; they do not fail
+    verification. `retired_files_lists` is the paths of the files listing
+    the retired files' full paths, one per definition with a retirement.
     """
-    result = {"ok": False, "plan_path": None, "failure": None, "bad_inputs": {}, "skipped": []}
+    result = {
+        "ok": False, "plan_path": None, "failure": None, "bad_inputs": {}, "skipped": [],
+        "retired_files_lists": [],
+    }
+    try:
+        with _cleanup_log(cfg, dry_run) as log_path:
+            _summary(
+                logging.INFO, "cleanup: started for %d definition(s) -- detailed log in %s",
+                len(definitions), log_path,
+            )
+            _clean(cfg, definitions, sam, dry_run, result)
+    except OSError as e:
+        logging.exception("cleanup: could not open the cleanup log")
+        result["ok"] = False
+        result["failure"] = {"definition": None, "file": None, "error": str(e)}
+    return result
 
-    def failed(error):
+
+def _clean(cfg, definitions, sam, dry_run, result):
+    """clean_definitions() with the cleanup log open; fills `result`."""
+
+    def fail(error):
         result["failure"] = {"definition": None, "file": None, "error": str(error)}
-        return result
 
     try:
         plan, path = _load_unfinished_plan(cfg, definitions)
@@ -436,16 +537,16 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
         if not resumed:
             plan = plan_cleanup(definitions, sam)
             path = _write_plan(cfg, plan)
-            logging.info("cleanup: plan written to %s", path)
+            _summary(logging.INFO, "cleanup: plan written to %s", path)
         result["plan_path"] = path
     except Exception as e:
-        logging.exception("cleanup: planning failed")
-        return failed(e)
+        _summary(logging.ERROR, "cleanup: planning failed", exc_info=True)
+        return fail(e)
 
     ungrouped = _ungrouped_error(plan, path)
     if ungrouped:
-        logging.error("cleanup: %s", ungrouped)
-        return failed(ungrouped)
+        _summary(logging.ERROR, "cleanup: %s", ungrouped)
+        return fail(ungrouped)
     if not (resumed or dry_run):
         state.write(cfg, "cleanup", {"plan_path": path, "done": [], "finished": False})
 
@@ -453,38 +554,37 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
         {"definition": entry["name"], "input": row["input"], "file": row["file"]}
         for entry in plan["definitions"] for row in entry["skipped"]
     ]
-    for row in result["skipped"]:
-        logging.info(
-            "cleanup: %s from %s left in place, has children outside the plan (input %s)",
-            row["file"], row["definition"], row["input"],
-        )
 
     result["failure"] = _apply_plan(cfg, plan, sam, dry_run)
     if result["failure"]:
-        return result
+        return
+    result["retired_files_lists"] = [
+        _retired_files_list_path(cfg, entry["name"]) for entry in plan["definitions"] if entry["retire"]
+    ]
     if dry_run:
         result["ok"] = True
-        return result
+        return
 
     try:
         result["bad_inputs"] = verify_plan(plan, sam)
     except Exception as e:
-        logging.exception("cleanup: verification could not be done")
-        return failed(e)
+        _summary(logging.ERROR, "cleanup: verification could not be done", exc_info=True)
+        return fail(e)
     for key, reasons in result["bad_inputs"].items():
-        logging.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
+        _DETAIL.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
     if result["bad_inputs"]:
-        return result
-    logging.info("cleanup: verified %d input(s)", len(plan["inputs"]))
+        _summary(logging.ERROR, "cleanup: verification failed for %d input(s)", len(result["bad_inputs"]))
+        return
+    _summary(logging.INFO, "cleanup: verified %d input(s)", len(plan["inputs"]))
     state.write(cfg, "cleanup", {**state.read(cfg, "cleanup", {}), "finished": True})
     result["ok"] = True
-    return result
 
 
 def main(argv=None, sam=None):
     """Command line for running by hand. Every Output Definition is taken
-    at depth 1. The plan file and the State File go in the working
-    directory. Returns the exit code."""
+    at depth 1. The plan file, the State File and the cleanup log
+    (duplicate_cleanup_cleanup.log) go in the working directory. Returns
+    the exit code."""
     parser = argparse.ArgumentParser(
         description="Retire duplicate output files in SAM, keeping one worker's outputs per input.",
     )
@@ -500,7 +600,10 @@ def main(argv=None, sam=None):
         import sam_client
         sam = sam_client.get_sam_client(os.environ.get("SAM_EXPERIMENT", "sbnd"))
     cache_dir = os.getcwd()
-    cfg = {"cache_dir": cache_dir, "state_file": os.path.join(cache_dir, "state_duplicate_cleanup.json")}
+    cfg = {
+        "cache_dir": cache_dir, "state_file": os.path.join(cache_dir, "state_duplicate_cleanup.json"),
+        "campaign_stage_name": "duplicate_cleanup",
+    }
     definitions = [{"name": name, "depth": 1} for name in dict.fromkeys(args.dataset)]
     result = clean_definitions(cfg, definitions, sam, dry_run=args.dry_run)
     return 0 if result["ok"] else 1

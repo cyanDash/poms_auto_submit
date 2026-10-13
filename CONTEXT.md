@@ -19,7 +19,7 @@ The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns ident
 _Avoid_: PomsGateway, poms_client wrapper.
 
 **State File**:
-The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`), `last_split`, `switch` (turned off by cleanup once it has verified its result), `cleanup` (`{plan_path, done, finished}`: the duplicate cleanup's plan file, the Output Definitions already cleaned, and whether verification passed; deleting the section makes the next run plan afresh). Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
+The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`), `last_split`, `switch` (turned off by cleanup once it has verified its result), `cleanup` (`{plan_path, done, finished}`: the duplicate cleanup's plan file, the Output Definitions already cleaned, and whether verification passed; deleting the section makes the next run plan afresh). A `--dry-run` writes none of it. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
 _Avoid_: cache file, marker file.
 
 **Submission**:
@@ -61,7 +61,7 @@ One kind of output a Campaign Stage writes per input file (reco1, larcv, caf, fl
 _Avoid_: stage, Executable (one Executable can write several Output Tiers).
 
 **Kept Worker**:
-The one grid job whose output files cleanup keeps for an input, across all Output Tiers. A worker is identified by the SAM process id its files share. Per input it is the process id with files in the most Output Definitions, lowest id on a tie. Every file of that input from any other worker is retired in SAM; nothing is deleted from disk, and the retired files are listed by a `<definition>_retired_files` definition. If a file of the input has no process id, there is no Kept Worker: the first file by name is kept in each definition (see docs/adr/0021).
+The one grid job whose output files cleanup keeps for an input, across all Output Tiers. A worker is identified by the SAM process id its files share. Per input it is the process id with files in the most Output Definitions, lowest id on a tie. Every file of that input from any other worker is retired in SAM; nothing is deleted from disk, and the retired files are listed by a `<definition>_retired_files` definition and, with full paths, in `logs/<campaign_name>/<definition>_retired_files.txt`. In a chained campaign (a deeper Output Tier written by other jobs) the Kept Worker is chosen among the files nearest the input, counting the definitions covered by its files and their descendants; files under a retired file are retired, and the files under each kept file get a Kept Worker of their own by the same rule, so one consistent chain is kept. If a file of a group has no process id, there is no Kept Worker: the first file by name is kept in each definition (see docs/adr/0021).
 _Avoid_: keeper, best file.
 
 **Campaign Type** (`data` / `mc`):

@@ -25,9 +25,8 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
 
 - **Scoped to the stage's own definitions.** Cleanup only looks at the Output
   Definitions that `output_definitions.py` infers for this Campaign Stage
-  (ADR-0022). A recorded flat list of names is not trusted: it is inferred
-  again and replaced before planning. If the definitions cannot be inferred,
-  nothing is cleaned and the switch stays on.
+  (ADR-0022). If the definitions cannot be inferred, nothing is cleaned and
+  the switch stays on.
 - **Kept Worker, by process id.** In a standard campaign every Output Tier of
   an input is a direct child of the initial fcl file. The tiers are siblings,
   so lineage cannot tie one tier's file to another's. Only job identity can:
@@ -35,21 +34,43 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   is the process id with files in the most definitions; the lowest id wins a
   tie. Every file of that input from another worker is retired, in every
   tier. An input with one worker is left alone.
-- **Fallback.** If any file of an input has no process id (seen on aurora
-  outputs), that input keeps the first file by name in each definition. The
+- **Chained stages keep one chain.** When a deeper tier is written by other
+  jobs (a caf job reading a reco1 file), one process id per input is wrong:
+  the caf of the kept reco1 has another id. So the Kept Worker is chosen
+  among the files nearest the input, and a worker counts the definitions
+  covered by its files plus their descendants. Below that, a file whose
+  parent is retired is retired, and the files under one kept parent are
+  grouped by that parent and settled by the same rule. A flat campaign has
+  one group per input, so nothing changes for it.
+- **Fallback.** If any file of a group has no process id (seen on aurora
+  outputs), that group keeps the first file by name in each definition. The
   plan marks the input as `fallback`.
+- **A file that cannot be grouped stops the cleanup.** A file with no
+  metadata or no parent, or whose recorded depth does not lead to an input
+  (it stops at one of the stage's own output files, or disagrees with an
+  ancestor's depth), is listed as `ungrouped` in the plan. The cleanup then
+  fails before anything is retired, names the files, and records no
+  `cleanup` section, so the next run plans again.
 - **Deepest first.** Definitions are cleaned one after another, from the
   deepest Output Tier to the shallowest, each finishing before the next
   starts. A file is settled after its children.
-- **Children guard.** A file is retired only if it has no children, or all
-  its children are retired by the same plan. A file with other children (for
-  example a later campaign used it as input) is left in place. It is listed
-  in the plan and the log, and does not fail verification.
+- **Children guard.** A file is retired only if it has no live children, or
+  all its live children are retired by the same plan. A child that is
+  already retired does not count, so a plan made after a partial apply still
+  retires the parent. A file with other live children (for example a later
+  campaign used it as input) is left in place. It is listed in the plan and
+  the log, and does not fail verification.
 - **Retire only.** A duplicate is retired in SAM. No location is removed and
   nothing is deleted from disk. For each cleaned definition a definition
   `<definition>_retired_files` is created
   (`dataset.tag <definition> and availability: retired`), so the retired
   files stay easy to find.
+- **Full paths are listed first.** Before the first file of a definition is
+  retired, the full paths of its files to retire are written to
+  `logs/<campaign_name>/<definition>_retired_files.txt`, one per line, as a
+  fallback for putting files back with `sam_add_dataset` if SAM cannot list
+  retired files. If the list cannot be written, nothing in that definition
+  is retired. A resume keeps the lines already written.
 - **Plan, apply, verify.** The plan is written to
   `logs/<campaign_name>/cleanup_plan_<ini name>.json` before anything
   changes. Progress is kept in the State File's `cleanup` section
@@ -59,7 +80,13 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   file's parents are live.
 - **The switch goes off only after verification passes.** Any failure leaves
   it on, is logged, and is retried on the next run.
-- **`--dry-run` writes the plan and retires nothing.**
+- **Per-file lines go to `logs/<campaign_name>/<campaign_stage_name>_cleanup.log`**,
+  through a logger that does not propagate; the campaign log keeps the
+  summary lines, so a 250k-file tier does not flood it.
+- **`--dry-run` writes the plan and the lists of full paths, and retires
+  nothing.** It writes no State File: the inferred Output Definitions are
+  not recorded and no `cleanup` section is made.
+- **No cleanup under `test_launch`.** The gate stays shut.
 
 ## Putting files back, or deleting them
 
@@ -83,12 +110,16 @@ The script does neither. Both are left to the operator.
   log "previous run still active" and skip.
 - The plan is made once. A file that appears after planning is not in it and
   fails verification, which names its input. To plan again, delete the
-  `cleanup` section from the State File.
+  `cleanup` section from the State File. This is safe after a partial apply:
+  the children guard ignores the children already retired.
+- A recorded depth that is too deep is only caught when the walk runs out of
+  parents. If the input itself has a parent, the file is grouped under that
+  parent instead.
 - The shared process id was confirmed on one standard campaign. Check it on
   a new campaign type with a dry run before relying on it; the plan's
   `fallback_used` says whether any input fell back.
 - `scripts/duplicate_cleanup.sh` is removed. The original
   `sam_delete_duplicates` script in the production software area is not
   touched and not used.
-- A dry run with the gate open reads SAM and records the inferred Output
-  Definitions in the State File, the same as a real run would.
+- A dry run with the gate open reads SAM (lineage, metadata, locations) and
+  changes nothing there.

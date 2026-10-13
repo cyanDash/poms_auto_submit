@@ -95,6 +95,7 @@ If your input dataset has 43k files and each job submits 10k files, then POMS wi
 A grid job that is retried can leave two sets of output files for one input.
 With `do_cleanup = 1`, the script cleans this up once the campaign is done
 (no splits left, nothing running, and recovery handled when `do_recovery = 1`).
+It never runs with `test_launch = 1`.
 
 What it does, in one run, under the same lock:
 
@@ -103,11 +104,15 @@ What it does, in one run, under the same lock:
    error and tries again next run.
 2. **Plan.** For each input file it picks one job (the *kept worker*) and
    keeps that job's files in every output tier. Files of that input from any
-   other job are marked for retirement. The plan is written to
+   other job are marked for retirement. If a deeper tier was written by
+   other jobs (chained stages), one whole chain is kept and the other chains
+   are marked. The plan is written to
    `logs/<campaign_name>/cleanup_plan_<ini name>.json`.
 3. **Retire.** The marked files are retired in SAM, one definition at a
-   time, deepest tier first. For each definition a SAM definition
-   `<definition>_retired_files` is created.
+   time, deepest tier first. Before a definition's first file is retired,
+   the full paths of its marked files are written to
+   `logs/<campaign_name>/<definition>_retired_files.txt`. For each
+   definition a SAM definition `<definition>_retired_files` is created.
 4. **Verify.** Each input must have only its kept files live, with live
    parents.
 5. **Switch off.** Only when verification passes, `"switch": false` is
@@ -121,18 +126,28 @@ Things to know:
 - **To put retired files back**, build a new definition from the cleaned one
   plus the retired-files one:
   `samweb create-definition <new name> "defname: <definition> or defname: <definition>_retired_files"`.
-  Check its file count before you use it.
-- **A file with children outside the plan is left in place** (for example
+  Check its file count before you use it. If SAM cannot list the retired
+  files, `<definition>_retired_files.txt` has their full paths for
+  fife_utils' `sam_add_dataset`.
+- **A file that cannot be placed under an input stops the cleanup** before
+  anything is retired (no metadata, no parent, or a wrong depth in
+  `output_definitions`). The error names the files; the plan lists them as
+  `ungrouped`.
+- **A file with live children outside the plan is left in place** (for example
   another campaign used it as input). It is listed in the plan and the log
   as "left in place, has children outside the plan". It does not block the
   switch.
 - **Any failure leaves the switch on.** The next run resumes the same plan.
   Look for `cleanup:` lines at `ERROR` level in the log; a failed
   verification names the inputs that are wrong.
+- **The per-file detail is in its own log**,
+  `logs/<campaign_name>/<campaign_stage_name>_cleanup.log` (appended to; a
+  dry run's lines are marked `[dry run]`). The campaign log only gets the
+  summary: started, totals per definition, the result, and that path.
 - **Review first.** Run with `--dry-run` when cleanup is due. It writes the
-  plan and retires nothing. Check that `fallback_used` is `false` and that
-  the `retired` lists look right. A dry run still reads SAM and records the
-  output definitions it found in the state file.
+  plan and the `<definition>_retired_files.txt` lists and retires nothing.
+  Check that `fallback_used` is `false` and that the `retired` lists look
+  right. A dry run reads SAM but writes nothing to the state file.
 - **A big campaign takes long.** The first run reads the metadata of every
   output file and retires files one by one. Hourly runs that start in the
   meantime skip with "previous run still active".

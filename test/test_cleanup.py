@@ -196,6 +196,7 @@ def test_dry_run_writes_the_plan_and_retires_nothing(tmp_path, caplog):
     assert_switch_still_on(cfg)
     assert state.read(cfg, "cleanup") is None
     assert f"dry-run: plan written to {plan_path(cfg)}" in caplog.text
+    assert f"cleanup: full paths of the files to retire are listed in {tmp_path}/larcv_def_retired_files.txt" in caplog.text
 
 
 def inferable_campaign():

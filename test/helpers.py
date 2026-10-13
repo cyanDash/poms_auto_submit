@@ -62,6 +62,8 @@ class FakeSam:
         self.location_removals = []
         self.created_definitions = {}
         self.dimension_queries = []
+        self.locations = {}
+        self.fail_on_locate = set()
 
     def add(self, definition, file_name, parent, process_id=None):
         md = {
@@ -75,6 +77,7 @@ class FakeSam:
         self.metadata[file_name] = md
         if definition is not None:
             self.definitions.setdefault(definition, []).append(file_name)
+            self.locations[file_name] = [f"dcache:/pnfs/sbnd/fake/{definition}"]
 
     def add_child_outside(self, parent, child):
         """A live child that belongs to no definition under cleanup."""
@@ -99,6 +102,15 @@ class FakeSam:
 
     def removeFileLocation(self, name, location):
         self.location_removals.append((name, location))
+
+    def locateFile(self, name):
+        """Shape of docs/raw/sam_lineage.json's `locate`."""
+        if name in self.fail_on_locate:
+            raise RuntimeError(f"500 Server Error locating {name}")
+        return [
+            {"location_type": "disk", "full_path": full_path, "location": full_path}
+            for full_path in self.locations.get(name, [])
+        ]
 
     def descDefinitionDict(self, defname):
         if defname not in self.created_definitions:

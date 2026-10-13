@@ -20,9 +20,12 @@ Two faults:
 
 `scripts/output_definitions.py` infers the definitions and is the only writer
 of the State File's `output_definitions` section, which now holds
-`{name, depth}` entries (a flat list of names left by older code is read as
-depth 1). `get_output_definitions(cfg, session, sam)` returns what the
-section holds, or infers and records it when empty.
+`{name, depth}` entries. `get_output_definitions(cfg, session, sam)` returns
+what the section holds, or infers and records it when empty. A flat list of
+names left by older code is never trusted, by recovery or by cleanup: it
+came from the unscoped discovery and can name other campaigns' definitions,
+so it is inferred again and replaced. If that inference fails the flat list
+is left as it is and an error is raised.
 
 Two methods:
 
@@ -33,8 +36,11 @@ Two methods:
   assignments, with known variables substituted and unknown ones left as
   wildcards, give the expected-name patterns. The script is read as text,
   never executed.
-- **Lineage.** `Dataset.Tag` of the descendants, with depth, of up to 20
-  inputs that have children.
+- **Lineage.** `Dataset.Tag` of the descendants, with depth, of the Input
+  Dataset's files: all of them when it has at most 200 files, else up to 20
+  inputs that have children (at most 200 probed). The dataset sampled is the
+  original Input Dataset: after recovery the stage's dataset is
+  `<input>_<campaign_name>_recovery_campaign`, and that suffix is stripped.
 
 Names always come from lineage; the postscript only says which of them are
 this stage's:
@@ -45,13 +51,14 @@ this stage's:
   `OutputDefinitionsError` is raised. A pattern with no file under it is an
   optional tier and is fine.
 - Postscript unreadable (it is deleted when a production area is cleaned
-  up): the lineage names carrying the launch command's production name
-  (leading `test_` ignored) and version are recorded, and the fallback is
-  logged.
+  up): the lineage names carrying `<production name>_<version>` as one
+  piece (leading `test_` of the name ignored) are recorded, and the fallback
+  is logged. The two must be next to each other, so a sibling campaign
+  `PDS_detvar` does not take `PDS_detvar_Sample3_<version>` names.
 - No launch command, or no name found: nothing is recorded and
   `OutputDefinitionsError` is raised. Unscoped lineage is never used.
 
-A Test Launch never writes the section.
+A Test Launch never writes the section, and neither does a dry run.
 
 Recovery asks this script for the names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them
@@ -73,19 +80,16 @@ recovery handled.
   included, so a test campaign sharing inputs and version with its real twin
   does not disagree with the twin's names. The fallback ignores the prefix
   and so cannot tell the two apart: it records both campaigns' names.
-- The real SAM client is `output_definitions.LazySamClient(experiment)`,
-  which imports `samweb_client` on first use, so a filled section needs no
-  SAM setup at all.
-- After a recovery run the stage's Input Dataset is the Recovery Dataset, so
-  an inference done only then samples the recovery subset. In practice the
-  section is filled when recovery is first evaluated, before the switch.
+- The real SAM client comes from `sam_client.get_sam_client(experiment)`.
+  It imports `samweb_client` on first use, so a filled section needs no SAM
+  setup at all.
+- Postscript patterns match the whole name (`fnmatchcase`), never a part of
+  it.
+- A campaign whose names put something between the production name and the
+  version (the stream name in sbnutil's `metadata_postscripts.sh`) finds
+  nothing by the fallback and raises. It needs its postscript.
+- The disagreement check still uses the loose form (name and version
+  anywhere in the tag). It can only raise, so with the postscript present a
+  sibling campaign sharing inputs and version is reported as a disagreement.
 - A stage that produced no output at all cannot be inferred, so recovery
   retries each run instead of concluding, as before.
-
-## Update (2026-10-13): cleanup does not trust a recorded flat list
-
-"A flat list of names left by older code is read as depth 1" holds for recovery only. A flat list
-came from the unscoped discovery and can name other campaigns' definitions. Cleanup calls
-`get_output_definitions(..., trust_flat_list=False)`, which infers again and replaces the section
-with `{name, depth}` entries. If that inference fails the flat list is left as it is and cleanup
-does not run (ADR-0021).
