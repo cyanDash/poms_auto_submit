@@ -19,7 +19,7 @@ The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns ident
 _Avoid_: PomsGateway, poms_client wrapper.
 
 **State File**:
-The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions`, `last_split`, `switch`, `cleanup` (the duplicate cleanup's plan path and finished definitions). Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
+The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`), `last_split`, `switch`, `cleanup` (the duplicate cleanup's plan path and finished definitions). Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
 _Avoid_: cache file, marker file.
 
 **Submission**:
@@ -51,6 +51,10 @@ The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.
 
 **Recovery Dataset**:
 A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's output datasets (missing even one output counts as incomplete), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).
+
+**Output Definition**:
+A SAM definition holding one kind of output file of a Campaign Stage, named by the files' `Dataset.Tag`. Recorded in the State File as `{name, depth}`, where depth counts generations below the input file (1 = direct child). Inferred by `scripts/output_definitions.py` from the metadata postscript and from lineage, because an input file can be shared by several campaigns and lineage alone cannot tell their outputs apart (see docs/adr/0022). Recovery uses the depth-one ones only.
+_Avoid_: output dataset.
 
 **Campaign Type** (`data` / `mc`):
 Not a POMS field — inferred by `scripts/run_recovery.sh` from whether the Input Dataset's first file's name contains `data_EventBuilder`. A `data` campaign's Recovery Dataset gets prestaged from tape before its recovery slice is submitted; an `mc` (Monte Carlo) campaign's files were never written to tape from a detector, so prestaging is skipped.

@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 
+import output_definitions
 import state
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,24 +28,22 @@ def _mark_handled(cfg):
     state.write(cfg, "recovery_handled", True)
 
 
-def _record_output_definitions(cfg, path):
-    """Move run_recovery.sh's output defnames into the state file. A
-    test-launch's are dropped: cleanup.py must never see a debug run's."""
-    try:
-        with open(path) as f:
-            outputs = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        return
-    os.remove(path)
-    if not cfg.get("test_launch"):
-        state.write(cfg, "output_definitions", outputs)
+def _direct_output_names(cfg, session, sam):
+    """Names of the depth-one output definitions. Raises
+    OutputDefinitionsError when there are none."""
+    if sam is None:
+        sam = output_definitions.LazySamClient(cfg["experiment"])
+    names = output_definitions.depth_one_names(output_definitions.get_output_definitions(cfg, session, sam))
+    if not names:
+        raise output_definitions.OutputDefinitionsError("no output definition is a direct child of the input")
+    return names
 
 
-def run_recovery_script(input_dataset, campaign_name, output_defnames_path):
+def run_recovery_script(input_dataset, campaign_name, prestage_log, output_names):
     """Returns (ratio, threshold, dataset_name); ratio/dataset_name are None
     when not applicable. Raises RuntimeError on any other failure."""
     result = subprocess.run(
-        [RECOVERY_SCRIPT, input_dataset, campaign_name, output_defnames_path],
+        [RECOVERY_SCRIPT, input_dataset, campaign_name, prestage_log, *output_names],
         capture_output=True, text=True, timeout=RECOVERY_SCRIPT_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
@@ -55,26 +54,30 @@ def run_recovery_script(input_dataset, campaign_name, output_defnames_path):
     dataset_name = None if outcome_line == NO_RECOVERY_NEEDED_MARKER else outcome_line
     return ratio, threshold, dataset_name
 
-def evaluate_and_run_recovery(cfg, session):
-    """Runs at most once per campaign stage. Returns 'recovery_script_failed' |
+def evaluate_and_run_recovery(cfg, session, sam=None):
+    """Runs at most once per campaign stage. `sam` is the SAM client the
+    output definitions are inferred with; the real one when None. Returns
+    'output_definitions_failed' | 'recovery_script_failed' |
     'no_recovery_needed' | 'recovery_plan_failed' | 'recovery_submitted' |
     'recovery_submit_failed'."""
     from poms_auto_submit import persist_last_split, plan_next_slices, submit_plan
 
     stage = session.get_stage_params()
     input_dataset = stage["dataset"]
-    # Scratch file run_recovery.sh writes its output defnames to; its
-    # prestage log is named after it, hence the test-launch suffix.
     suffix = "_test_launch" if cfg.get("test_launch") else ""
-    output_defnames_path = os.path.join(
-        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}{suffix}.txt"
-    )
+    prestage_log = os.path.join(cfg["cache_dir"], f"recovery_{session.campaign_stage_id}{suffix}_prestage.log")
+
+    try:
+        output_names = _direct_output_names(cfg, session, sam)
+    except Exception:
+        # Any SAM, POMS or import failure: nothing conclusive was learned.
+        logging.exception("recovery: could not get the output definitions -- will retry next run")
+        return "output_definitions_failed"
 
     try:
         ratio, threshold, recovery_dataset = run_recovery_script(
-            input_dataset, cfg["campaign_name"], output_defnames_path
+            input_dataset, cfg["campaign_name"], prestage_log, output_names
         )
-        _record_output_definitions(cfg, output_defnames_path)
     except (subprocess.SubprocessError, OSError, RuntimeError, ValueError):
         logging.exception("recovery: run_recovery.sh failed -- will retry next run")
         return "recovery_script_failed"

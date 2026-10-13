@@ -3,11 +3,13 @@
 # Automates TODO.md item 1 (steps 1-6). Called by scripts/recovery.py; see
 # docs/adr/0010, 0011.
 #
-# Usage: run_recovery.sh <input_dataset> <campaign_name> <output_defnames_file>
+# Usage: run_recovery.sh <input_dataset> <campaign_name> <prestage_log> <output_defname>...
+#
+# The output definitions are inferred by scripts/output_definitions.py and
+# passed in; this script does not discover them.
 #
 # stdout: ratio (or N/A), threshold, then dataset name or NO_RECOVERY_NEEDED
 # -- one per line. Anything else: stderr message, exit != 0.
-# output_defnames_file gets the output dataset names (step 3), one per line.
 
 set -uo pipefail
 
@@ -16,20 +18,20 @@ RATIO_THRESHOLD="0.98"          # TODO.md step 5
 DATA_CAMPAIGN_MARKER="data_EventBuilder"  # TODO.md step 6
 PRESTAGE_PARALLEL="5"           # TODO.md step 6, matches setup_recovery.sh
 
-if [[ $# -ne 3 ]]; then
-    echo "usage: $(basename "$0") <input_dataset> <campaign_name> <output_defnames_file>" >&2
+if [[ $# -lt 4 ]]; then
+    echo "usage: $(basename "$0") <input_dataset> <campaign_name> <prestage_log> <output_defname>..." >&2
     exit 1
 fi
 
 INPUT_DATASET=$1
 CAMPAIGN_NAME=$2
-OUTPUT_DEFNAMES_FILE=$3
+PRESTAGE_LOG=$3
+shift 3
+outputs=("$@")
 
 RECOVERY_NAME="${INPUT_DATASET}_${CAMPAIGN_NAME}_recovery_campaign"
 
-# --- steps 1-2: first input file that actually has output lineage ---
-# Not every file need have children (e.g. it was never run, or failed) --
-# scan until one does, rather than trusting the first file in the list.
+# --- campaign type, from the Input Dataset's first file name ---
 if ! input_files=$(samweb list-definition-files "$INPUT_DATASET"); then
     echo "samweb list-definition-files $INPUT_DATASET failed" >&2
     exit 2
@@ -39,43 +41,9 @@ if [[ -z "$input_files" ]]; then
     exit 2
 fi
 
-probe_file=""
-lineage=""
-while IFS= read -r candidate; do
-    [[ -z "$candidate" ]] && continue
-    candidate_lineage=$(samweb file-lineage children "$candidate") || continue
-    if [[ -n "$candidate_lineage" ]]; then
-        probe_file="$candidate"
-        lineage="$candidate_lineage"
-        break
-    fi
-done <<<"$input_files"
-
-if [[ -z "$probe_file" ]]; then
-    echo "no file in $INPUT_DATASET has any output lineage (file-lineage children)" >&2
-    exit 3
-fi
-
+first_file=${input_files%%$'\n'*}
 campaign_type="mc"
-[[ "$probe_file" == *"$DATA_CAMPAIGN_MARKER"* ]] && campaign_type="data"
-
-# --- step 3: output dataset definitions (Dataset.Tag off each lineage file), deduplicated ---
-declare -A seen
-outputs=()
-while IFS= read -r f; do
-    [[ -z "$f" ]] && continue
-    tag=$(samweb get-metadata "$f" | grep 'Dataset.Tag' | awk -F': ' '{print $2}')
-    if [[ -n "$tag" && -z "${seen[$tag]:-}" ]]; then
-        seen[$tag]=1
-        outputs+=("$tag")
-    fi
-done <<<"$lineage"
-
-if [[ ${#outputs[@]} -eq 0 ]]; then
-    echo "no Dataset.Tag metadata found on any lineage file of $probe_file" >&2
-    exit 4
-fi
-printf '%s\n' "${outputs[@]}" > "$OUTPUT_DEFNAMES_FILE"
+[[ "$first_file" == *"$DATA_CAMPAIGN_MARKER"* ]] && campaign_type="data"
 
 # --- build the "missing at least one output" dimension and create the
 # recovery dataset: not (isparentof out1 and isparentof out2 ...). One
@@ -127,9 +95,8 @@ fi
 # Must not block poms_auto_submit.py's per-campaign-stage lock (ADR-0006)
 # for the hours prestaging can take; setsid+disown detaches it.
 if [[ "$campaign_type" == "data" ]]; then
-    prestage_log="${OUTPUT_DEFNAMES_FILE%.txt}_prestage.log"
     setsid samweb prestage-dataset --parallel="$PRESTAGE_PARALLEL" --defname="$RECOVERY_NAME" \
-        </dev/null >>"$prestage_log" 2>&1 &
+        </dev/null >>"$PRESTAGE_LOG" 2>&1 &
     disown
 fi
 
