@@ -42,6 +42,13 @@ def test_load_output_definitions_dedups_preserving_first_seen_order(tmp_path):
     assert _load_output_definitions({"state_file": str(tmp_path / "state.json")}) == ["ds_a", "ds_b", "ds_c"]
 
 
+def test_load_output_definitions_reads_names_from_name_depth_entries(tmp_path):
+    entries = [{"name": "ds_a", "depth": 1}, {"name": "ds_b", "depth": 2}, {"name": "ds_a", "depth": 1}]
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
+
+    assert _load_output_definitions({"state_file": str(tmp_path / "state.json")}) == ["ds_a", "ds_b"]
+
+
 # --- run_cleanup ---
 
 def persisted_switch(tmp_path):

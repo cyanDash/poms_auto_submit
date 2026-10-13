@@ -10,7 +10,7 @@ import logging
 import os
 import subprocess
 
-import state
+import output_definitions
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CLEANUP_SCRIPT = os.path.join(SCRIPT_DIR, "duplicate_cleanup.sh")
@@ -18,14 +18,11 @@ CLEANUP_SCRIPT_TIMEOUT_SECONDS = 3600
 
 
 def _load_output_definitions(cfg):
-    """Unique output dataset names recovery.py has ever recorded for this
-    campaign stage, in first-seen order. No recovery has ever run (or it
-    never got past run_recovery.sh's dimension-building step) -> []."""
-    lines = state.read(cfg, "output_definitions", [])
-
+    """Unique output dataset names recorded in the State File for this
+    campaign stage, in first-seen order. None recorded -> []."""
     seen = set()
     unique = []
-    for name in lines:
+    for name in (entry["name"] for entry in output_definitions.read_recorded(cfg)):
         if name not in seen:
             seen.add(name)
             unique.append(name)

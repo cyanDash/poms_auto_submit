@@ -268,6 +268,28 @@ every submission gets whatever subgroup `test_param_overrides` says — never
 `command_executed` (`SUBGROUP_COMMAND_PATTERN` in `poms_session.py`), not
 out of either `param_overrides` variant.
 
+## `command_executed` is URL-quoted and carries the postscript, `MT_*` and version
+
+`details["submission"]["command_executed"]` is partly URL-quoted (the
+`--prescript-unquote`/`--postscript-unquote` arguments: `export%20MT_SAMPLE%3D...`).
+`PomsSession.get_launch_command()` returns it unquoted. It holds everything
+`scripts/output_definitions.py` needs to name a stage's outputs: the
+postscript path (`-f dropbox:///.../metadata_postscripts*.sh`; a
+`metadata_prescripts.sh` is passed the same way), the `export MT_*=` values
+and `--mdappversion`. Untrimmed capture: `docs/raw/submission_details_3144257.json`.
+A Test Launch's `submission_params` has `test: 1` and its command can carry
+different `MT_*` values, so `get_launch_command()` prefers a Submission
+without it.
+
+## samweb_client shapes (scripts/output_definitions.py)
+
+- `listFiles(defname=<name>)` — a generator of file names.
+- `getFileLineage("children", <file>)` — a list of `{file_name, file_id}`
+  (`docs/raw/sam_lineage.json`, `children_of_parent`).
+- `getMultipleMetadata(<names>)` — a list of metadata dicts like
+  `docs/raw/sam_getMetadata_reco1.json`; a file SAM does not know is left
+  out, not an error.
+
 ## samweb CLI output shapes (scripts/run_recovery.sh)
 
 Confirmed live 2026-09-02 against

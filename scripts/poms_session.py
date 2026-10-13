@@ -8,7 +8,7 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import state
 from poms_raw_client import raw_poms_call
@@ -143,6 +143,26 @@ class PomsSession:
     def _parse_subgroup(command_executed):
         match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
         return match.group(1) if match else None
+
+    def get_launch_command(self):
+        """The jobsub command POMS ran for the newest Submission that is not
+        a Test Launch (else the newest of any kind), URL-unquoted. None when
+        no Submission has one."""
+        ok, resp = self.pc.campaign_stage_submissions(
+            self.cfg["experiment"], self.cfg["role"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"],
+        )
+        submissions = resp.get("data", {}).get("submissions", []) if ok else []
+        newest_of_any_kind = None
+        for s in sorted(submissions, key=lambda s: s.get("submission_id", 0), reverse=True):
+            ok, details = self._fetch_submission_details(s.get("submission_id"))
+            submission = details.get("submission", {}) if ok else {}
+            command = submission.get("command_executed")
+            if not command:
+                continue
+            if not (submission.get("submission_params") or {}).get("test"):
+                return unquote(command)
+            newest_of_any_kind = newest_of_any_kind or command
+        return unquote(newest_of_any_kind) if newest_of_any_kind else None
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""
