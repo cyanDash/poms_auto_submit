@@ -350,7 +350,7 @@ def test_file_under_an_already_retired_parent_is_retired_not_promoted():
     assert all(d["ungrouped"] == [] for d in plan["definitions"])
 
 
-def test_file_under_a_retired_ancestor_outside_the_definitions_is_retired():
+def test_file_under_a_retired_ancestor_at_no_cleaned_tier_is_ungrouped_not_retired():
     sam = FakeSam()
     sam.add(None, "gen_1.root", None)
     sam.add(None, "reco1_b.root", "gen_1.root", 200)
@@ -359,6 +359,23 @@ def test_file_under_a_retired_ancestor_outside_the_definitions_is_retired():
     sam.retired.add("reco1_b.root")
 
     plan = plan_cleanup([{"name": "hist_def", "depth": 3}], sam)
+
+    assert plan["definitions"][0]["retire"] == []
+    assert plan["definitions"][0]["ungrouped"] == [{
+        "file": "hist_b.root",
+        "reason": "its ancestor reco1_b.root is not in SAM and is at no cleaned definition's depth (1)",
+    }]
+
+
+def test_file_under_a_retired_ancestor_two_tiers_up_is_retired():
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add("reco1_def", "reco1_b.root", "gen_1.root", 200)
+    sam.add(None, "reco2_b.root", "reco1_b.root", 200)
+    sam.add("hist_def", "hist_b.root", "reco2_b.root", 40)
+    sam.retired.add("reco1_b.root")
+
+    plan = plan_cleanup([RECO1, {"name": "hist_def", "depth": 3}], sam)
 
     assert plan["definitions"][0]["retire"] == [{
         "file": "hist_b.root", "input": "reco1_b.root", "process_id": 40,

@@ -130,9 +130,13 @@ Things to know:
   declare them again from the paths in `<definition>_retired_files.txt`
   with fife_utils' `sam_add_dataset`. This has not been tried yet. Test it
   on a few files first.
-- **Files under an already retired file are retired too.** SAM cannot say
-  which input they belong to, so the plan lists them under the retired
-  file's name instead of an input's.
+- **Files under an already retired file of this stage are retired too.**
+  SAM cannot read a retired file. A parent that SAM no longer has is taken
+  as one of this stage's retired files only when it sits at the depth of
+  one of the cleaned definitions. SAM cannot say which input the files
+  under it belong to, so the plan lists them under the retired file's name
+  instead of an input's. A missing parent at any other depth stops the
+  cleanup (`ungrouped`).
 - **A file that cannot be placed under an input stops the cleanup** before
   anything is retired (no metadata, no parent, or a wrong depth in
   `output_definitions`). The error names the files; the plan lists them as

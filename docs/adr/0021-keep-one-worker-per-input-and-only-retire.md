@@ -47,14 +47,20 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   answers for a retired file as for one it never had (see "What SAM says
   about a retired file" below). So an ancestor that a live file's metadata
   names, that the bulk metadata read leaves out, and that `getMetadata`
-  reports as `FileNotFound`, is taken as retired. Its parents cannot be
-  read, so the input of the files under it is unknown: the plan lists them
-  under the retired ancestor's name instead of an input's.
+  reports as `FileNotFound`, is gone. Its Dataset.Tag cannot be read, so it
+  counts as one of the stage's retired files only when it sits at the depth
+  of a cleaned definition; the files under it are then retired. At any
+  other depth the file under it is `ungrouped` and the cleanup stops. The
+  parents of a gone file cannot be read either, so the input of the files
+  under it is unknown: the plan lists them under the retired ancestor's
+  name instead of an input's.
 - **Fallback.** If any file of a group has no process id (seen on aurora
   outputs), that group keeps the first file by name in each definition. The
   plan marks the input as `fallback`.
 - **A file that cannot be grouped stops the cleanup.** A file with no
-  metadata or no parent, or whose recorded depth does not lead to an input
+  metadata or no parent, or under an ancestor SAM no longer has at a depth
+  where the stage has no definition, or whose recorded depth does not lead
+  to an input
   (it stops at one of the stage's own output files, or disagrees with an
   ancestor's depth), is listed as `ungrouped` in the plan. The cleanup then
   fails before anything is retired, names the files, and records no

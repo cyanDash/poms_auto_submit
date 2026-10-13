@@ -213,9 +213,11 @@ def plan_cleanup(definitions, sam):
     "definitions" is deepest first, each {name, depth, retire, skipped,
     ungrouped, totals}. "inputs" maps each input to {kept_process_id,
     fallback, kept, retired, skipped}, the last three keyed by definition.
-    SAM cannot read the parents of a retired file, so files under an
-    already retired ancestor are listed under that ancestor's name instead
-    of their input's. A plan with any `ungrouped` file must not be applied.
+    SAM cannot read a retired file, so an ancestor SAM no longer has
+    counts as one of the stage's retired files only at the depth of a
+    cleaned definition; the files under it are listed under its name
+    instead of their input's. A plan with any `ungrouped` file must not be
+    applied.
     """
     ordered = sorted(definitions, key=lambda d: (-d["depth"], d["name"]))
     depth_of = {d["name"]: d["depth"] for d in ordered}
@@ -242,9 +244,14 @@ def plan_cleanup(definitions, sam):
     for d in reversed(ordered):
         chains, failed, retired_ancestor = _ancestor_chains(sam, listed[d["name"]], d["depth"], known, gone)
         for f in listed[d["name"]]:
-            reason = failed.get(f)
-            if not reason and f not in retired_ancestor:
-                reason = _depth_fault(chains[f], d["depth"], definition_of.get, depth_of, ungrouped)
+            reason = failed.get(f) or _depth_fault(chains[f], d["depth"], definition_of.get, depth_of, ungrouped)
+            if not reason and f in retired_ancestor:
+                tier = d["depth"] - len(chains[f])
+                if tier not in depth_of.values():
+                    reason = (
+                        f"its ancestor {retired_ancestor[f]} is not in SAM and is at "
+                        f"no cleaned definition's depth ({tier})"
+                    )
             if reason:
                 ungrouped.add(f)
                 report[d["name"]]["ungrouped"].append({"file": f, "reason": reason})
