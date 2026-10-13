@@ -169,6 +169,35 @@ def test_input_shared_by_four_campaigns_yields_only_this_stages_definitions(tmp_
     assert recorded(tmp_path) == definitions
 
 
+def test_untrusted_flat_list_is_inferred_again_and_overwritten(tmp_path):
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": [f"{LY094}_reco1_sbnd"]}))
+
+    definitions = get_output_definitions(
+        make_state_cfg(tmp_path), FakeSession(launch_command()), shared_input_sam(), trust_flat_list=False,
+    )
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+    assert recorded(tmp_path) == definitions
+
+
+def test_untrusted_flat_list_is_kept_when_inference_fails(tmp_path):
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": ["ds_reco1"]}))
+
+    with pytest.raises(OutputDefinitionsError):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(None), NoCallSam(), trust_flat_list=False)
+
+    assert recorded(tmp_path) == ["ds_reco1"]
+
+
+def test_name_depth_entries_are_trusted_either_way(tmp_path):
+    entries = [{"name": "ds_reco1", "depth": 1}]
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
+
+    assert get_output_definitions(
+        make_state_cfg(tmp_path), NoCallSession(), NoCallSam(), trust_flat_list=False,
+    ) == entries
+
+
 def test_postscript_pattern_with_no_file_under_it_is_fine(tmp_path):
     tags = stage_files("in1", ["histreco2_sbnd", "caf_sbnd", "flatcaf_sbnd"])
     sam = FakeSam(["in1"], {"in1": list(tags)}, tags)

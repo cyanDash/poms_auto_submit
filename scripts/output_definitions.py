@@ -63,12 +63,19 @@ def depth_one_names(definitions):
     return [d["name"] for d in definitions if d["depth"] == 1]
 
 
-def get_output_definitions(cfg, session, sam):
+def _is_flat_list(cfg):
+    """Whether the recorded section holds bare names, which were recorded
+    without scoping to this Campaign Stage."""
+    return any(not isinstance(entry, dict) for entry in state.read(cfg, SECTION, []) or [])
+
+
+def get_output_definitions(cfg, session, sam, trust_flat_list=True):
     """The Campaign Stage's output definitions as [{name, depth}]: what the
-    State File holds, else inferred and recorded. Raises
-    OutputDefinitionsError when they cannot be inferred."""
+    State File holds, else inferred and recorded. With trust_flat_list
+    False, a recorded flat list of names is inferred again and replaced.
+    Raises OutputDefinitionsError when they cannot be inferred."""
     recorded = read_recorded(cfg)
-    if recorded:
+    if recorded and (trust_flat_list or not _is_flat_list(cfg)):
         return recorded
 
     definitions = _infer(session, sam)

@@ -81,3 +81,11 @@ recovery handled.
   section is filled when recovery is first evaluated, before the switch.
 - A stage that produced no output at all cannot be inferred, so recovery
   retries each run instead of concluding, as before.
+
+## Update (2026-10-13): cleanup does not trust a recorded flat list
+
+"A flat list of names left by older code is read as depth 1" holds for recovery only. A flat list
+came from the unscoped discovery and can name other campaigns' definitions. Cleanup calls
+`get_output_definitions(..., trust_flat_list=False)`, which infers again and replaces the section
+with `{name, depth}` entries. If that inference fails the flat list is left as it is and cleanup
+does not run (ADR-0021).

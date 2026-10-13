@@ -64,3 +64,18 @@ flag plus internal handled state; see
 `switch` is turned off in the per-ini state file, not the ini, and a
 test-launch's output defnames are dropped instead of written to a sibling
 `_test_launch.txt`; see `docs/adr/0020-one-consolidated-state-file-per-config.md`.
+
+## Update (2026-10-13): cleanup runs in-process and the switch goes off only after verification
+
+The gate above still decides when cleanup runs (as changed by ADR-0017 and ADR-0019). What runs
+after it is replaced; see `docs/adr/0021-keep-one-worker-per-input-and-only-retire.md`:
+
+- No duplicate-cleanup jobs are submitted and `sam_delete_duplicates` is not used.
+  `scripts/duplicate_cleanup.sh` is removed. Cleanup plans, retires and verifies in-process.
+- The definitions cleaned are the ones `scripts/output_definitions.py` infers (ADR-0022), not
+  "every output dataset recovery ever recorded". `_load_output_definitions()` is gone.
+- `run_cleanup()` turns the switch off only when verification passes. A failure leaves it on and
+  is retried next run, so cleanup is one-shot only once it has succeeded.
+- "Nothing to clean, switch off" no longer exists. Definitions that cannot be inferred are an
+  error and the switch stays on.
+- The section on test-launch output defnames is obsolete: there is no `output_definitions_*.txt`.

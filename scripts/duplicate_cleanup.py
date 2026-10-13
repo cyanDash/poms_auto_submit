@@ -277,8 +277,9 @@ def _parents(sam, files):
 
 def verify_plan(plan, sam):
     """Checks `sam` against an applied plan: per input and definition the
-    live files are exactly the kept ones, and every kept file's parents are
-    live. Returns {input: [what is wrong]}, empty when all is well."""
+    live files are the kept ones plus those the children guard skipped, and
+    every kept file's parents are live. Returns {input: [what is wrong]},
+    empty when all is well."""
     names = [d["name"] for d in plan["definitions"]]
     live = {name: _live_files(sam, name) for name in names}
     kept_files = [f for i in plan["inputs"].values() for files in i["kept"].values() for f in files]
@@ -289,16 +290,13 @@ def verify_plan(plan, sam):
     for key, plan_input in plan["inputs"].items():
         for name in names:
             kept = plan_input["kept"].get(name, [])
-            others = plan_input["retired"].get(name, []) + [
-                s["file"] for s in plan_input["skipped"].get(name, [])
-            ]
             for f in kept:
                 if f not in live[name]:
                     bad[key].append(f"{name}: kept file {f} is not live")
                 for p in parents.get(f, []):
                     if p not in live_parents:
                         bad[key].append(f"{name}: parent {p} of kept file {f} is not live")
-            for f in others:
+            for f in plan_input["retired"].get(name, []):
                 if f in live[name]:
                     bad[key].append(f"{name}: {f} is live but not kept")
 
@@ -320,6 +318,15 @@ def verify_plan(plan, sam):
     return dict(bad)
 
 
+def _skipped_files(plan):
+    """The files the children guard left in place, as [{definition, input,
+    file}] in the plan's order."""
+    return [
+        {"definition": entry["name"], "input": row["input"], "file": row["file"]}
+        for entry in plan["definitions"] for row in entry["skipped"]
+    ]
+
+
 def _unfinished_plan_path(cfg):
     """Path of the plan a past run started applying and has not finished,
     or None."""
@@ -337,11 +344,17 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
     A dry run writes the plan, logs what would be retired and changes
     nothing.
 
-    Returns {"ok", "dry_run", "plan_path", "failure", "bad_inputs"}.
-    `bad_inputs` is verify_plan()'s answer. `failure` is None,
-    or {definition, file, error} for what stopped the run.
+    Returns {"ok", "dry_run", "plan_path", "failure", "bad_inputs",
+    "skipped", "skipped_count"}. `bad_inputs` is verify_plan()'s answer.
+    `failure` is None, or {definition, file, error} for what stopped the
+    run. `skipped` lists the files left in place because they have children
+    outside the plan, as {definition, input, file}; they do not fail
+    verification.
     """
-    result = {"ok": False, "dry_run": dry_run, "plan_path": None, "failure": None, "bad_inputs": {}}
+    result = {
+        "ok": False, "dry_run": dry_run, "plan_path": None, "failure": None, "bad_inputs": {},
+        "skipped": [], "skipped_count": 0,
+    }
     try:
         path = _unfinished_plan_path(cfg)
         if path:
@@ -368,6 +381,14 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
         logging.exception("cleanup: planning failed")
         result["failure"] = {"definition": None, "file": None, "error": str(e)}
         return result
+
+    result["skipped"] = _skipped_files(plan)
+    result["skipped_count"] = len(result["skipped"])
+    for row in result["skipped"]:
+        logging.info(
+            "cleanup: %s from %s left in place, has children outside the plan (input %s)",
+            row["file"], row["definition"], row["input"],
+        )
 
     result["failure"] = apply_plan(cfg, plan, sam, dry_run)
     if result["failure"]:

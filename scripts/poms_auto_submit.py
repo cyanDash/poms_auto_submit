@@ -328,11 +328,9 @@ def run(cfg, dry_run):
     if _no_splits_left(cfg):
         _manage_stragglers(cfg, session, dry_run)
     if not plan:
-        if dry_run:
-            if _cleanup_ready(cfg, session):
-                logging.info("dry-run: would run duplicate-cleanup and turn switch off")
-        elif _cleanup_ready(cfg, session):
-            cleanup.run_cleanup(cfg, session)
+        if _cleanup_ready(cfg, session):
+            # A dry run writes the cleanup plan and retires nothing.
+            cleanup.run_cleanup(cfg, session, dry_run=dry_run)
         return
 
     if dry_run:
@@ -347,7 +345,7 @@ def run(cfg, dry_run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"))
-    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
+    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params, submitting or retiring; writes the cleanup plan when cleanup is due")
     args = parser.parse_args()
 
     cfg = load_config(args.config)

@@ -8,92 +8,11 @@ import pytest
 import duplicate_cleanup
 import state
 from duplicate_cleanup import clean_definitions, plan_cleanup, plan_path, verify_plan, write_plan
+from helpers import FakeSam, duplicated_campaign
 
 RECO1 = {"name": "reco1_def", "depth": 1}
 LARCV = {"name": "larcv_def", "depth": 1}
 CAF = {"name": "caf_def", "depth": 2}
-
-
-class DefinitionNotFound(Exception):
-    """Same name as samweb_client.exceptions.DefinitionNotFound."""
-
-
-class FakeSam:
-    """Stands in for samweb_client.SAMWebClient: definitions, metadata in
-    the shape of docs/raw/sam_getMetadata_reco1.json, and children derived
-    from the declared parents (docs/raw/sam_lineage.json)."""
-
-    def __init__(self):
-        self.definitions = {}
-        self.metadata = {}
-        self.extra_children = {}
-        self.lineage_calls = []
-        self.batch_sizes = []
-        self.retired = set()
-        self.retire_calls = []
-        self.fail_on_retire = set()
-        self.location_removals = []
-        self.created_definitions = {}
-        self.dimension_queries = []
-
-    def add(self, definition, file_name, parent, process_id=None):
-        md = {
-            "file_name": file_name,
-            "file_id": len(self.metadata) + 1,
-            "Dataset.Tag": definition,
-            "parents": [{"file_name": parent, "file_id": 0}] if parent else [],
-        }
-        if process_id is not None:
-            md["process_id"] = process_id
-        self.metadata[file_name] = md
-        if definition is not None:
-            self.definitions.setdefault(definition, []).append(file_name)
-
-    def add_child_outside(self, parent, child):
-        """A live child that belongs to no definition under cleanup."""
-        self.extra_children.setdefault(parent, []).append(child)
-
-    def listFiles(self, defname=None, dimensions=None):
-        """Live files only, as SAM lists them by default."""
-        if dimensions is not None:
-            assert dimensions.startswith("file_name ")
-            self.dimension_queries.append(dimensions)
-            names = dimensions[len("file_name "):].split(",")
-            return [n for n in names if n in self.metadata and n not in self.retired]
-        return [n for n in self.definitions.get(defname, []) if n not in self.retired]
-
-    def retireFile(self, name):
-        self.retire_calls.append(name)
-        if name in self.fail_on_retire:
-            raise RuntimeError(f"500 Server Error retiring {name}")
-        self.retired.add(name)
-
-    def removeFileLocation(self, name, location):
-        self.location_removals.append((name, location))
-
-    def descDefinitionDict(self, defname):
-        if defname not in self.created_definitions:
-            raise DefinitionNotFound(defname)
-        return {"defname": defname, "dimensions": self.created_definitions[defname]}
-
-    def createDefinition(self, defname, dims):
-        assert defname not in self.created_definitions
-        self.created_definitions[defname] = dims
-
-    def getMultipleMetadata(self, names):
-        names = list(names)
-        self.batch_sizes.append(len(names))
-        return [self.metadata[n] for n in names if n in self.metadata]
-
-    def getFileLineage(self, lineage, name):
-        assert lineage == "children"
-        self.lineage_calls.append(name)
-        children = [
-            n for n, md in self.metadata.items()
-            if md["parents"] and md["parents"][0]["file_name"] == name
-        ]
-        children += self.extra_children.get(name, [])
-        return [{"file_name": n, "file_id": 0} for n in children]
 
 
 def retired(plan):
@@ -432,17 +351,6 @@ def make_cfg(tmp_path):
     }
 
 
-def duplicated_campaign():
-    """Two inputs, each run by two workers; the lower process id is kept."""
-    sam = FakeSam()
-    for i in (1, 2):
-        sam.add(None, f"gen_{i}.root", None)
-        for pid in (i * 100, i * 100 + 1):
-            sam.add("reco1_def", f"reco1_{pid}.root", f"gen_{i}.root", pid)
-            sam.add("larcv_def", f"larcv_{pid}.root", f"gen_{i}.root", pid)
-    return sam
-
-
 def test_apply_retires_the_other_workers_files_and_removes_no_location(tmp_path):
     sam = duplicated_campaign()
 
@@ -769,16 +677,37 @@ def test_parent_inside_a_cleaned_definition_is_checked_too():
     }
 
 
-def test_file_skipped_by_the_children_guard_fails_verification(tmp_path):
+def test_file_skipped_by_the_children_guard_is_left_in_place_and_passes_verification(tmp_path, caplog):
+    caplog.set_level("INFO")
+    sam = duplicated_campaign()
+    sam.add_child_outside("reco1_101.root", "other_campaign.root")
+    cfg = make_cfg(tmp_path)
+
+    result = clean_definitions(cfg, [RECO1], sam)
+
+    assert result["ok"] is True
+    assert result["bad_inputs"] == {}
+    assert "reco1_101.root" not in sam.retired
+    assert result["skipped_count"] == 1
+    assert result["skipped"] == [
+        {"definition": "reco1_def", "input": "gen_1.root", "file": "reco1_101.root"},
+    ]
+    assert (
+        "cleanup: reco1_101.root from reco1_def left in place, has children outside the plan (input gen_1.root)"
+    ) in caplog.text
+    assert state.read(cfg, "cleanup")["finished"] is True
+
+
+def test_dry_run_and_clean_results_carry_the_skipped_count(tmp_path):
     sam = duplicated_campaign()
     sam.add_child_outside("reco1_101.root", "other_campaign.root")
 
-    result = clean_definitions(make_cfg(tmp_path), [RECO1], sam)
+    dry = clean_definitions(make_cfg(tmp_path / "dry"), [RECO1], sam, dry_run=True)
+    clean = clean_definitions(make_cfg(tmp_path / "clean"), [LARCV], duplicated_campaign())
 
-    assert result["ok"] is False
-    assert result["bad_inputs"] == {
-        "gen_1.root": ["reco1_def: reco1_101.root is live but not kept"],
-    }
+    assert dry["skipped_count"] == 1
+    assert clean["skipped_count"] == 0
+    assert clean["skipped"] == []
 
 
 def test_rerun_after_a_failed_verification_only_verifies_again(tmp_path):

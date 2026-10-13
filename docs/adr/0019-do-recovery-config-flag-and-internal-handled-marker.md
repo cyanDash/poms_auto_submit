@@ -49,3 +49,9 @@ script rewrote a key that otherwise reads as an operator setting.
   intended: `max_splits` lets an operator run a fixed number of submissions
   without finishing the campaign. Each such run logs "recovery: not done
   (max_splits reached before the splits were exhausted)".
+
+## Update (2026-10-13): cleanup no longer depends on recovery for its definitions
+
+The consequence above about `do_recovery = 0` with `do_cleanup = 1` no longer holds. Cleanup
+infers the output definitions itself (ADR-0022) and never logs "nothing to clean"; when they
+cannot be inferred the switch stays on (ADR-0021).

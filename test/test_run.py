@@ -137,49 +137,41 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
 
 SESSION = types.SimpleNamespace(campaign_stage_id=42)
 
-def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
+def run_with_cleanup_gate(monkeypatch, tmp_path, ready, dry_run):
+    """Runs with an empty plan; returns (cfg, the run_cleanup calls)."""
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
     monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
+    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: ready)
     calls = []
-    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append((cfg, session)))
+    monkeypatch.setattr(
+        psc.cleanup, "run_cleanup",
+        lambda cfg, session, dry_run=False: calls.append((cfg, session, dry_run)),
+    )
 
     cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
-    psc.run(cfg, dry_run=False)
+    psc.run(cfg, dry_run=dry_run)
+    return cfg, calls
 
-    assert calls == [(cfg, SESSION)]
+
+def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
+    cfg, calls = run_with_cleanup_gate(monkeypatch, tmp_path, ready=True, dry_run=False)
+
+    assert calls == [(cfg, SESSION, False)]
 
 
 def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
-    config_path = make_config_file(tmp_path)
-    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
-    calls = []
-    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
+    for dry_run in (False, True):
+        _, calls = run_with_cleanup_gate(monkeypatch, tmp_path, ready=False, dry_run=dry_run)
 
-    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
-    psc.run(cfg, dry_run=False)
-
-    assert calls == []
+        assert calls == []
 
 
-def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path):
-    config_path = make_config_file(tmp_path)
-    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
-    calls = []
-    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
+def test_run_dry_run_passes_dry_run_to_cleanup_when_ready(monkeypatch, tmp_path):
+    cfg, calls = run_with_cleanup_gate(monkeypatch, tmp_path, ready=True, dry_run=True)
 
-    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
-    psc.run(cfg, dry_run=True)
-
-    assert calls == []
+    assert calls == [(cfg, SESSION, True)]
 
 
 def test_run_manages_stragglers_only_when_no_splits_left(monkeypatch, tmp_path):

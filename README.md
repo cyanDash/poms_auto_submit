@@ -25,8 +25,12 @@ logged. Assumes that you have a well-tested campaign ready to be launched.
    exhausted and the last slice has finished, builds and submits a recovery
    slice for input files that never made it into an output dataset (see
    TODO.md item 1).
+5. **Clean up duplicates, then switch off** — with `do_cleanup = 1`, once
+   no splits are left and nothing is still running, retires duplicate
+   output files in SAM and turns the campaign off in its state file (see
+   [Cleanup](#cleanup)).
 
-`--dry-run` logs what would happen without calling POMS to update params or submit anything.
+`--dry-run` logs what would happen without calling POMS to update params or submit anything. When cleanup is due it writes the cleanup plan and retires nothing.
 
 ## Setup
 
@@ -71,8 +75,9 @@ test_launch = 0
 ; Input Dataset is exhausted. Never changed by the script.
 do_recovery = 1
 
-; when true, automatically clean up duplicates once the campaign is fully
-; done, then turn the campaign off in its state file.
+; when true, automatically retire duplicate output files in SAM once the
+; campaign is fully done (nothing is deleted from disk), then turn the
+; campaign off in its state file.
 do_cleanup = 0
 ```
 
@@ -84,6 +89,67 @@ The script never writes to the ini. Everything it tracks itself lives in one sta
 simultaneously run.
 
 If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
+
+## Cleanup
+
+A grid job that is retried can leave two sets of output files for one input.
+With `do_cleanup = 1`, the script cleans this up once the campaign is done
+(no splits left, nothing running, and recovery handled when `do_recovery = 1`).
+
+What it does, in one run, under the same lock:
+
+1. **Find the output definitions** of this campaign stage (from the metadata
+   postscript and from file lineage). If they cannot be found, it logs an
+   error and tries again next run.
+2. **Plan.** For each input file it picks one job (the *kept worker*) and
+   keeps that job's files in every output tier. Files of that input from any
+   other job are marked for retirement. The plan is written to
+   `logs/<campaign_name>/cleanup_plan_<ini name>.json`.
+3. **Retire.** The marked files are retired in SAM, one definition at a
+   time, deepest tier first. For each definition a SAM definition
+   `<definition>_retired_files` is created.
+4. **Verify.** Each input must have only its kept files live, with live
+   parents.
+5. **Switch off.** Only when verification passes, `"switch": false` is
+   written to the state file.
+
+Things to know:
+
+- **Nothing is deleted.** Files are only retired in SAM. No location is
+  removed and no file is deleted from disk. Delete them yourself later,
+  using `<definition>_retired_files` as the list.
+- **To put retired files back**, build a new definition from the cleaned one
+  plus the retired-files one:
+  `samweb create-definition <new name> "defname: <definition> or defname: <definition>_retired_files"`.
+  Check its file count before you use it.
+- **A file with children outside the plan is left in place** (for example
+  another campaign used it as input). It is listed in the plan and the log
+  as "left in place, has children outside the plan". It does not block the
+  switch.
+- **Any failure leaves the switch on.** The next run resumes the same plan.
+  Look for `cleanup:` lines at `ERROR` level in the log; a failed
+  verification names the inputs that are wrong.
+- **Review first.** Run with `--dry-run` when cleanup is due. It writes the
+  plan and retires nothing. Check that `fallback_used` is `false` and that
+  the `retired` lists look right. A dry run still reads SAM and records the
+  output definitions it found in the state file.
+- **A big campaign takes long.** The first run reads the metadata of every
+  output file and retires files one by one. Hourly runs that start in the
+  meantime skip with "previous run still active".
+
+The state file's `cleanup` section tracks the work:
+
+```json
+"cleanup": {"plan_path": ".../cleanup_plan_<ini name>.json", "done": ["<definition>", "..."], "finished": false}
+```
+
+`done` lists the definitions already retired; `finished` turns `true` when
+verification passes. **To restart a cleanup from scratch, delete the
+`cleanup` section.** The next run makes a new plan. You need this when
+verification keeps failing on a file that appeared after the plan was made,
+or when the log says the unfinished plan is for other definitions. To run a
+cleanup again on an ini that is already switched off, also set
+`"switch": true`.
 
 ## Example workflow
 
