@@ -323,6 +323,47 @@ def test_chained_campaign_is_cleaned_and_verified(tmp_path):
     ) in cleanup_log(tmp_path)
 
 
+def test_file_under_an_already_retired_parent_is_retired_not_promoted():
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
+    sam.add("reco1_def", "reco1_b.root", "gen_1.root", 200)
+    sam.add("caf_def", "caf_b.root", "reco1_b.root", 50)
+    sam.add("hist_def", "hist_b.root", "caf_b.root", 40)
+    sam.retired.add("reco1_b.root")
+
+    plan = plan_cleanup([RECO1, CAF, {"name": "hist_def", "depth": 3}], sam)
+
+    assert plan["inputs"]["gen_1.root"]["kept_process_id"] == 100
+    assert plan["inputs"]["gen_1.root"]["kept"] == {"reco1_def": ["reco1_a.root"]}
+    assert plan["inputs"]["gen_1.root"]["retired"] == {"hist_def": ["hist_b.root"], "caf_def": ["caf_b.root"]}
+    by_name = {d["name"]: d for d in plan["definitions"]}
+    assert by_name["caf_def"]["retire"][0]["reason"] == "parent reco1_b.root is retired"
+
+
+def test_input_whose_only_files_hang_under_a_retired_parent_is_still_planned(tmp_path):
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add("reco1_def", "reco1_b.root", "gen_1.root", 200)
+    sam.add("caf_def", "caf_b.root", "reco1_b.root", 50)
+    sam.retired.add("reco1_b.root")
+
+    result = clean_definitions(make_cfg(tmp_path), [RECO1, CAF], sam)
+
+    assert result["ok"] is True
+    assert sam.retired == {"reco1_b.root", "caf_b.root"}
+
+
+def test_recorded_depth_that_stops_at_a_retired_output_file_is_ungrouped():
+    sam = chained_campaign()
+    sam.retired.add("reco1_b.root")
+
+    plan = plan_cleanup([RECO1, {"name": "caf_def", "depth": 1}], sam)
+
+    by_name = {d["name"]: d for d in plan["definitions"]}
+    assert [u["file"] for u in by_name["caf_def"]["ungrouped"]] == ["caf_a.root", "caf_b.root"]
+
+
 # --- children guard: retired children ---
 
 def test_retired_child_does_not_block_its_parent():
@@ -447,7 +488,8 @@ def test_metadata_is_read_in_batches(monkeypatch):
 
     plan = plan_cleanup([RECO1], sam)
 
-    assert sam.batch_sizes == [2, 2, 1]
+    # The output files, then their inputs.
+    assert sam.batch_sizes == [2, 2, 1, 2, 2, 1]
     assert len(plan["inputs"]) == 5
 
 

@@ -20,7 +20,8 @@ def run_cleanup(cfg, session, sam=None, dry_run=False):
     Definitions, then turns the switch off in the State File. `sam` is the
     SAM client; the real one when None. Any failure leaves the switch on.
     A dry run writes the plan file and the lists of the full paths of the
-    files it would retire, and nothing else: no State File, no SAM change. Returns True when the cleanup (or the dry run) went through."""
+    files it would retire; it records nothing in the State File and changes
+    nothing in SAM. Returns True when the cleanup (or the dry run) went through."""
     from poms_auto_submit import persist_switch
 
     sam = sam_client.get_sam_client(cfg["experiment"], sam)

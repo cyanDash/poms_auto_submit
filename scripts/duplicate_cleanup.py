@@ -78,13 +78,14 @@ def _input_key(name):
 
 
 def _fetch_metadata(sam, names, known):
-    """Adds {name: {process_id, parents}} to `known` for every name SAM
-    knows and `known` lacks."""
+    """Adds {name: {process_id, parents, tag}} to `known` for every name
+    SAM knows and `known` lacks."""
     for batch in _batches(set(names) - set(known), METADATA_BATCH_SIZE):
         for md in sam.getMultipleMetadata(batch):
             known[md["file_name"]] = {
                 "process_id": md.get("process_id"),
                 "parents": [p["file_name"] for p in md.get("parents") or []],
+                "tag": md.get("Dataset.Tag"),
             }
 
 
@@ -117,21 +118,23 @@ def _ancestor_chains(sam, files, depth, known):
     return {f: chains[f] for f in current}, failed
 
 
-def _depth_fault(chain, depth, definition_of, depth_of, ungrouped):
+def _depth_fault(chain, depth, stage_definition, depth_of, ungrouped):
     """Why a file's recorded `depth` does not lead to an input, or None.
-    `chain` is its ancestors, nearest first."""
+    `chain` is its ancestors, nearest first; `stage_definition(name)` is the
+    cleaned definition a file belongs to, live or retired, or None."""
     if not chain:
         return f"depth {depth} does not lead to an input"
     root = chain[-1]
-    if root in definition_of:
-        return f"depth {depth} does not lead to an input: it reaches {root} of {definition_of[root]}"
+    if stage_definition(root):
+        return f"depth {depth} does not lead to an input: it reaches {root} of {stage_definition(root)}"
     for steps, ancestor in enumerate(chain[:-1], start=1):
         if ancestor in ungrouped:
             return f"its ancestor {ancestor} could not be grouped"
-        if ancestor in definition_of and depth_of[definition_of[ancestor]] != depth - steps:
+        definition = stage_definition(ancestor)
+        if definition and depth_of[definition] != depth - steps:
             return (
-                f"depth {depth} disagrees with depth {depth_of[definition_of[ancestor]]} "
-                f"of its ancestor {ancestor} in {definition_of[ancestor]}"
+                f"depth {depth} disagrees with depth {depth_of[definition]} "
+                f"of its ancestor {ancestor} in {definition}"
             )
     return None
 
@@ -160,7 +163,8 @@ def plan_cleanup(definitions, sam):
 
     Per input, one worker is kept among the files nearest the input, then
     one among the files under each kept file, and so on down; everything
-    under a file that is not kept is retired with it.
+    under a file that is not kept, or that is already retired, is retired
+    with it.
 
     Returns {"definitions": [...], "inputs": {...}, "fallback_used": bool}.
     "definitions" is deepest first, each {name, depth, retire, skipped,
@@ -183,25 +187,35 @@ def plan_cleanup(definitions, sam):
         }
         definition_of.update({f: d["name"] for f in listed[d["name"]]})
 
+    def stage_definition(name):
+        """The cleaned definition `name` belongs to, live or retired."""
+        tag = known.get(name, {}).get("tag")
+        return definition_of.get(name) or (tag if tag in depth_of else None)
+
     # Shallowest first, so a file's ancestors are grouped before it is.
     ungrouped = set()
     input_of = {}
     by_input = defaultdict(list)
     under = defaultdict(list)
+    orphans = defaultdict(list)
     for d in reversed(ordered):
         chains, failed = _ancestor_chains(sam, listed[d["name"]], d["depth"], known)
+        _fetch_metadata(sam, [chain[-1] for chain in chains.values() if chain], known)
         for f in listed[d["name"]]:
-            reason = failed.get(f) or _depth_fault(chains[f], d["depth"], definition_of, depth_of, ungrouped)
+            reason = failed.get(f) or _depth_fault(chains[f], d["depth"], stage_definition, depth_of, ungrouped)
             if reason:
                 ungrouped.add(f)
                 report[d["name"]]["ungrouped"].append({"file": f, "reason": reason})
                 continue
             input_of[f] = _input_key(chains[f][-1])
-            parent = next((a for a in chains[f][:-1] if a in definition_of), None)
+            parent = next((a for a in chains[f][:-1] if stage_definition(a)), None)
             if parent is None:
                 by_input[input_of[f]].append(f)
-            else:
+            elif parent in definition_of:
                 under[parent].append(f)
+            else:
+                # The parent is one of the stage's files and already retired.
+                orphans[input_of[f]].append((f, parent))
 
     covers = {}
 
@@ -219,10 +233,12 @@ def plan_cleanup(definitions, sam):
         for child in under[f]:
             retire_with_descendants(child, f"parent {f} is retired")
 
-    for key in sorted(by_input):
+    for key in sorted(set(by_input) | set(orphans)):
         plan_input = {"kept_process_id": None, "fallback": False, "kept": {}, "retired": {}, "skipped": {}}
         inputs[key] = plan_input
-        groups = [(None, by_input[key])]
+        for f, parent in orphans[key]:
+            retire_with_descendants(f, f"parent {parent} is retired")
+        groups = [(None, by_input[key])] if by_input[key] else []
         while groups:
             parent, group = groups.pop()
             kept, kept_pid = _kept_files(group, known, definition_of, covered)
@@ -496,8 +512,9 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
     one and writes its plan file; retires its files; verifies the result. A
     plan with a file that cannot be grouped under an input fails before
     anything is retired. A dry run writes the plan file and the lists of
-    full paths, logs what would be retired and changes nothing else: no SAM
-    change, no State File. Per-file lines go to the cleanup log.
+    full paths, logs what would be retired and changes nothing else:
+    nothing in SAM, nothing in the State File. Per-file lines go to the
+    cleanup log.
 
     Returns {"ok", "plan_path", "failure", "bad_inputs", "skipped",
     "retired_files_lists"}. `failure` is None, or {definition, file, error}
@@ -592,7 +609,7 @@ def main(argv=None, sam=None):
                         help="Output Definition to clean; repeat for every Output Definition of the Campaign Stage")
     parser.add_argument("-D", "--dry-run", action="store_true",
                         help="write the plan file and log what would be retired; "
-                             "change nothing in SAM and write no State File")
+                             "change nothing in SAM and record nothing in the State File")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

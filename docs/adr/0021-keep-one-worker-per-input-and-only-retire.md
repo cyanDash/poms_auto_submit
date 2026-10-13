@@ -39,7 +39,8 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   the caf of the kept reco1 has another id. So the Kept Worker is chosen
   among the files nearest the input, and a worker counts the definitions
   covered by its files plus their descendants. Below that, a file whose
-  parent is retired is retired, and the files under one kept parent are
+  parent is retired (by this plan or before it) is retired, and the files
+  under one kept parent are
   grouped by that parent and settled by the same rule. A flat campaign has
   one group per input, so nothing changes for it.
 - **Fallback.** If any file of a group has no process id (seen on aurora
@@ -84,8 +85,8 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   through a logger that does not propagate; the campaign log keeps the
   summary lines, so a 250k-file tier does not flood it.
 - **`--dry-run` writes the plan and the lists of full paths, and retires
-  nothing.** It writes no State File: the inferred Output Definitions are
-  not recorded and no `cleanup` section is made.
+  nothing.** The inferred Output Definitions are not recorded and no
+  `cleanup` section is made.
 - **No cleanup under `test_launch`.** The gate stays shut.
 
 ## Putting files back, or deleting them

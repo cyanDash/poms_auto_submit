@@ -2,7 +2,7 @@
 interface."""
 
 
-class LazySamClient:
+class _LazySamClient:
     """samweb_client.SAMWebClient, imported and built on first use."""
 
     def __init__(self, experiment):
@@ -18,4 +18,4 @@ class LazySamClient:
 
 def get_sam_client(experiment, sam=None):
     """`sam` when one is given, else the real client for `experiment`."""
-    return sam if sam is not None else LazySamClient(experiment)
+    return sam if sam is not None else _LazySamClient(experiment)

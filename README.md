@@ -147,7 +147,8 @@ Things to know:
 - **Review first.** Run with `--dry-run` when cleanup is due. It writes the
   plan and the `<definition>_retired_files.txt` lists and retires nothing.
   Check that `fallback_used` is `false` and that the `retired` lists look
-  right. A dry run reads SAM but writes nothing to the state file.
+  right. A dry run reads SAM; it records no output definitions and no
+  `cleanup` section in the state file.
 - **A big campaign takes long.** The first run reads the metadata of every
   output file and retires files one by one. Hourly runs that start in the
   meantime skip with "previous run still active".
