@@ -1,6 +1,6 @@
 import configparser
-import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -9,13 +9,13 @@ from helpers import make_cfg
 from poms_auto_submit import submit_plan
 
 SPLIT = {
-    "window": "1h", "round": "1", "fts": "1800", "localtime": "1",
+    "window": "1h", "round": "1", "fts": "1800", "localtime": "0",
     "first_start": "2026-10-23 00:00", "step": "2h", "lasttime": "2031-04-09",
 }
 
 
 def unix(text, fmt="%Y-%m-%d %H:%M"):
-    return int(time.mktime(datetime.strptime(text, fmt).timetuple()))
+    return int(datetime.strptime(text, fmt).replace(tzinfo=ZoneInfo("America/Chicago")).timestamp())
 
 
 @pytest.mark.parametrize("text,seconds", [
@@ -33,7 +33,7 @@ def test_parse_duration_rejects_garbage():
 @pytest.mark.parametrize("n,start", [(0, "00:00"), (1, "02:00"), (2, "04:00")])
 def test_build_split_type_steps_firsttime_by_step_per_launch(n, start):
     expected = (
-        "new(window=1h,round=1,fts=1800,localtime=1,"
+        "new(window=1h,round=1,fts=1800,localtime=0,"
         f"firsttime={unix('2026-10-23 ' + start)},lasttime={unix('2031-04-09', '%Y-%m-%d')})"
     )
 
@@ -50,7 +50,7 @@ def test_read_fills_defaults_and_requires_first_start_and_step():
 
     split = split_window.read(parser)
 
-    assert (split["window"], split["round"], split["fts"], split["localtime"]) == ("1h", "1", "1800", "1")
+    assert (split["window"], split["round"], split["fts"], split["localtime"]) == ("1h", "1", "1800", "0")
     assert split["lasttime"] == "2031-04-09"
 
     parser.read_string("[split]\nstep = 1d\n")
@@ -97,3 +97,9 @@ def test_submit_plan_without_split_never_touches_split_type(monkeypatch):
 
     assert ("set_split_type",) not in [c[:1] for c in session.calls]
     assert all(c[0] != "set_split_type" for c in session.calls)
+
+
+def test_first_start_is_central_time_whatever_the_host_tz(monkeypatch):
+    monkeypatch.setenv("TZ", "UTC")
+    # 2026-10-22 00:00 CDT is 05:00 UTC.
+    assert "firsttime=1792645200" in split_window.build_split_type({**SPLIT, "first_start": "2026-10-22 00:00"}, 0)

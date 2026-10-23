@@ -680,7 +680,7 @@ def test_get_progress_flags_old_poms_active_submission_as_outside_window():
     assert "outside_window" not in entries[1]
 
 
-def test_set_split_type_sends_cs_split_type_without_resetting_last_split(monkeypatch):
+def test_set_split_type_sends_cs_split_type_and_resets_last_split(monkeypatch):
     calls = []
     fake_raw_poms_call(monkeypatch, lambda pc, method, **kw: calls.append((method, kw)) or ("Success", 200))
     session = make_session()
@@ -691,7 +691,7 @@ def test_set_split_type_sends_cs_split_type_without_resetting_last_split(monkeyp
     assert method == "update_campaign_stage"
     assert kwargs["campaign_stage"] == 42
     assert kwargs["cs_split_type"] == "new(window=1h,firsttime=100)"
-    assert "cs_last_split" not in kwargs
+    assert kwargs["cs_last_split"] == 0
 
 
 def test_set_split_type_raises_on_failure(monkeypatch):

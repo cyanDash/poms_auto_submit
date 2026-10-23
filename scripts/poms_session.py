@@ -194,7 +194,11 @@ class PomsSession:
         )
 
     def set_split_type(self, split_type):
-        """Set the Campaign Stage's cs_split_type; leaves cs_last_split alone."""
+        """Set the Campaign Stage's cs_split_type and reset cs_last_split to 0.
+
+        POMS resumes `new()` from cs_last_split (the end of the last window it
+        served) and ignores a changed firsttime while it is set; confirmed live
+        2026-10-23, see docs/adr/0023."""
         data, status = raw_poms_call(
             self.pc, "update_campaign_stage",
             pcl_call=1,
@@ -202,6 +206,7 @@ class PomsSession:
             experiment=self.cfg["experiment"],
             role=self.cfg["role"],
             cs_split_type=split_type,
+            cs_last_split=0,
         )
         if status not in (200, 202):
             raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")

@@ -2,11 +2,19 @@
 [split] section fixes everything but `firsttime`, which steps by `step` per
 launch. See docs/adr/0023-rewrite-new-split-firsttime-per-launch.md."""
 
-import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 DURATION_UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1}
-DEFAULTS = {"window": "1h", "round": "1", "fts": "1800", "localtime": "1", "lasttime": "2031-04-09"}
+# Operators write times in this zone (CDT/CST) regardless of the host's TZ.
+USER_TZ = ZoneInfo("America/Chicago")
+
+# localtime defaults to 0: POMS then renders firsttime/lasttime as GMT in the
+# SAM create_date dimension, and SAM reads that bare timestamp as UTC. With
+# localtime=1 POMS renders Central time that SAM still reads as UTC, so the
+# window lands 5 (CDT) or 6 (CST) hours early. The unix times we send are
+# true instants either way; see docs/adr/0023.
+DEFAULTS = {"window": "1h", "round": "1", "fts": "1800", "localtime": "0", "lasttime": "2031-04-09"}
 
 
 def parse_duration(text):
@@ -17,9 +25,9 @@ def parse_duration(text):
 
 
 def _unix(text):
-    """Local-time `YYYY-MM-DD[ HH:MM]` to unix seconds."""
+    """Central-time `YYYY-MM-DD[ HH:MM]` to unix seconds."""
     fmt = "%Y-%m-%d %H:%M" if " " in text.strip() else "%Y-%m-%d"
-    return int(time.mktime(datetime.strptime(text.strip(), fmt).timetuple()))
+    return int(datetime.strptime(text.strip(), fmt).replace(tzinfo=USER_TZ).timestamp())
 
 
 def read(parser):
