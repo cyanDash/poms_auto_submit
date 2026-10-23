@@ -193,6 +193,20 @@ class PomsSession:
             dataset_name, self.campaign_stage_id,
         )
 
+    def set_split_type(self, split_type):
+        """Set the Campaign Stage's cs_split_type; leaves cs_last_split alone."""
+        data, status = raw_poms_call(
+            self.pc, "update_campaign_stage",
+            pcl_call=1,
+            campaign_stage=self.campaign_stage_id,
+            experiment=self.cfg["experiment"],
+            role=self.cfg["role"],
+            cs_split_type=split_type,
+        )
+        if status not in (200, 202):
+            raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")
+        logging.info("set cs_split_type=%s for campaign_stage_id=%s", split_type, self.campaign_stage_id)
+
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage. Returns the new
         submission_id, or None if POMS reports the campaign stage's Input

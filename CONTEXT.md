@@ -43,6 +43,9 @@ The SAM dataset of fcl files a campaign stage consumes as input, dividing its to
 A Submission in the window with 50 or fewer unfinished jobs once no splits are left. "Unfinished" is `DAG_NodesTotal - DAG_NodesDone - DAG_NodesFailed`, so a failed job counts as leaving the unfinished set. Tracked run to run so a Straggler that stops making progress can be removed before recovery (see docs/adr/0018).
 _Avoid_: Held Submission (a Straggler is judged by progress, not by Status).
 
+**Split window**:
+Optional `[split]` ini section for a Campaign Stage on the `new()` split type. Before every launch the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step`, so each Submission rakes in the files of one `window` from a growing Input Dataset (see docs/adr/0023-rewrite-new-split-firsttime-per-launch.md).
+
 **Stagger count**:
 Consecutive runs in which a Straggler's unfinished count failed to drop by 5 from the last time it did. A Straggler is removed with `condor_rm` when it reaches 3.
 

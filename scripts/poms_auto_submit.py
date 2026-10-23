@@ -16,6 +16,7 @@ import sys
 import cleanup
 import condor_progress
 import recovery
+import split_window
 import state
 import stragglers
 from poms_client_bootstrap import setup_poms_client_path
@@ -62,6 +63,7 @@ def load_config(path):
         "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
     }
+    cfg["split"] = split_window.read(parser)
     cfg["cache_dir"] = campaign_dir
     # One state file per ini; see docs/adr/0020-one-consolidated-state-file-per-config.md.
     ini_name = os.path.splitext(os.path.basename(path))[0]
@@ -302,6 +304,10 @@ def submit_plan(cfg, session, plan):
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
         session.set_subgroup(use_pro)
+        if cfg.get("split"):
+            split_type = split_window.build_split_type(cfg["split"], cfg["last_split"])
+            logging.info("split window for launch %d: %s", cfg["last_split"], split_type)
+            session.set_split_type(split_type)
         submission_id = session.submit_next_slice()
         if submission_id is None:
             logging.info(
