@@ -348,9 +348,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"))
     parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
+    parser.add_argument("--follow-launch", action="store_true", help="print POMS's launch stdout while waiting for the jobsub id")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    cfg["follow_launch"] = args.follow_launch
 
     handlers = [logging.FileHandler(cfg["log_file"]), logging.StreamHandler()]
     # Silences noisy INFO logs from poms_client's vendored urllib3 on every
