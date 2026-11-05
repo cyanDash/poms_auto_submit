@@ -300,7 +300,7 @@ def _manage_stragglers(cfg, session, dry_run):
 
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order, persisting last_split after each
-    success. Shared with recovery.py; see docs/adr/0012. Returns False if
+    success (test launches don't count). Shared with recovery.py; see docs/adr/0012. Returns False if
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
         session.set_subgroup(use_pro)
@@ -315,8 +315,9 @@ def submit_plan(cfg, session, plan):
                 "-- stopping further slice submissions this run"
             )
             return False
-        cfg["last_split"] += 1
-        persist_last_split(cfg, cfg["last_split"])
+        if not cfg.get("test_launch"):
+            cfg["last_split"] += 1
+            persist_last_split(cfg, cfg["last_split"])
     return True
 
 
@@ -354,9 +355,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"))
     parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
+    parser.add_argument("--follow-launch", action="store_true", help="print POMS's launch stdout while waiting for the jobsub id")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    cfg["follow_launch"] = args.follow_launch
 
     handlers = [logging.FileHandler(cfg["log_file"]), logging.StreamHandler()]
     # Silences noisy INFO logs from poms_client's vendored urllib3 on every

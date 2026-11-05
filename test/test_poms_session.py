@@ -700,3 +700,70 @@ def test_set_split_type_raises_on_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="some real error text"):
         session.set_split_type("new(window=1h)")
+
+
+def test_launch_log_returns_lines_for_submission(monkeypatch):
+    calls = []
+    body = json.dumps({"lines": ["line one\n", "line two\n"], "do_refresh": 3})
+    fake_raw_poms_call(monkeypatch, lambda pc, method, **kw: calls.append((method, kw)) or (body, 200))
+    session = make_session()
+
+    lines, still_writing = session.launch_log(555)
+
+    method, kwargs = calls[0]
+    assert method == "list_launch_file"
+    assert kwargs["campaign_stage_id"] == 42
+    assert kwargs["submission_id"] == 555
+    assert kwargs["fmt"] == "json"
+    assert lines == ["line one\n", "line two\n"]
+    assert still_writing is True
+
+
+def test_launch_log_reports_finished_file(monkeypatch):
+    body = json.dumps({"lines": ["done\n"], "do_refresh": 0})
+    fake_raw_poms_call(monkeypatch, (body, 200))
+
+    assert make_session().launch_log(555) == (["done\n"], False)
+
+
+def test_launch_log_raises_with_body_on_failure(monkeypatch):
+    fake_raw_poms_call(monkeypatch, ("real error text", 500))
+
+    with pytest.raises(RuntimeError, match="real error text"):
+        make_session().launch_log(555)
+
+
+def _follow_session(monkeypatch, launch_log_results):
+    """Session whose first jobsub-id poll misses, then hits; launch_log() yields launch_log_results in order."""
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    ids = iter([None, "12345@jobsub01"])
+    session = make_session(cfg=make_cfg(follow_launch=True))
+    monkeypatch.setattr(session, "_get_jobsub_job_id", lambda submission_id: next(ids))
+    results = iter(launch_log_results)
+    monkeypatch.setattr(session, "launch_log", lambda submission_id: next(results))
+    return session
+
+
+def test_submit_next_slice_prints_only_new_launch_lines_when_following(monkeypatch, capsys):
+    session = _follow_session(monkeypatch, [(["a\n", "b\n"], True), (["a\n", "b\n", "c\n"], False)])
+
+    assert session.submit_next_slice() == "555"
+
+    assert capsys.readouterr().out == "a\nb\nc\n"
+
+
+def test_submit_next_slice_survives_launch_log_failure_when_following(monkeypatch, capsys):
+    session = _follow_session(monkeypatch, [])  # next() raises StopIteration -> any exception
+
+    assert session.submit_next_slice() == "555"
+
+
+def test_submit_next_slice_does_not_fetch_launch_log_by_default(monkeypatch):
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session()
+
+    def boom(submission_id):
+        raise AssertionError("launch_log must not be called without follow_launch")
+
+    monkeypatch.setattr(session, "launch_log", boom)
+    assert session.submit_next_slice() == "555"

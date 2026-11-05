@@ -4,8 +4,10 @@ returns -- callers never see a raw (ok, data) tuple, bare string, or redirect
 URL.
 """
 
+import json
 import logging
 import re
+import sys
 import time
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
@@ -212,6 +214,23 @@ class PomsSession:
             raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")
         logging.info("set cs_split_type=%s for campaign_stage_id=%s", split_type, self.campaign_stage_id)
 
+    def launch_log(self, submission_id):
+        """Return (lines, still_writing) for a Submission's launch stdout, as
+        POMS saved it. still_writing is POMS's auto-refresh hint: the file was
+        modified in the last 30s."""
+        data, status = raw_poms_call(
+            self.pc, "list_launch_file",
+            campaign_stage_id=self.campaign_stage_id,
+            submission_id=submission_id,
+            experiment=self.cfg["experiment"],
+            role=self.cfg["role"],
+            fmt="json",
+        )
+        if status != 200:
+            raise RuntimeError(f"list_launch_file failed: HTTP status {status}\n{data}")
+        body = json.loads(data)
+        return body["lines"], bool(body["do_refresh"])
+
     def submit_next_slice(self):
         """Launch a new Submission for the Campaign Stage. Returns the new
         submission_id, or None if POMS reports the campaign stage's Input
@@ -236,11 +255,25 @@ class PomsSession:
         logging.info("submitted new slice: submission_id=%s", submission_id)
         logging.info("Getting job id...")
         jobsub_job_id = None
+        printed = 0
         while jobsub_job_id is None:
             time.sleep(JOBSUB_ID_POLL_SECONDS)
             jobsub_job_id = self._get_jobsub_job_id(submission_id)
+            if self.cfg.get("follow_launch"):
+                printed = self._print_new_launch_lines(submission_id, printed)
         logging.info("jobsub_job_id=%s", jobsub_job_id)
         return submission_id
+
+    def _print_new_launch_lines(self, submission_id, printed):
+        """Best-effort: print launch stdout lines past `printed`, return the new count."""
+        try:
+            lines, _ = self.launch_log(submission_id)
+        except Exception as e:
+            logging.warning("could not read launch log: %s", e)
+            return printed
+        sys.stdout.write("".join(lines[printed:]))
+        sys.stdout.flush()
+        return len(lines)
 
     def _get_jobsub_job_id(self, submission_id):
         """Best-effort lookup of the grid job id for a just-submitted Submission.
