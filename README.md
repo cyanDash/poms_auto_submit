@@ -64,7 +64,7 @@ submit_two_slices = 0
 max_splits = 5
 
 ; when true, every submission this run makes is a Test Launch (test_param_overrides
-; instead of param_overrides); still counts against last_split/max_splits
+; instead of param_overrides); does not count against last_split/max_splits
 test_launch = 0
 
 ; when true, automatically build a Recovery Dataset and submit it once the

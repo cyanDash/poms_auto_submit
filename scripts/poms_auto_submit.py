@@ -298,7 +298,7 @@ def _manage_stragglers(cfg, session, dry_run):
 
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order, persisting last_split after each
-    success. Shared with recovery.py; see docs/adr/0012. Returns False if
+    success (test launches don't count). Shared with recovery.py; see docs/adr/0012. Returns False if
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
         session.set_subgroup(use_pro)
@@ -309,8 +309,9 @@ def submit_plan(cfg, session, plan):
                 "-- stopping further slice submissions this run"
             )
             return False
-        cfg["last_split"] += 1
-        persist_last_split(cfg, cfg["last_split"])
+        if not cfg.get("test_launch"):
+            cfg["last_split"] += 1
+            persist_last_split(cfg, cfg["last_split"])
     return True
 
 
