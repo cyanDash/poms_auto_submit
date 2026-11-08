@@ -86,13 +86,3 @@ def test_real_submission_increments_and_persists_last_split(tmp_path, monkeypatc
 
     assert cfg["last_split"] == 2
     assert state.read(cfg, "last_split", None) == 2
-
-
-def test_test_launch_does_not_touch_last_split(tmp_path, monkeypatch):
-    cfg = load(tmp_path, monkeypatch, extra="test_launch = 1")
-    assert cfg["test_launch"]
-
-    assert psc.submit_plan(cfg, FakeSession(), [False, False]) is True
-
-    assert cfg["last_split"] == 0
-    assert state.read(cfg, "last_split", None) is None

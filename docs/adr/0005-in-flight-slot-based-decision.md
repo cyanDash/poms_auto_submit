@@ -52,12 +52,9 @@ not at `Finished`).
 the stage's *current* `param_overrides` is exactly the unreliable read
 ADR-0002 rejected, and Test Launches don't use it at all server-side.
 
-`run()` deliberately still calls `session.set_subgroup(use_pro)` every run
-regardless of `test_launch` — it has no effect on what a Test Launch
-actually submits (server substitutes `test_param_overrides`), but keeps the
-plan/decision logic exercised and consistent whether or not `test_launch` is
-on, rather than special-casing it away. Don't "simplify" this into a
-test_launch-gated call.
+A Test Launch no longer goes through `run()` at all (see CONTEXT.md's Test Launch
+entry): `main()` calls `run_test_launch()`, which never plans or calls
+`set_subgroup`, since the server substitutes `test_param_overrides` anyway.
 
 ## Consequence: bootstrapping to a higher target can still submit >1 at once
 

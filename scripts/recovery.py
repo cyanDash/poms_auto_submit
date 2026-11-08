@@ -28,16 +28,14 @@ def _mark_handled(cfg):
 
 
 def _record_output_definitions(cfg, path):
-    """Move run_recovery.sh's output defnames into the state file. A
-    test-launch's are dropped: cleanup.py must never see a debug run's."""
+    """Move run_recovery.sh's output defnames into the state file."""
     try:
         with open(path) as f:
             outputs = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
         return
     os.remove(path)
-    if not cfg.get("test_launch"):
-        state.write(cfg, "output_definitions", outputs)
+    state.write(cfg, "output_definitions", outputs)
 
 
 def run_recovery_script(input_dataset, campaign_name, output_defnames_path):
@@ -64,10 +62,9 @@ def evaluate_and_run_recovery(cfg, session):
     stage = session.get_stage_params()
     input_dataset = stage["dataset"]
     # Scratch file run_recovery.sh writes its output defnames to; its
-    # prestage log is named after it, hence the test-launch suffix.
-    suffix = "_test_launch" if cfg.get("test_launch") else ""
+    # prestage log is named after it.
     output_defnames_path = os.path.join(
-        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}{suffix}.txt"
+        cfg["cache_dir"], f"output_definitions_{session.campaign_stage_id}.txt"
     )
 
     try:

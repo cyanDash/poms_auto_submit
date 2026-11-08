@@ -298,7 +298,7 @@ def _manage_stragglers(cfg, session, dry_run):
 
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order, persisting last_split after each
-    success (test launches don't count). Shared with recovery.py; see docs/adr/0012. Returns False if
+    success. Shared with recovery.py; see docs/adr/0012. Returns False if
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
         session.set_subgroup(use_pro)
@@ -309,9 +309,8 @@ def submit_plan(cfg, session, plan):
                 "-- stopping further slice submissions this run"
             )
             return False
-        if not cfg.get("test_launch"):
-            cfg["last_split"] += 1
-            persist_last_split(cfg, cfg["last_split"])
+        cfg["last_split"] += 1
+        persist_last_split(cfg, cfg["last_split"])
     return True
 
 
@@ -347,14 +346,16 @@ def run(cfg, dry_run):
 
 def run_test_launch(cfg, dry_run):
     """A Test Launch is outside the planning machinery: one launch_jobs call,
-    nothing read from or written to the State File, no recovery, cleanup or
-    straggler handling. The subgroup comes from the stage's test_param_overrides."""
+    no recovery, cleanup, straggler or last_split handling. The only State
+    File write is PomsSession's submissions cache. The subgroup comes from
+    the stage's test_param_overrides."""
     import poms_client as pc
 
     if dry_run:
         logging.info("dry-run: would submit 1 test launch")
         return
-    PomsSession(pc, cfg).submit_next_slice()
+    if PomsSession(pc, cfg).submit_next_slice() is None:
+        logging.info("test launch: POMS reports no more splits in this campaign stage")
 
 
 def main():

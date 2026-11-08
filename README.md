@@ -65,7 +65,7 @@ max_splits = 5
 
 ; when true, a run is only a Test Launch: it submits once with the stage's
 ; test_param_overrides (set its subgroup to `test` in POMS) and does nothing
-; else -- no planning, in-flight checks, state file, stragglers, recovery or cleanup
+; else -- no planning, in-flight checks, last_split, switch, lock, stragglers, recovery or cleanup
 test_launch = 0
 
 ; when true, automatically build a Recovery Dataset and submit it once the

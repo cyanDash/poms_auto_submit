@@ -246,32 +246,6 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert not (tmp_path / "output_definitions_42.txt").exists()
 
 
-def test_recovery_diverts_output_defnames_for_test_launch(tmp_path, monkeypatch):
-    # cleanup.py's reader must never see a test-launch's output datasets.
-    config_path = make_config_file(tmp_path, last_split=5)
-    cfg = make_cfg(
-        config_path=str(config_path), last_split=5,
-        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign", test_launch=True,
-    )
-    session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
-    )
-    calls = []
-
-    def fake_script(input_dataset, campaign_name, output_path):
-        calls.append((input_dataset, campaign_name, output_path))
-        with open(output_path, "w") as f:
-            f.write("ds_reco1\nds_caf\n")
-        return 0.5, 0.98, "recovery_dataset_name"
-
-    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
-
-    evaluate_and_run_recovery(cfg, session)
-
-    (_, _, output_path), = calls
-    assert output_path.endswith("output_definitions_42_test_launch.txt")
-    assert recorded_outputs(tmp_path) is None
-
 
 def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
     # A transient POMS hiccup right after the dataset switch is retryable --
