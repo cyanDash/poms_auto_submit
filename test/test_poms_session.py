@@ -454,15 +454,6 @@ def test_set_subgroup_false_clears_override():
     assert calls == [{"param_overrides": "[('-Osubmit.subgroup=', '')]"}]
 
 
-def test_set_subgroup_string_sets_that_subgroup():
-    calls = []
-    session = make_session(update_stage_param_overrides=lambda *a, **kw: calls.append(kw) or "(ok, None)")
-
-    session.set_subgroup("test")
-
-    assert calls == [{"param_overrides": "[('-Osubmit.subgroup=', 'test')]"}]
-
-
 def fake_raw_poms_call(monkeypatch, result):
     """result: (res, status) to return, or a callable(pc, method, **kw) -> (res, status)."""
     fn = result if callable(result) else (lambda pc, method, **kw: result)

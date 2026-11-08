@@ -224,4 +224,4 @@ def test_run_test_launch_skips_stragglers_cleanup_and_recovery(monkeypatch, tmp_
 
     psc.run(cfg, dry_run=False)
 
-    assert recording.calls == [("set_subgroup", "test"), ("submit_next_slice",)]
+    assert recording.calls == [("submit_next_slice",)]

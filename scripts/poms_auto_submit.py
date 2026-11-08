@@ -19,7 +19,11 @@ import recovery
 import state
 import stragglers
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, TEST_SUBGROUP, PomsSession
+from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
+
+# Test Launches take their subgroup from the stage's test_param_overrides, not
+# from set_subgroup(); see docs/poms_client_gotchas.md.
+TEST_SUBGROUP = "test"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -310,7 +314,8 @@ def submit_plan(cfg, session, plan):
     success (test launches don't count). Shared with recovery.py; see docs/adr/0012. Returns False if
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
-        session.set_subgroup(use_pro)
+        if use_pro != TEST_SUBGROUP:
+            session.set_subgroup(use_pro)
         submission_id = session.submit_next_slice()
         if submission_id is None:
             logging.info(
