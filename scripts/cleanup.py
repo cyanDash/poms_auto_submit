@@ -1,8 +1,8 @@
 """cleanup: the seam to scripts/duplicate_cleanup.sh -- TODO.md's File
 Cleanup feature. run_cleanup() is the module's one interface, same
 convention as recovery.py's evaluate_and_run_recovery(); all
-eligibility/readiness checking lives in poms_auto_submit.py's
-_cleanup_ready() -- by the time run_cleanup() is called, the campaign is
+eligibility/readiness checking lives in campaign_snapshot.py's
+CampaignSnapshot.cleanup_ready() -- by the time run_cleanup() is called, the campaign is
 already known to be done.
 """
 

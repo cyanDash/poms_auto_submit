@@ -1,7 +1,7 @@
 """recovery: the seam to scripts/run_recovery.sh; see docs/adr/0010, 0011.
 evaluate_and_run_recovery() is the module's one interface, same convention
 as plan_next_slices(); all eligibility/readiness checking lives in
-poms_auto_submit.py's _recovery_ready(), which reads is_handled().
+campaign_snapshot.py's CampaignSnapshot.recovery_ready(), which reads is_handled().
 """
 
 import logging

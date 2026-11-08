@@ -1,8 +1,8 @@
 import logging
 
 import condor_progress
-import poms_auto_submit as psc
 import state
+from campaign_snapshot import CampaignSnapshot, no_splits_left
 from helpers import make_cfg
 
 
@@ -22,17 +22,17 @@ def ready_cfg(**overrides):
     return cfg
 
 
-# --- _no_splits_left ---
+# --- no_splits_left ---
 
 def test_no_splits_left_true_when_last_split_reaches_max():
-    assert psc._no_splits_left(make_cfg(last_split=5, max_splits=5)) is True
+    assert no_splits_left(make_cfg(last_split=5, max_splits=5)) is True
 
 
 def test_no_splits_left_false_when_splits_remain():
-    assert psc._no_splits_left(make_cfg(last_split=3, max_splits=5)) is False
+    assert no_splits_left(make_cfg(last_split=3, max_splits=5)) is False
 
 
-# --- _cleanup_ready ---
+# --- cleanup_ready ---
 
 def _cp(outcome, pct=None):
     return condor_progress.Progress(outcome, pct)
@@ -47,7 +47,7 @@ def _by_job(outcomes):
 
 
 def _ready(cfg, subs, outcomes):
-    return psc._cleanup_ready(cfg, FakeSession(subs), get_condor_progress=_by_job(outcomes))
+    return CampaignSnapshot.take(cfg, FakeSession(subs), _by_job(outcomes)).cleanup_ready()
 
 
 def test_cleanup_ready_true_when_all_finished():
@@ -118,7 +118,7 @@ def _recovery_not_done_lines(caplog):
 def test_max_splits_reached_logs_recovery_not_done_when_unhandled(tmp_path, caplog):
     cfg = make_cfg(do_recovery=True, last_split=5, max_splits=5, state_file=str(tmp_path / "state.json"))
     with caplog.at_level(logging.INFO):
-        assert psc._plan(cfg, [], None) == (0, [])
+        assert CampaignSnapshot(cfg, []).slices_to_plan() == []
     assert len(_recovery_not_done_lines(caplog)) == 1
 
 
@@ -126,6 +126,6 @@ def test_max_splits_reached_is_quiet_about_recovery_when_handled_or_off(tmp_path
     handled = make_cfg(do_recovery=True, last_split=5, max_splits=5, state_file=str(tmp_path / "state.json"))
     state.write(handled, "recovery_handled", True)
     with caplog.at_level(logging.INFO):
-        psc._plan(handled, [], None)
-        psc._plan(make_cfg(do_recovery=False, last_split=5, max_splits=5), [], None)
+        CampaignSnapshot(handled, []).slices_to_plan()
+        CampaignSnapshot(make_cfg(do_recovery=False, last_split=5, max_splits=5), []).slices_to_plan()
     assert _recovery_not_done_lines(caplog) == []

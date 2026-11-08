@@ -4,6 +4,7 @@ import json
 import logging
 
 import poms_auto_submit as psc
+from campaign_snapshot import CampaignSnapshot
 from condor_progress import Progress
 from helpers import make_cfg
 
@@ -18,7 +19,10 @@ def entry(submission_id, status):
 
 def run(tmp_path, submissions, progress):
     cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
-    return psc._in_flight_submissions(cfg, submissions, lambda e, j: progress[j], track_stuck=True)
+    snapshot = CampaignSnapshot(cfg, submissions, lambda e, j: progress[j])
+    in_flight = snapshot.slices_to_plan()
+    snapshot.record_stuck()
+    return in_flight
 
 
 def counts(tmp_path):
@@ -43,7 +47,7 @@ def test_warns_from_the_fifth_run_on_and_still_holds_slot(tmp_path, caplog):
         assert stuck_warnings(caplog) == []
         for n in (5, 6):
             in_flight = run(tmp_path, [entry(1, "Held")], {"1@s": NO_DATA})
-            assert len(in_flight) == 1
+            assert in_flight == []  # the held slot is not freed
             assert len(stuck_warnings(caplog)) == n - 4
 
 
@@ -81,7 +85,7 @@ def test_condor_q_error_leaves_counts_untouched(tmp_path):
 def test_no_cache_dir_is_a_silent_noop(caplog):
     with caplog.at_level(logging.WARNING):
         for _ in range(6):
-            psc._in_flight_submissions(make_cfg(), [entry(1, "Held")], lambda e, j: NO_DATA)
+            CampaignSnapshot(make_cfg(), [entry(1, "Held")], lambda e, j: NO_DATA).record_stuck()
     assert stuck_warnings(caplog) == []
 
 
@@ -89,7 +93,7 @@ def test_recovery_gate_does_not_advance_stuck_counts(tmp_path):
     cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     subs = [{"submission_id": 1, "status": "Held", "jobsub_job_id": "1@s"}]
     no_data = lambda e, j: NO_DATA
-    psc._any_still_running(cfg, subs, no_data)
+    CampaignSnapshot(cfg, subs, no_data).any_still_running()
     assert not list(tmp_path.glob("state_*.json"))
 
 

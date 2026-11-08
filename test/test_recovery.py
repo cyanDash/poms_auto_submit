@@ -6,6 +6,7 @@ import pytest
 
 import condor_progress as recovery_condor_progress
 import recovery
+from campaign_snapshot import CampaignSnapshot
 from helpers import make_cfg
 from recovery import evaluate_and_run_recovery, run_recovery_script
 
@@ -99,7 +100,7 @@ def stub_poms_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
 
 
-# --- _recovery_ready ---
+# --- recovery_ready ---
 
 def _cp(outcome, pct=None):
     return recovery_condor_progress.Progress(outcome, pct)
@@ -114,11 +115,10 @@ def _by_job(outcomes):
 
 
 def _ready(tmp_path, progress, outcomes=None, **cfg_overrides):
-    import poms_auto_submit as psc
     cfg = make_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     cfg.update(cfg_overrides)
     get_condor_progress = _by_job(outcomes) if outcomes is not None else None
-    return psc._recovery_ready(cfg, FakeSession(progress=progress), get_condor_progress=get_condor_progress)
+    return CampaignSnapshot.take(cfg, FakeSession(progress=progress), get_condor_progress).recovery_ready()
 
 
 def test_recovery_ready_true_when_all_finished(tmp_path):
@@ -304,8 +304,7 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
 
 
 def test_any_still_running_true_for_live_dag_at_100_pct():
-    import poms_auto_submit as psc
     from condor_progress import Progress
     from helpers import make_cfg
     subs = [{"submission_id": 1, "status": "Completed", "jobsub_job_id": "1@s"}]
-    assert psc._any_still_running(make_cfg(), subs, lambda e, j: Progress("live", 100.0)) is True
+    assert CampaignSnapshot(make_cfg(), subs, lambda e, j: Progress("live", 100.0)).any_still_running() is True

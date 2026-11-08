@@ -22,6 +22,10 @@ _Avoid_: PomsGateway, poms_client wrapper.
 The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions`, `last_split`, `switch`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
 _Avoid_: cache file, marker file.
 
+**Campaign Snapshot**:
+One reading of the Campaign Stage's Submissions (window from `PomsSession.get_progress()`) plus each one's `condor_q` progress, taken once per run (`scripts/campaign_snapshot.py`). It answers every question about what is in flight: slices to plan and their Subgroups, whether anything is still running, whether cleanup or recovery is ready, and which Stragglers exist. It only reads; submitting, `condor_rm`, recovery, cleanup and State File writes other than stuck tracking stay with the callers. Immutable: a launch changes what is in flight, so the run takes a fresh one before the recovery check (see docs/adr/0021).
+_Avoid_: progress cache, status object.
+
 **Submission**:
 POMS's general term for one `launch_jobs` call against a campaign stage. Has a `submission_id`, a Status, and `pct_complete`. This script makes no code-level distinction between a Submission and a Slice — mechanically it just launches jobs per the stage's configured parameters, for any campaign.
 

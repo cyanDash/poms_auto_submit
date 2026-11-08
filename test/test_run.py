@@ -26,6 +26,30 @@ class RecordingSessionNoMoreSplits(RecordingSession):
         return None
 
 
+class FakeSnapshot:
+    def __init__(self, plan, cleanup, recovery):
+        self._plan, self._cleanup, self._recovery = plan, cleanup, recovery
+
+    def slices_to_plan(self):
+        return list(self._plan)
+
+    def record_stuck(self):
+        pass
+
+    def cleanup_ready(self):
+        return self._cleanup() if callable(self._cleanup) else self._cleanup
+
+    def recovery_ready(self):
+        return self._recovery
+
+
+def patch_snapshot(monkeypatch, plan=(), cleanup=False, recovery=False):
+    monkeypatch.setattr(
+        psc.CampaignSnapshot, "take",
+        classmethod(lambda cls, cfg, session, get_condor_progress=None: FakeSnapshot(plan, cleanup, recovery)),
+    )
+
+
 def make_config_file(tmp_path, last_split=0, max_splits=5):
     config_path = tmp_path / "config.ini"
     config_path.write_text(f"[decision]\nmax_splits = {max_splits}\n")
@@ -37,7 +61,7 @@ def test_run_executes_plan_in_order_and_persists_last_split(monkeypatch, tmp_pat
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
+    patch_snapshot(monkeypatch, plan=[True, False])
 
     cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
@@ -57,7 +81,7 @@ def test_run_dry_run_does_not_submit_or_persist(monkeypatch, tmp_path):
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
+    patch_snapshot(monkeypatch, plan=[True])
 
     cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=True)
@@ -75,8 +99,7 @@ def test_run_stops_submitting_when_submit_next_slice_returns_none(monkeypatch, t
     recording = RecordingSessionNoMoreSplits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True, False])
-    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: False)
+    patch_snapshot(monkeypatch, plan=[True, False], recovery=False)
 
     cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
     psc.run(cfg, dry_run=False)
@@ -91,9 +114,8 @@ def test_run_calls_recovery_when_submit_next_slice_returns_none(monkeypatch, tmp
     recording = RecordingSessionNoMoreSplits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
+    patch_snapshot(monkeypatch, plan=[True], recovery=True)
     calls = []
-    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: True)
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append((cfg, session)))
 
     cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0)
@@ -108,9 +130,8 @@ def test_run_does_not_call_recovery_when_not_ready(monkeypatch, tmp_path):
     recording = RecordingSessionNoMoreSplits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
+    patch_snapshot(monkeypatch, plan=[True], recovery=False)
     calls = []
-    monkeypatch.setattr(psc, "_recovery_ready", lambda cfg, session: False)
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
 
     psc.run(make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=0), dry_run=False)
@@ -123,7 +144,7 @@ def test_run_does_not_call_recovery_when_a_slice_is_submitted(monkeypatch, tmp_p
     recording = RecordingSession()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [True])
+    patch_snapshot(monkeypatch, plan=[True])
     calls = []
     monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: calls.append(1))
 
@@ -141,8 +162,7 @@ def test_run_calls_cleanup_when_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
+    patch_snapshot(monkeypatch, plan=[], cleanup=True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append((cfg, session)))
 
@@ -156,8 +176,7 @@ def test_run_does_not_call_cleanup_when_not_ready(monkeypatch, tmp_path):
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
+    patch_snapshot(monkeypatch, plan=[], cleanup=False)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
 
@@ -171,8 +190,7 @@ def test_run_dry_run_does_not_call_cleanup_even_when_ready(monkeypatch, tmp_path
     config_path = make_config_file(tmp_path)
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: SESSION)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: True)
+    patch_snapshot(monkeypatch, plan=[], cleanup=True)
     calls = []
     monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda cfg, session: calls.append(1))
 
@@ -187,8 +205,7 @@ def test_run_manages_stragglers_only_when_no_splits_left(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: types.SimpleNamespace(
         get_progress=lambda: [], campaign_stage_id=42))
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: False)
+    patch_snapshot(monkeypatch, plan=[], cleanup=False)
     monkeypatch.setattr(psc.stragglers, "manage", lambda *a, **k: calls.append(k.get("dry_run")))
 
     psc.run(make_cfg(max_splits=5, last_split=4), dry_run=False)
@@ -201,9 +218,8 @@ def test_run_survives_straggler_cache_write_failure(monkeypatch):
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: types.SimpleNamespace(
         get_progress=lambda: [], campaign_stage_id=42))
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: [])
+    patch_snapshot(monkeypatch, plan=[], cleanup=lambda: ready.append(1) or False)
     ready = []
-    monkeypatch.setattr(psc, "_cleanup_ready", lambda cfg, session: ready.append(1) or False)
 
     def boom(*a, **k):
         raise FileNotFoundError("no cache_dir")

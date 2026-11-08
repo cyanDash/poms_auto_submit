@@ -14,25 +14,15 @@ import os
 import sys
 
 import cleanup
-import condor_progress
 import recovery
 import state
 import stragglers
+from campaign_snapshot import PRO_ELIGIBLE_ROLE, CampaignSnapshot, no_splits_left
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
+from poms_session import PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-
-# Only role sbndpro's managed token can auth as; see docs/adr/0004.
-PRO_ELIGIBLE_ROLE = "production"
-
-# Consecutive runs a POMS-active Submission may sit in one Status with no
-# condor_q data before a manual-intervention WARNING is logged every run.
-STUCK_NO_DATA_RUNS_WARN = 5
-
-# Per-Submission gate for _cleanup_ready(); see docs/adr/0016-cleanup-gates-on-last-slice-completion.md.
-CLEANUP_PCT_COMPLETE_THRESHOLD = 98
 
 
 def load_config(path):
@@ -92,206 +82,21 @@ def acquire_lock(lock_path):
     return lock_fh
 
 
-def _in_flight_submissions(cfg, submissions, get_condor_progress=None, threshold=None, track_stuck=False):
-    """Submissions still holding a slot, decided from condor_q; POMS Status
-    is only the tiebreak when condor_q has no data. See
-    docs/adr/0005-in-flight-slot-based-decision.md."""
-    get_condor_progress = get_condor_progress or condor_progress.get_progress
-    threshold = cfg["pct_complete_threshold"] if threshold is None else threshold
-    in_flight = []
-    no_data = []
-    for s in submissions:
-        jobsub_job_id = s.get("jobsub_job_id")
-        if jobsub_job_id:
-            progress = get_condor_progress(cfg["experiment"], jobsub_job_id)
-        else:
-            progress = condor_progress.Progress("no_data")
-        if progress.outcome == "error":
-            logging.warning(
-                "condor_q failed for submission_id=%s -- holding every submission in the window",
-                s.get("submission_id"),
-            )
-            return list(submissions)
-        if progress.outcome == "no_data" and s.get("status") in ACTIVE_SUBMISSION_STATUSES:
-            no_data.append(s)
-        if _holds_slot(s, progress, threshold):
-            in_flight.append(s)
-    if track_stuck:
-        _update_stuck_counts(cfg, no_data)
-    return in_flight
-
-
-def _update_stuck_counts(cfg, no_data):
-    """Count consecutive runs each POMS-active Submission has sat in the same
-    Status with no condor_q data; WARN from STUCK_NO_DATA_RUNS_WARN on. Never
-    frees the slot. Anything not in `no_data` is dropped, which resets it."""
-    if not cfg.get("state_file"):
-        return
-    try:
-        previous = state.read(cfg, "stuck_no_data", {})
-        previous = {sid: e for sid, e in previous.items() if isinstance(e, dict) and isinstance(e.get("count"), int)}
-    except AttributeError:
-        previous = {}
-
-    current = {}
-    for s in no_data:
-        submission_id = str(s.get("submission_id"))
-        prior = previous.get(submission_id)
-        count = prior["count"] + 1 if prior and prior["status"] == s.get("status") else 1
-        current[submission_id] = {"status": s.get("status"), "count": count}
-        if count >= STUCK_NO_DATA_RUNS_WARN:
-            logging.warning(
-                "submission_id=%s has been %s with no condor_q data for %d consecutive runs "
-                "-- manual intervention needed",
-                submission_id, s.get("status"), count,
-            )
-
-    state.write(cfg, "stuck_no_data", current)
-
-
-def _holds_slot(s, progress, threshold):
-    active = s.get("status") in ACTIVE_SUBMISSION_STATUSES
-    if progress.outcome == "live":
-        holds = progress.pct < threshold
-    elif progress.outcome == "finished":
-        holds = False
-    else:
-        holds = active
-    _log_live(s, progress)
-    return holds
-
-
-def _log_live(s, progress):
-    """Only Submissions condor_q reports as live are logged; POMS Status is
-    deliberately left out, see docs/adr/0017."""
-    if progress.outcome != "live":
-        return
-    logging.info(
-        "progress: submission_id=%s status=%s completion_%%=%.2f jobsub_job_id=%s subgroup=%s",
-        s.get("submission_id"), progress.job_status, progress.pct, s.get("jobsub_job_id"), s.get("subgroup"),
-    )
-
-
-def _no_splits_left(cfg):
-    return cfg["max_splits"] - cfg["last_split"] <= 0
-
-
-def _plan(cfg, submissions, get_condor_progress, track_stuck=False):
-    """Shared by _next_slice_count() and plan_next_slices(). Returns (num_slices, in_flight)."""
-    if _no_splits_left(cfg):
-        logging.info(
-            "decision: skip (max_splits reached: last_split=%d max_splits=%d)",
-            cfg["last_split"], cfg["max_splits"],
-        )
-        if cfg["do_recovery"] and not recovery.is_handled(cfg):
-            logging.info("recovery: not done (max_splits reached before the splits were exhausted)")
-        return 0, []
-
-    remaining_splits = cfg["max_splits"] - cfg["last_split"]
-    target = 2 if cfg["submit_two_slices"] else 1
-    in_flight = _in_flight_submissions(cfg, submissions, get_condor_progress, track_stuck=track_stuck)
-    num_slices = min(max(0, target - len(in_flight)), remaining_splits)
-    subgroup_plan = _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
-    subgroup_plan = ["pro" if use_pro else "standard" for use_pro in subgroup_plan]
-    logging.info(
-        "decision: submit %d slice(s) (in_flight=%d target=%d remaining_splits=%d) subgroup=%s",
-        num_slices, len(in_flight), target, remaining_splits, subgroup_plan,
-    )
-    return num_slices, in_flight
-
-
-def _next_slice_count(cfg, submissions, get_condor_progress=None):
-    """Decide how many new slices to submit this run (0, 1, or 2): enough to
-    bring the in-flight count up to target, capped by remaining_splits."""
-    return _plan(cfg, submissions, get_condor_progress)[0]
-
-
-def _pro_available(in_flight):
-    """Whether the campaign's single pro slot is free; see CONTEXT.md's
-    Subgroup entry."""
-    return not any(s.get("subgroup") == PRO_SUBGROUP for s in in_flight)
-
-
-def _plan_subgroups(num_slices, role, pro_available):
-    """Decide which subgroup each new submission gets; see
-    docs/adr/0002-lone-slice-defaults-to-pro-subgroup.md."""
-    if num_slices == 0:
-        return []
-    if role != PRO_ELIGIBLE_ROLE or not pro_available:
-        return [False] * num_slices
-    return [True] + [False] * (num_slices - 1)
-
-
 def plan_next_slices(cfg, session, get_condor_progress=None, dry_run=False):
     """Decide how many new slices to submit this run and which subgroup each
     gets. Returns a list with one entry per slice (True = pro, False =
-    standard), possibly empty."""
-    submissions = session.get_progress()
-
-    num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, track_stuck=not dry_run)
-    if num_slices == 0:
-        return []
-
-    return _plan_subgroups(num_slices, cfg["role"], _pro_available(in_flight))
-
-
-def _any_still_running(cfg, submissions, get_condor_progress=None, threshold=float("inf")):
-    """Whether any Submission in the window is still running, judged by
-    condor_q on every one. A live DAG below `threshold`, a POMS-active
-    Submission with no data, or a condor_q error all count as running.
-    The default threshold makes a live DAG at any percent count."""
-    return bool(_in_flight_submissions(cfg, submissions, get_condor_progress, threshold))
+    standard), possibly empty. Builds its own CampaignSnapshot; recovery.py
+    uses it for the slices after a Recovery Dataset switch."""
+    snapshot = CampaignSnapshot.take(cfg, session, get_condor_progress)
+    plan = snapshot.slices_to_plan()
+    if not dry_run:
+        snapshot.record_stuck()
+    return plan
 
 
-def _cleanup_ready(cfg, session, get_condor_progress=None):
-    """Whether the campaign is done enough to safely run duplicate-cleanup
-    and turn the campaign stage off; see
-    docs/adr/0016-cleanup-gates-on-last-slice-completion.md."""
-    if not (cfg["do_cleanup"] and _no_splits_left(cfg)):
-        return False
-    if cfg["do_recovery"] and not recovery.is_handled(cfg):
-        return False
-
-    submissions = session.get_progress()
-    if not submissions:
-        return False
-
-    return not _any_still_running(cfg, submissions, get_condor_progress, CLEANUP_PCT_COMPLETE_THRESHOLD)
-
-
-def _recovery_ready(cfg, session, get_condor_progress=None):
-    """Whether an exhausted campaign stage should be evaluated for recovery
-    now: opted in, not yet handled, and nothing still running per condor_q.
-    See docs/adr/0019-do-recovery-config-flag-and-internal-handled-marker.md."""
-    if not cfg["do_recovery"]:
-        logging.info("recovery: disabled (do_recovery=0 in config)")
-        return False
-    if recovery.is_handled(cfg):
-        logging.info(
-            "recovery: already handled (set recovery_handled to false in %s to re-evaluate)",
-            cfg.get("state_file"),
-        )
-        return False
-
-    submissions = session.get_progress()
-    if not submissions:
-        logging.info("recovery: no submission history yet -- waiting")
-        return False
-
-    if _any_still_running(cfg, submissions, get_condor_progress):
-        logging.info("recovery: a submission is still running per condor_q -- waiting")
-        return False
-    return True
-
-
-def _manage_stragglers(cfg, session, dry_run):
+def _manage_stragglers(cfg, snapshot, dry_run):
     try:
-        submissions = session.get_progress()
-    except RuntimeError:
-        logging.exception("could not fetch POMS progress -- skipping straggler check")
-        return
-    try:
-        stragglers.manage(cfg, submissions, dry_run=dry_run)
+        stragglers.manage(cfg, snapshot, dry_run=dry_run)
     except OSError:
         logging.exception("straggler check failed -- continuing with cleanup and recovery")
 
@@ -320,18 +125,21 @@ def run(cfg, dry_run):
     session = PomsSession(pc, cfg)
 
     try:
-        plan = plan_next_slices(cfg, session, dry_run=dry_run)
+        snapshot = CampaignSnapshot.take(cfg, session)
     except RuntimeError:
         # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
-    if _no_splits_left(cfg):
-        _manage_stragglers(cfg, session, dry_run)
+    plan = snapshot.slices_to_plan()
+    if not dry_run:
+        snapshot.record_stuck()
+    if no_splits_left(cfg):
+        _manage_stragglers(cfg, snapshot, dry_run)
     if not plan:
         if dry_run:
-            if _cleanup_ready(cfg, session):
+            if snapshot.cleanup_ready():
                 logging.info("dry-run: would run duplicate-cleanup and turn switch off")
-        elif _cleanup_ready(cfg, session):
+        elif snapshot.cleanup_ready():
             cleanup.run_cleanup(cfg, session)
         return
 
@@ -340,7 +148,8 @@ def run(cfg, dry_run):
         logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    if not submit_plan(cfg, session, plan) and _recovery_ready(cfg, session):
+    # A launch changes what is in flight, so recovery looks at a fresh snapshot.
+    if not submit_plan(cfg, session, plan) and CampaignSnapshot.take(cfg, session).recovery_ready():
         recovery.evaluate_and_run_recovery(cfg, session)
 
 

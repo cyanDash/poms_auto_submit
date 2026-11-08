@@ -4,6 +4,7 @@ import json
 import logging
 
 import stragglers
+from campaign_snapshot import CampaignSnapshot
 from condor_progress import Progress
 from helpers import make_cfg
 
@@ -25,8 +26,7 @@ class Env:
     def run(self, progress, submissions=None, dry_run=False):
         subs = submissions if submissions is not None else [entry(1)]
         stragglers.manage(
-            self.cfg, subs, dry_run=dry_run,
-            get_progress=lambda e, j: progress[j],
+            self.cfg, CampaignSnapshot(self.cfg, subs, lambda e, j: progress[j]), dry_run=dry_run,
             remove=lambda e, j: self.removed.append(j) or self.remove_result,
         )
 
@@ -168,7 +168,6 @@ def test_outside_window_submission_warns_and_is_not_tracked(tmp_path, caplog):
 
 
 def test_removed_submission_no_longer_blocks_recovery_gate(tmp_path):
-    import poms_auto_submit as psc
     env = Env(tmp_path)
     removed_dag = Progress("finished", 40.0, 30)  # JobStatus=3 after condor_rm
-    assert psc._any_still_running(env.cfg, [dict(entry(1), status="Located")], lambda e, j: removed_dag) is False
+    assert CampaignSnapshot(env.cfg, [dict(entry(1), status="Located")], lambda e, j: removed_dag).any_still_running() is False
