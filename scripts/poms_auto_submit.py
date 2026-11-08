@@ -38,6 +38,15 @@ def load_config(path):
     campaign_dir = os.path.join(os.path.dirname(path), "..", "logs", campaign_name)
     os.makedirs(campaign_dir, exist_ok=True)
 
+    if not parser.has_option("decision", "input_dataset_template"):
+        raise ValueError(
+            f"{path}: [decision] input_dataset_template is required "
+            "(e.g. base_name_slice{n}_files10000); see docs/adr/0022"
+        )
+    input_dataset_template = parser.get("decision", "input_dataset_template", raw=True)
+    if "{n}" not in input_dataset_template:
+        raise ValueError(f"{path}: input_dataset_template must contain the {{n}} slice placeholder")
+
     cfg = {
         "experiment": parser.get("poms", "experiment"),
         "role": PRO_ELIGIBLE_ROLE,
@@ -46,6 +55,7 @@ def load_config(path):
         "pct_complete_threshold": parser.getfloat("decision", "pct_complete_threshold"),
         "submit_two_slices": parser.getboolean("decision", "submit_two_slices", fallback=False),
         "max_splits": parser.getint("decision", "max_splits"),
+        "input_dataset_template": input_dataset_template,
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "do_recovery": parser.getboolean("decision", "do_recovery", fallback=False),
         "do_cleanup": parser.getboolean("decision", "do_cleanup", fallback=False),
@@ -101,11 +111,20 @@ def _manage_stragglers(cfg, snapshot, dry_run):
         logging.exception("straggler check failed -- continuing with cleanup and recovery")
 
 
-def submit_plan(cfg, session, plan):
+def slice_dataset(cfg, slice_number):
+    return cfg["input_dataset_template"].format(n=slice_number)
+
+
+def submit_plan(cfg, session, plan, set_input_dataset=True):
     """Submit each planned slice in order, persisting last_split after each
-    success. Shared with recovery.py; see docs/adr/0012. Returns False if
-    POMS reported the campaign stage exhausted partway through."""
+    success. Shared with recovery.py; see docs/adr/0012. Unless
+    set_input_dataset is False (recovery, whose Recovery Dataset must stay),
+    the stage is first pointed at the slice's dataset (docs/adr/0022).
+    Returns False if POMS reported the campaign stage exhausted partway
+    through."""
     for use_pro in plan:
+        if set_input_dataset:
+            session.set_input_dataset(slice_dataset(cfg, cfg["last_split"]))
         session.set_subgroup(use_pro)
         submission_id = session.submit_next_slice()
         if submission_id is None:
@@ -145,7 +164,11 @@ def run(cfg, dry_run):
 
     if dry_run:
         subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
-        logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
+        datasets = [slice_dataset(cfg, cfg["last_split"] + i) for i in range(len(plan))]
+        logging.info(
+            "dry-run: would submit %d slice(s) with subgroup plan=%s against dataset(s)=%s",
+            len(plan), subgroup_plan, datasets,
+        )
         return
 
     # A launch changes what is in flight, so recovery looks at a fresh snapshot.

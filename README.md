@@ -63,6 +63,14 @@ submit_two_slices = 0
 ; the script has submitted that many (it keeps the count in its state file)
 max_splits = 5
 
+; required. Name of the pre-built SAM dataset holding one slice's files, with
+; {n} replaced by the 0-indexed slice number (last_split) before each
+; submission. The script points the stage's Input Dataset at it, then
+; launches. Build the slice datasets by hand and clear the stage's split
+; types in POMS. Test launches and recovery submissions do not use it.
+; See docs/adr/0022.
+input_dataset_template = base_name_slice{n}_files10000
+
 ; when true, a run is only a Test Launch: it submits once with the stage's
 ; test_param_overrides (set its subgroup to `test` in POMS) and does nothing
 ; else -- no planning, in-flight checks, last_split, switch, lock, stragglers, recovery or cleanup
@@ -84,7 +92,7 @@ The script never writes to the ini. Everything it tracks itself lives in one sta
 `submit_two_slices = 1` implies a pro and a non-pro submission can be 
 simultaneously run.
 
-If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
+Each slice is its own pre-built SAM dataset (for example `<input>_slice<n>_files10000`, defined as `<input> with limit 10000 offset n*10000`). Before every submission the script sets the stage's Input Dataset to `input_dataset_template` with `{n}` filled in from `last_split`. Clear the stage's split types in POMS so it does not also divide the dataset. If your input dataset has 43k files and each slice holds 10k files, build slices 0-4 and set `max_splits = 5`. A Test Launch (`test_launch = 1`) does not set the dataset: set it by hand. A recovery submission keeps the Recovery Dataset.
 
 ## Example workflow
 

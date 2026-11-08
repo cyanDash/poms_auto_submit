@@ -1,5 +1,7 @@
 import sys
 
+import pytest
+
 import poms_auto_submit as psc
 
 CONFIG_TEMPLATE = """[poms]
@@ -11,6 +13,7 @@ campaign_stage_name = test_stage
 pct_complete_threshold = 80
 submit_two_slices = 0
 max_splits = 5
+input_dataset_template = test_dataset_slice{{n}}
 {extra}
 """
 
@@ -98,3 +101,25 @@ def test_main_test_launch_bypasses_switch_and_run(tmp_path, monkeypatch):
     assert result == 0
     assert calls == []
     assert test_launches == [False]
+
+
+def test_load_config_reads_input_dataset_template(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch)
+
+    assert psc.load_config(str(config_path))["input_dataset_template"] == "test_dataset_slice{n}"
+
+
+def test_load_config_requires_input_dataset_template(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch)
+    config_path.write_text(config_path.read_text().replace("input_dataset_template = test_dataset_slice{n}\n", ""))
+
+    with pytest.raises(ValueError, match="input_dataset_template"):
+        psc.load_config(str(config_path))
+
+
+def test_load_config_rejects_template_without_slice_placeholder(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch)
+    config_path.write_text(config_path.read_text().replace("test_dataset_slice{n}", "fixed_name"))
+
+    with pytest.raises(ValueError, match=r"\{n\}"):
+        psc.load_config(str(config_path))

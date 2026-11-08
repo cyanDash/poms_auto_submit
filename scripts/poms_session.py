@@ -195,6 +195,25 @@ class PomsSession:
             dataset_name, self.campaign_stage_id,
         )
 
+    def set_input_dataset(self, dataset_name):
+        """Point the Campaign Stage at a pre-built per-slice Input Dataset.
+        Unlike set_recovery_input_dataset(), leaves cs_last_split alone.
+        See docs/adr/0022."""
+        data, status = raw_poms_call(
+            self.pc, "update_campaign_stage",
+            pcl_call=1,
+            campaign_stage=self.campaign_stage_id,
+            experiment=self.cfg["experiment"],
+            role=self.cfg["role"],
+            dataset=dataset_name,
+        )
+        if status not in (200, 202):
+            raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")
+        logging.info(
+            "set input dataset=%s for campaign_stage_id=%s",
+            dataset_name, self.campaign_stage_id,
+        )
+
     def launch_log(self, submission_id):
         """Return (lines, still_writing) for a Submission's launch stdout, as
         POMS saved it. still_writing is POMS's auto-refresh hint: the file was

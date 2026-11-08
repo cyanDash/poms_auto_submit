@@ -9,6 +9,7 @@ campaign_stage_name = test_stage
 [decision]
 pct_complete_threshold = 80
 max_splits = 5
+input_dataset_template = test_dataset_slice{{n}}
 {extra}
 """
 
@@ -71,6 +72,9 @@ def test_persist_last_split_leaves_other_state_untouched(tmp_path, monkeypatch):
 class FakeSession:
     def __init__(self):
         self.subgroups = []
+
+    def set_input_dataset(self, dataset_name):
+        pass
 
     def set_subgroup(self, use_pro):
         self.subgroups.append(use_pro)

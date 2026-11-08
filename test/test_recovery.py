@@ -63,6 +63,9 @@ class FakeSession:
     def set_recovery_input_dataset(self, dataset_name):
         self.calls.append(("set_recovery_input_dataset", dataset_name))
 
+    def set_input_dataset(self, dataset_name):
+        self.calls.append(("set_input_dataset", dataset_name))
+
     def set_subgroup(self, use_pro):
         self.calls.append(("set_subgroup", use_pro))
 

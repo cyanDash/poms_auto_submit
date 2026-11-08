@@ -101,7 +101,7 @@ def evaluate_and_run_recovery(cfg, session):
 
     _mark_handled(cfg)
 
-    if not submit_plan(cfg, session, plan):
+    if not submit_plan(cfg, session, plan, set_input_dataset=False):
         logging.error("recovery: submit_next_slice() returned None immediately after resetting cs_last_split")
         return "recovery_submit_failed"
 
