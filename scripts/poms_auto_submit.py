@@ -21,10 +21,6 @@ import stragglers
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
 
-# Test Launches take their subgroup from the stage's test_param_overrides, not
-# from set_subgroup(); see docs/poms_client_gotchas.md.
-TEST_SUBGROUP = "test"
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 
@@ -226,19 +222,10 @@ def _plan_subgroups(num_slices, role, pro_available):
     return [True] + [False] * (num_slices - 1)
 
 
-def _subgroup_name(entry):
-    return entry if isinstance(entry, str) else ("pro" if entry else "standard")
-
-
 def plan_next_slices(cfg, session, get_condor_progress=None, dry_run=False):
     """Decide how many new slices to submit this run and which subgroup each
     gets. Returns a list with one entry per slice (True = pro, False =
-    standard, "test" = Test Launch), possibly empty."""
-    if cfg.get("test_launch"):
-        # Test Launches ignore running submissions, caps and splits left.
-        logging.info("decision: test launch -- submit 1 slice with subgroup=%s", TEST_SUBGROUP)
-        return [TEST_SUBGROUP]
-
+    standard), possibly empty."""
     submissions = session.get_progress()
 
     num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, track_stuck=not dry_run)
@@ -314,8 +301,7 @@ def submit_plan(cfg, session, plan):
     success (test launches don't count). Shared with recovery.py; see docs/adr/0012. Returns False if
     POMS reported the campaign stage exhausted partway through."""
     for use_pro in plan:
-        if use_pro != TEST_SUBGROUP:
-            session.set_subgroup(use_pro)
+        session.set_subgroup(use_pro)
         submission_id = session.submit_next_slice()
         if submission_id is None:
             logging.info(
@@ -340,7 +326,7 @@ def run(cfg, dry_run):
         # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
-    if _no_splits_left(cfg) and not cfg.get("test_launch"):
+    if _no_splits_left(cfg):
         _manage_stragglers(cfg, session, dry_run)
     if not plan:
         if dry_run:
@@ -351,12 +337,24 @@ def run(cfg, dry_run):
         return
 
     if dry_run:
-        subgroup_plan = [_subgroup_name(use_pro) for use_pro in plan]
+        subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
         logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    if not submit_plan(cfg, session, plan) and not cfg.get("test_launch") and _recovery_ready(cfg, session):
+    if not submit_plan(cfg, session, plan) and _recovery_ready(cfg, session):
         recovery.evaluate_and_run_recovery(cfg, session)
+
+
+def run_test_launch(cfg, dry_run):
+    """A Test Launch is outside the planning machinery: one launch_jobs call,
+    nothing read from or written to the State File, no recovery, cleanup or
+    straggler handling. The subgroup comes from the stage's test_param_overrides."""
+    import poms_client as pc
+
+    if dry_run:
+        logging.info("dry-run: would submit 1 test launch")
+        return
+    PomsSession(pc, cfg).submit_next_slice()
 
 
 def main():
@@ -384,6 +382,14 @@ def main():
 
     logging.info("===== poms_auto_submit run start =====")
     try:
+        if cfg["test_launch"]:
+            try:
+                run_test_launch(cfg, args.dry_run)
+            except Exception:
+                logging.exception("test launch failed")
+                return 1
+            return 0
+
         if not cfg["switch"]:
             logging.info("switch is off in %s, skipping this run", cfg["state_file"])
             return 0

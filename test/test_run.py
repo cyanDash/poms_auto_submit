@@ -213,15 +213,26 @@ def test_run_survives_straggler_cache_write_failure(monkeypatch):
     assert ready == [1]
 
 
-def test_run_test_launch_skips_stragglers_cleanup_and_recovery(monkeypatch, tmp_path):
-    recording = RecordingSessionNoMoreSplits()
+def test_run_test_launch_only_submits(monkeypatch):
+    class OnlySubmits:
+        def __init__(self):
+            self.calls = []
+
+        def submit_next_slice(self):
+            self.calls.append("submit_next_slice")
+            return "1"
+
+    session = OnlySubmits()
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
-    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
-    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: ["test"])
-    monkeypatch.setattr(psc, "_manage_stragglers", lambda *a, **k: (_ for _ in ()).throw(AssertionError("stragglers")))
-    monkeypatch.setattr(psc, "_recovery_ready", lambda *a, **k: (_ for _ in ()).throw(AssertionError("recovery")))
-    cfg = make_cfg(test_launch=True, last_split=5, max_splits=5)
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: session)
 
-    psc.run(cfg, dry_run=False)
+    psc.run_test_launch(make_cfg(test_launch=True, last_split=5, max_splits=5), dry_run=False)
 
-    assert recording.calls == [("submit_next_slice",)]
+    assert session.calls == ["submit_next_slice"]
+
+
+def test_run_test_launch_dry_run_submits_nothing(monkeypatch):
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: (_ for _ in ()).throw(AssertionError("session")))
+
+    psc.run_test_launch(make_cfg(test_launch=True), dry_run=True)
