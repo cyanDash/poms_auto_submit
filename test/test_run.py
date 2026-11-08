@@ -211,3 +211,17 @@ def test_run_survives_straggler_cache_write_failure(monkeypatch):
 
     psc.run(make_cfg(max_splits=5, last_split=5), dry_run=False)
     assert ready == [1]
+
+
+def test_run_test_launch_skips_stragglers_cleanup_and_recovery(monkeypatch, tmp_path):
+    recording = RecordingSessionNoMoreSplits()
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: recording)
+    monkeypatch.setattr(psc, "plan_next_slices", lambda cfg, session, dry_run=False: ["test"])
+    monkeypatch.setattr(psc, "_manage_stragglers", lambda *a, **k: (_ for _ in ()).throw(AssertionError("stragglers")))
+    monkeypatch.setattr(psc, "_recovery_ready", lambda *a, **k: (_ for _ in ()).throw(AssertionError("recovery")))
+    cfg = make_cfg(test_launch=True, last_split=5, max_splits=5)
+
+    psc.run(cfg, dry_run=False)
+
+    assert recording.calls == [("set_subgroup", "test"), ("submit_next_slice",)]

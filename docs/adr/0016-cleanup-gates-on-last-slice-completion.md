@@ -10,7 +10,7 @@ turn the campaign stage off.
 The obvious trigger is `last_split` reaching `max_splits` (`_no_splits_left()`,
 also used by `_plan()`'s own "max_splits reached" early return). That's
 wrong on its own: `submit_plan()` increments and persists `last_split`
-**the instant a slice is submitted** (Test Launches never advance it, and cron never runs them), not once it finishes. Gating cleanup
+**the instant a slice is submitted** (Test Launches never advance it, and cron never runs them; they also ignore in-flight submissions and submit_two_slices, always use the `test` subgroup, and skip stragglers, recovery and cleanup), not once it finishes. Gating cleanup
 on `_no_splits_left()` alone would fire duplicate-cleanup jobs against the
 last recovery slice's output datasets while that slice might still be
 sitting at, say, 75% complete — running `sam_delete_duplicates` against an

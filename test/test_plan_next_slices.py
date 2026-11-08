@@ -73,3 +73,21 @@ def test_plan_next_slices_submits_after_a_failed_submission_with_no_signal():
     plan = psc.plan_next_slices(make_cfg(role="production"), session)
 
     assert plan == [True]
+
+
+def test_test_launch_ignores_in_flight_and_plans_one_test_submission():
+    session = FakeSession(submissions=make_submissions(sub(1, subgroup="pro"), sub(2, subgroup="standard")))
+
+    plan = psc.plan_next_slices(make_cfg(test_launch=True, role="production"), session)
+
+    assert plan == ["test"]
+
+
+def test_test_launch_plans_one_even_with_max_splits_reached_and_two_slices_off():
+    session = FakeSession(submissions=make_submissions(sub(1)))
+
+    plan = psc.plan_next_slices(
+        make_cfg(test_launch=True, submit_two_slices=False, last_split=5, max_splits=5), session
+    )
+
+    assert plan == ["test"]

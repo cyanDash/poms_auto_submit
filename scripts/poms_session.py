@@ -17,6 +17,7 @@ from poms_raw_client import raw_poms_call
 
 SUBGROUP_OVERRIDE_KEY = "-Osubmit.subgroup="
 PRO_SUBGROUP = "pro"
+TEST_SUBGROUP = "test"
 
 # See "Known upstream bugs" in docs/poms_client_gotchas.md -- make_poms_call()
 # mangles this text away entirely before submit_next_slice() ever sees it;
@@ -156,9 +157,14 @@ class PomsSession:
                 return stage
         raise RuntimeError(f"stage {self.cfg['campaign_stage_name']!r} not found in campaign {self.cfg['campaign_name']!r}")
 
-    def set_subgroup(self, use_pro):
-        """Set or clear the pro subgroup override for the Campaign Stage's next submission."""
-        updates = {SUBGROUP_OVERRIDE_KEY: PRO_SUBGROUP if use_pro else ""}
+    def set_subgroup(self, subgroup):
+        """Set the subgroup override for the Campaign Stage's next submission:
+        True = pro, False = clear (standard), or a subgroup name such as "test"."""
+        if isinstance(subgroup, str):
+            value = subgroup
+        else:
+            value = PRO_SUBGROUP if subgroup else ""
+        updates = {SUBGROUP_OVERRIDE_KEY: value}
         self.update_stage_params(updates)
 
     def update_stage_params(self, updates):

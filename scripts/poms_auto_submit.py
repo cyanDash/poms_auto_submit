@@ -19,7 +19,7 @@ import recovery
 import state
 import stragglers
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, PomsSession
+from poms_session import ACTIVE_SUBMISSION_STATUSES, PRO_SUBGROUP, TEST_SUBGROUP, PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -222,10 +222,19 @@ def _plan_subgroups(num_slices, role, pro_available):
     return [True] + [False] * (num_slices - 1)
 
 
+def _subgroup_name(entry):
+    return entry if isinstance(entry, str) else ("pro" if entry else "standard")
+
+
 def plan_next_slices(cfg, session, get_condor_progress=None, dry_run=False):
     """Decide how many new slices to submit this run and which subgroup each
     gets. Returns a list with one entry per slice (True = pro, False =
-    standard), possibly empty."""
+    standard, "test" = Test Launch), possibly empty."""
+    if cfg.get("test_launch"):
+        # Test Launches ignore running submissions, caps and splits left.
+        logging.info("decision: test launch -- submit 1 slice with subgroup=%s", TEST_SUBGROUP)
+        return [TEST_SUBGROUP]
+
     submissions = session.get_progress()
 
     num_slices, in_flight = _plan(cfg, submissions, get_condor_progress, track_stuck=not dry_run)
@@ -326,7 +335,7 @@ def run(cfg, dry_run):
         # Non-2xx HTTP (e.g. expired token); skip this cycle, retry next hour.
         logging.exception("could not fetch POMS progress -- skipping this run")
         return
-    if _no_splits_left(cfg):
+    if _no_splits_left(cfg) and not cfg.get("test_launch"):
         _manage_stragglers(cfg, session, dry_run)
     if not plan:
         if dry_run:
@@ -337,11 +346,11 @@ def run(cfg, dry_run):
         return
 
     if dry_run:
-        subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
+        subgroup_plan = [_subgroup_name(use_pro) for use_pro in plan]
         logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
-    if not submit_plan(cfg, session, plan) and _recovery_ready(cfg, session):
+    if not submit_plan(cfg, session, plan) and not cfg.get("test_launch") and _recovery_ready(cfg, session):
         recovery.evaluate_and_run_recovery(cfg, session)
 
 
