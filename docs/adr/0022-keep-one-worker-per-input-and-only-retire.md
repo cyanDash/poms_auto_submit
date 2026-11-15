@@ -32,8 +32,9 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   so lineage cannot tie one tier's file to another's. Only job identity can:
   files written by one job share a SAM process id. Per input, the Kept Worker
   is the process id with files in the most definitions; the lowest id wins a
-  tie. Every file of that input from another worker is retired, in every
-  tier. An input with one worker is left alone.
+  tie. A file of another worker is retired only when a live file stays in the
+  same (input, Output Definition); see "Only true duplicates are retired".
+  An input with one worker is left alone.
 - **Chained stages keep one chain.** When a deeper tier is written by other
   jobs (a caf job reading a reco1 file), one process id per input is wrong:
   the caf of the kept reco1 has another id. So the Kept Worker is chosen
@@ -101,6 +102,26 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
 - **`--dry-run` writes the plan and the lists of full paths, and retires
   nothing.** The inferred Output Definitions are not recorded and no
   `cleanup` section is made.
+
+## Only true duplicates are retired (2026-11-15)
+
+Operator decision, reversing "all outputs of an input from other workers
+retired in every tier" (#16 user story 13). A definition the kept worker has
+no file in keeps exactly one file, the first by name, from the next-best
+worker that has one there (same ranking: most definitions covered, then
+lowest process id). In a chained stage this applies in each group, under the
+kept parent. The input is marked `"mixed_workers": true` in the plan with
+`"rescued_from": {definition: [process ids]}`, and the cleanup log says so.
+No (input, definition) that had a live file is emptied. Verification follows
+the plan: the kept files, rescued ones included, are the ones expected live.
+
+Why: the real dry run of 2026-10-13 on the torch-vs-triton stage would have
+retired 398 single-copy histogram files, made by later jobs (one worker made
+detsim_torch, detsim_triton and torch_triton_comparison_hist; another made
+torch_torch_repeat_comparison_hist). Those were not duplicates of anything.
+
+Not covered: in a chained stage, a definition that exists only under a
+retired file's descendants is still retired with it.
 
 ## What SAM says about a retired file
 

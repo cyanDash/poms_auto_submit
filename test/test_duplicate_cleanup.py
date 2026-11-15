@@ -91,7 +91,7 @@ def test_tie_goes_to_the_lowest_process_id_on_every_run():
     assert json.dumps(first) == json.dumps(second)
 
 
-def test_every_other_worker_is_retired_even_in_a_tier_the_kept_one_lacks():
+def test_a_single_copy_in_a_tier_the_kept_worker_lacks_is_kept_and_the_input_is_mixed():
     sam = FakeSam()
     sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
     sam.add("larcv_def", "larcv_a.root", "gen_1.root", 100)
@@ -99,8 +99,78 @@ def test_every_other_worker_is_retired_even_in_a_tier_the_kept_one_lacks():
 
     plan = plan_cleanup([RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
 
-    assert plan["inputs"]["gen_1.root"]["kept_process_id"] == 100
-    assert [r["file"] for r in retired(plan)["caf_flat_def"]] == ["caf_b.root"]
+    entry = plan["inputs"]["gen_1.root"]
+    assert entry["kept_process_id"] == 100
+    assert entry["kept"]["caf_flat_def"] == ["caf_b.root"]
+    assert entry["retired"] == {}
+    assert entry["mixed_workers"] is True
+    assert entry["rescued_from"] == {"caf_flat_def": [200]}
+    assert retired(plan) == {"caf_flat_def": [], "larcv_def": [], "reco1_def": []}
+
+
+def test_input_with_one_worker_is_not_mixed():
+    plan = plan_cleanup([RECO1, LARCV], duplicated_campaign())
+
+    assert all(i["mixed_workers"] is False for i in plan["inputs"].values())
+    assert all("rescued_from" not in i for i in plan["inputs"].values())
+
+
+def test_torch_triton_stage_retires_nothing():
+    names = ("detsim_torch", "detsim_triton", "torch_triton_comparison_hist", "torch_torch_repeat_comparison_hist")
+    sam = FakeSam()
+    for name in names[:3]:
+        sam.add(name, f"{name}_a.root", "gen_1.root", 1000)
+    sam.add(names[3], f"{names[3]}_b.root", "gen_1.root", 2000)
+
+    plan = plan_cleanup([{"name": n, "depth": 1} for n in names], sam)
+
+    assert all(not rows for rows in retired(plan).values())
+    assert plan["inputs"]["gen_1.root"]["mixed_workers"] is True
+    assert plan["inputs"]["gen_1.root"]["rescued_from"] == {names[3]: [2000]}
+    assert sum(len(f) for f in plan["inputs"]["gen_1.root"]["kept"].values()) == 4
+
+
+def test_only_one_file_is_rescued_from_the_next_best_worker_and_the_rest_retired():
+    sam = FakeSam()
+    sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
+    sam.add("larcv_def", "larcv_a.root", "gen_1.root", 100)
+    sam.add("caf_flat_def", "caf_z.root", "gen_1.root", 300)
+    sam.add("caf_flat_def", "caf_y.root", "gen_1.root", 300)
+    sam.add("caf_flat_def", "caf_x.root", "gen_1.root", 400)
+    sam.add("larcv_def", "larcv_x.root", "gen_1.root", 400)
+
+    plan = plan_cleanup([RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
+
+    entry = plan["inputs"]["gen_1.root"]
+    # Worker 400 covers two definitions, 300 one: 400 is next best for caf_flat_def.
+    assert entry["kept"]["caf_flat_def"] == ["caf_x.root"]
+    assert entry["rescued_from"] == {"caf_flat_def": [400]}
+    assert entry["retired"] == {"caf_flat_def": ["caf_y.root", "caf_z.root"], "larcv_def": ["larcv_x.root"]}
+
+
+def test_rescue_under_a_kept_parent_in_a_chained_stage():
+    sam = chained_campaign()
+    sam.add("caf2_def", "caf2_x.root", "reco1_a.root", 500)
+
+    plan = plan_cleanup([RECO1, CAF, {"name": "caf2_def", "depth": 2}], sam)
+
+    entry = plan["inputs"]["gen_1.root"]
+    assert entry["kept"]["caf2_def"] == ["caf2_x.root"]
+    assert entry["kept"]["caf_def"] == ["caf_a.root"]
+    assert entry["rescued_from"] == {"caf2_def": [500]}
+    assert entry["mixed_workers"] is True
+    assert entry["retired"] == {"caf_def": ["caf_b.root"], "reco1_def": ["reco1_b.root"]}
+
+
+def test_a_rescued_input_verifies_after_it_is_applied(tmp_path):
+    sam = FakeSam()
+    sam.add(None, "gen_1.root", None)
+    sam.add("reco1_def", "reco1_a.root", "gen_1.root", 100)
+    sam.add("larcv_def", "larcv_b.root", "gen_1.root", 200)
+
+    plan = plan_cleanup([RECO1, LARCV], sam)
+
+    assert verify_plan(plan, sam) == {}
 
 
 # --- fallback ---
@@ -968,13 +1038,13 @@ def test_verification_passes_on_a_correct_result(tmp_path):
     assert result["bad_inputs"] == {}
 
 
-def test_verification_passes_when_the_kept_worker_lacks_a_tier(tmp_path):
+def test_verification_passes_when_the_kept_worker_lacks_a_tier_and_its_single_copy_stays(tmp_path):
     sam = duplicated_campaign()
     sam.add("caf_flat_def", "caf_102.root", "gen_1.root", 102)
 
     result = clean_definitions(make_cfg(tmp_path), [RECO1, LARCV, {"name": "caf_flat_def", "depth": 1}], sam)
 
-    assert "caf_102.root" in sam.retired
+    assert "caf_102.root" not in sam.retired
     assert result["ok"] is True
 
 

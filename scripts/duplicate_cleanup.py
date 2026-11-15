@@ -182,10 +182,14 @@ def _depth_fault(chain, depth, stage_definition, depth_of, ungrouped):
 
 
 def _kept_files(group, known, definition_of, covered):
-    """(the files of `group` to keep, the kept process id). The kept worker
-    is the process id whose files and their descendants cover the most
-    definitions, lowest id on a tie. When a file has no process id the id is
-    None and the first file by name is kept in each definition."""
+    """(the files of `group` to keep, the kept process id, {definition:
+    process id} of the files rescued). The kept worker is the process id
+    whose files and their descendants cover the most definitions, lowest id
+    on a tie. A definition of `group` the kept worker has no file in keeps
+    its first file by name from the next-best worker with one there: a
+    file is retired only when another live file stays in its definition.
+    When a file has no process id the id is None and the first file by name
+    is kept in each definition."""
     by_pid = defaultdict(set)
     for f in group:
         pid = known[f]["process_id"]
@@ -193,10 +197,20 @@ def _kept_files(group, known, definition_of, covered):
             first = {}
             for name in sorted(group):
                 first.setdefault(definition_of[name], name)
-            return set(first.values()), None
+            return set(first.values()), None, {}
         by_pid[pid] |= covered(f)
-    kept_pid = min(by_pid, key=lambda pid: (-len(by_pid[pid]), pid))
-    return {f for f in group if known[f]["process_id"] == kept_pid}, kept_pid
+    ranked = sorted(by_pid, key=lambda pid: (-len(by_pid[pid]), pid))
+    kept_pid = ranked[0]
+    kept = {f for f in group if known[f]["process_id"] == kept_pid}
+    rescued = {}
+    for definition in sorted({definition_of[f] for f in group} - {definition_of[f] for f in kept}):
+        for pid in ranked[1:]:
+            files = sorted(f for f in group if known[f]["process_id"] == pid and definition_of[f] == definition)
+            if files:
+                kept.add(files[0])
+                rescued[definition] = pid
+                break
+    return kept, kept_pid, rescued
 
 
 def plan_cleanup(definitions, sam):
@@ -207,12 +221,16 @@ def plan_cleanup(definitions, sam):
     Per input, one worker is kept among the files nearest the input, then
     one among the files under each kept file, and so on down; everything
     under a file that is not kept, or that is already retired, is retired
-    with it.
+    with it. A file is retired only when another live file stays in its
+    definition: a definition the kept worker lacks keeps one file from the
+    next-best worker, and the input is marked `mixed_workers`.
 
     Returns {"definitions": [...], "inputs": {...}, "fallback_used": bool}.
     "definitions" is deepest first, each {name, depth, retire, skipped,
     ungrouped, totals}. "inputs" maps each input to {kept_process_id,
-    fallback, kept, retired, skipped}, the last three keyed by definition.
+    fallback, mixed_workers, kept, retired, skipped}, the last three keyed
+    by definition; a mixed input also has rescued_from, {definition:
+    [process ids]} of the files kept from other workers.
     SAM cannot read a retired file, so an ancestor SAM no longer has
     counts as one of the stage's retired files only at the depth of a
     cleaned definition; the files under it are listed under its name
@@ -282,14 +300,26 @@ def plan_cleanup(definitions, sam):
             retire_with_descendants(child, f"parent {f} is retired")
 
     for key in sorted(set(by_input) | set(orphans)):
-        plan_input = {"kept_process_id": None, "fallback": False, "kept": {}, "retired": {}, "skipped": {}}
+        plan_input = {
+            "kept_process_id": None, "fallback": False, "mixed_workers": False,
+            "kept": {}, "retired": {}, "skipped": {},
+        }
         inputs[key] = plan_input
         for f, reason in orphans[key]:
             retire_with_descendants(f, reason)
         groups = [(None, by_input[key])] if by_input[key] else []
         while groups:
             parent, group = groups.pop()
-            kept, kept_pid = _kept_files(group, known, definition_of, covered)
+            kept, kept_pid, rescued = _kept_files(group, known, definition_of, covered)
+            for definition, pid in rescued.items():
+                plan_input["mixed_workers"] = True
+                pids = plan_input.setdefault("rescued_from", {}).setdefault(definition, [])
+                if pid not in pids:
+                    pids.append(pid)
+                _DETAIL.info(
+                    "cleanup: input %s is mixed: kept process id %s has no file in %s, kept one from process id %s",
+                    key, kept_pid, definition, pid,
+                )
             if parent is None:
                 plan_input["kept_process_id"] = kept_pid
                 reason = None
