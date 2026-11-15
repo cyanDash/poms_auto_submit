@@ -27,9 +27,12 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
    ```bash
    cp configs/config.ini configs/<ini>
    ```
-   Check `[split]`: `first_start = 2026-11-15 00:00`, `step = 1d`,
-   `window = 3h`, and `max_splits = 60` (one launch per day, so the number of
-   days to run).
+   Check these values:
+   - `first_start = 2026-11-15 00:00`
+   - `step = 1d`
+   - `window = 3h`
+   - `max_splits = 60` (one launch per day, so the number of days to run)
+
    The 04:00 run on date D takes the files created that day between 00:00 and
    03:00. Slice n is `first_start + n*1d`, so the first run, at 04:00 on
    2026-11-15, submits 2026-11-15 00:00–03:00. `configs/config.ini` documents
@@ -37,8 +40,16 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
 3. Check that `last_split` is 0. It lives in
    `logs/Auto_POMS_SBND2026A_Gen2_Run3_BeamLight/state_<ini name>.json`, one
    state file per ini (a new ini starts at 0). Edit the file to reset it.
-4. Preview the slice's size. Convert the window to GMT and run
-   `samweb count-files "defname: run3_raw_data_ongoing and create_date > '<start Z>' and create_date <= '<end Z>'"`.
+4. Preview the slice's size. Get the window's start and end in GMT with
+   `date` (Central in, GMT out), here for the 2026-11-15 slice:
+   ```bash
+   date -u -d 'TZ="America/Chicago" 2026-11-15 00:00' +%Y-%m-%dT%H:%M:%SZ   # <start Z>
+   date -u -d 'TZ="America/Chicago" 2026-11-15 03:00' +%Y-%m-%dT%H:%M:%SZ   # <end Z>
+   ```
+   Then count the input files in it:
+   ```bash
+   samweb count-files "defname: run3_raw_data_ongoing and create_date > '<start Z>' and create_date <= '<end Z>'"
+   ```
    A 3h window holds roughly 26–40 files. An empty window fails to launch.
 5. Dry run, then one real run by hand:
    ```bash
@@ -91,11 +102,15 @@ and paste:
 SHELL=/bin/bash
 0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
 0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
+5 1 * * 1 cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py weekly
 ```
 
 - The checkout in each line stops a stray branch from changing the code that
   runs. If it fails (uncommitted edits to tracked files), the `&&` stops the
   run, so look for a missing log entry.
+- The weekly plot runs Mondays at 01:05, five minutes after the daily one, so
+  the two never check out the plotter at the same time. It plots the last 7
+  windows.
 - The two lines don't depend on each other: the plot reads yesterday's window
   and the submission writes today's.
 - Check `logs/<campaign_name>/poms_auto_submit.log` daily for errors.
