@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 import state
-from helpers import FileNotFound, make_cfg
+from helpers import DimensionError, FileNotFound, make_cfg
 from output_definitions import OutputDefinitionsError, get_output_definitions
 
 RAW = Path(__file__).resolve().parent.parent / "docs" / "raw"
@@ -136,6 +136,8 @@ class FakeSam:
         if defname is not None:
             assert defname == INPUT_DATASET
             return iter(self.inputs)
+        if dimensions.startswith("defname: ") and " with limit " in dimensions:
+            raise DimensionError("No existing dataset definition")
         if dimensions.startswith("dataset.tag "):
             limit = int(dimensions.split(" with limit ")[1])
             return iter(self._tagged(dimensions)[:limit])
@@ -603,6 +605,15 @@ def test_beamlight_names_from_postscript_are_found_though_the_scan_sees_only_ano
 
     assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
     assert all(d["depth"] == 1 for d in definitions)
+
+
+def test_verification_checks_parents_against_the_inputs_already_read(tmp_path):
+    sam = beamlight_sam()
+
+    get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert not [c for c in sam.calls if c[0] == "listFiles" and " and file_name " in (c[1] or "")]
+    assert sum(1 for c in sam.calls if c == ("listFiles", INPUT_DATASET)) == 1
 
 
 def test_every_kth_input_is_probed_when_the_dataset_is_large():

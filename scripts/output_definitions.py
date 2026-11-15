@@ -243,7 +243,7 @@ def _trace(cfg, session, sam, outcome):
             [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags if _matches(t, patterns)],
             name="candidates",
         )
-        verified, failed = _verify(sam, input_dataset, candidates, launch)
+        verified, failed = _verify(sam, stats["input_names"], candidates, launch)
         steps.add(
             f"{len(verified)} of {len(candidates)} candidate(s) are outputs of this stage "
             f"(files in SAM, first parents reach {input_dataset}, metadata agrees)",
@@ -444,7 +444,10 @@ def _lineage_tags(sam, input_dataset):
             _walk_descendants(sam, level, tags, newest, files)
         if not read_all and (sampled >= LINEAGE_SAMPLE_SIZE or probed >= LINEAGE_MAX_PROBED_INPUTS):
             break
-    return tags, newest, {"inputs": len(all_inputs), "probed": probed, "with_children": sampled, "files": files}
+    return tags, newest, {
+        "inputs": len(all_inputs), "probed": probed, "with_children": sampled, "files": files,
+        "input_names": set(all_inputs),
+    }
 
 
 def _walk_descendants(sam, level, tags, newest, files):
@@ -496,7 +499,7 @@ def _candidates(sam, patterns, lineage_tags):
     return {t: source for t, source in sorted(found.items()) if not TEST_TAG_PATTERN.match(t)}
 
 
-def _verify(sam, input_dataset, candidates, launch):
+def _verify(sam, input_names, candidates, launch):
     """({name: depth}, {name: reason}): the candidates that are outputs of
     this stage, and why each other one is not."""
     verified, failed = {}, {}
@@ -505,12 +508,12 @@ def _verify(sam, input_dataset, candidates, launch):
         if sam.countFiles(dimensions=dimension) <= 0:
             failed[name] = "no files in SAM"
             continue
-        files = list(sam.listFiles(dimensions=f"{dimension} with limit {VERIFY_SAMPLE_FILES}"))
+        files = _sample_files(sam, name)
         mismatch = _metadata_mismatch(sam, files, launch)
         if mismatch:
             failed[name] = f"metadata mismatch: {mismatch}"
             continue
-        depths = _depths_to_input(sam, input_dataset, files)
+        depths = _depths_to_input(sam, input_names, files)
         missing = sum(1 for d in depths.values() if d is None)
         if not files or missing:
             failed[name] = (
@@ -530,7 +533,18 @@ def _metadata_mismatch(sam, files, launch):
     return None
 
 
-def _depths_to_input(sam, input_dataset, files):
+def _sample_files(sam, name):
+    """Up to VERIFY_SAMPLE_FILES files tagged `name`: through the definition
+    of that name when SAM has one (fast), else by Dataset.Tag (slow)."""
+    try:
+        return list(sam.listFiles(dimensions=f"defname: {name} with limit {VERIFY_SAMPLE_FILES}"))
+    except Exception as e:
+        if "Definition" not in type(e).__name__ and "Dimension" not in type(e).__name__:
+            raise
+    return list(sam.listFiles(dimensions=f"dataset.tag {name} with limit {VERIFY_SAMPLE_FILES}"))
+
+
+def _depths_to_input(sam, input_names, files):
     """{file: steps up the first parents to a file of the Input Dataset, or
     None when none is reached within LINEAGE_MAX_DEPTH}."""
     depths = dict.fromkeys(files)
@@ -540,9 +554,7 @@ def _depths_to_input(sam, input_dataset, files):
         parents = {f: p for f, p in parents.items() if p}
         if not parents:
             break
-        members = set(sam.listFiles(
-            dimensions=f"defname: {input_dataset} and file_name {','.join(sorted(set(parents.values())))}"
-        ))
+        members = {p for p in parents.values() if p in input_names}
         for f, parent in parents.items():
             if parent in members:
                 depths[f] = depth

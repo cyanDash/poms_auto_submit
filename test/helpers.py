@@ -44,6 +44,11 @@ class FileNotFound(Exception):
     """Same name as samweb_client.exceptions.FileNotFound."""
 
 
+class DimensionError(Exception):
+    """Same name as samweb_client.exceptions.DimensionError, raised for
+    `defname: X` when SAM has no definition X."""
+
+
 class FakeSam:
     """Stands in for samweb_client.SAMWebClient: definitions, metadata in
     the shape of docs/raw/sam_getMetadata_reco1.json, and children derived
@@ -96,6 +101,11 @@ class FakeSam:
             tag, _, limit = dimensions[len("dataset.tag "):].partition(" with limit ")
             live = self.listFiles(defname=tag)
             return live[:int(limit)] if limit else live
+        if dimensions is not None and dimensions.startswith("defname: ") and " with limit " in dimensions:
+            defname, _, limit = dimensions[len("defname: "):].partition(" with limit ")
+            if defname not in self.definitions:
+                raise DimensionError(f"No existing dataset definition with name '{defname}'")
+            return self.listFiles(defname=defname)[:int(limit)]
         if dimensions is not None and dimensions.startswith("defname: "):
             defname, names = dimensions[len("defname: "):].split(" and file_name ")
             return [n for n in names.split(",") if n in self.listFiles(defname=defname)]
