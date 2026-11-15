@@ -180,6 +180,18 @@ or when the log says the unfinished plan is for other definitions. To run a
 cleanup again on an ini that is already switched off, also set
 `"switch": true`.
 
+**Look up a stage's output definitions** without an ini or any write
+(after `source setup.sh`):
+
+```bash
+python scripts/show_output_definitions.py --campaign <campaign_name> --stage <campaign_stage_name> [--all-tags]
+```
+
+It prints each definition's depth, tier and file count. `--all-tags` also
+lists every lineage tag with the newest `create_date` seen for it and
+whether it was accepted, rejected (another campaign's) or ignored (a Test
+Launch tag).
+
 ## Example workflow
 
 Validate against a real campaign before trusting it unattended:

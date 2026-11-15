@@ -97,3 +97,11 @@ recovery handled.
   sibling campaign sharing inputs and version is reported as a disagreement.
 - A stage that produced no output at all cannot be inferred, so recovery
   retries each run instead of concluding, as before.
+- `scripts/show_output_definitions.py --campaign <c> --stage <s>
+  [--all-tags]` is the read-only lookup for an operator: it calls
+  `get_output_definitions(..., dry_run=True)` with a cfg that has no
+  `state_file`, and prints each definition's depth, tier and file count.
+  `--all-tags` adds `describe_lineage_tags()`: every lineage tag with the
+  newest `create_date` seen among its sampled files and whether it was
+  accepted, rejected (another campaign's) or ignored (a Test Launch tag).
+  It writes nothing: no State File, no SAM or POMS write.
