@@ -111,7 +111,10 @@ def submit_plan(cfg, session, plan):
         session.set_subgroup(use_pro)
         if cfg.get("split"):
             split_type = split_window.build_split_type(cfg["split"], cfg["last_split"])
-            logging.info("split window for launch %d: %s", cfg["last_split"], split_type)
+            logging.info(
+                "launch %d takes input files created %s; split window: %s",
+                cfg["last_split"], split_window.describe(cfg["split"], cfg["last_split"]), split_type,
+            )
             session.set_split_type(split_type)
         submission_id = session.submit_next_slice()
         if submission_id is None:
@@ -151,7 +154,14 @@ def run(cfg, dry_run):
 
     if dry_run:
         subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
-        logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
+        if cfg.get("split"):
+            for n, subgroup in enumerate(subgroup_plan, start=cfg["last_split"]):
+                logging.info(
+                    "dry-run: would take input files created %s with plan=%s",
+                    split_window.describe(cfg["split"], n), subgroup,
+                )
+        else:
+            logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
     # A launch changes what is in flight, so recovery looks at a fresh snapshot.

@@ -103,3 +103,24 @@ def test_first_start_is_central_time_whatever_the_host_tz(monkeypatch):
     monkeypatch.setenv("TZ", "UTC")
     # 2026-10-22 00:00 CDT is 05:00 UTC.
     assert "firsttime=1792645200" in split_window.build_split_type({**SPLIT, "first_start": "2026-10-22 00:00"}, 0)
+
+
+def test_describe_gives_the_central_time_range():
+    assert split_window.describe(SPLIT, 1) == "2026-10-23 02:00 to 2026-10-23 03:00 CDT"
+
+
+def test_describe_follows_the_window_across_midnight():
+    split = {**SPLIT, "first_start": "2026-10-23 22:00", "window": "3h"}
+
+    assert split_window.describe(split, 0).startswith("2026-10-23 22:00 to 2026-10-24 01:00 CDT")
+
+
+def test_submit_plan_logs_the_input_window_of_each_launch(monkeypatch, caplog):
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: None)
+    caplog.set_level("INFO")
+
+    submit_plan(make_cfg(split=SPLIT, last_split=1), FakeSession(), [False, False])
+
+    messages = [r.getMessage() for r in caplog.records]
+    for n in (1, 2):
+        assert any(f"launch {n}" in m and split_window.describe(SPLIT, n) in m for m in messages)

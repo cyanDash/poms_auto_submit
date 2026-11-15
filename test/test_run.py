@@ -252,3 +252,36 @@ def test_run_test_launch_dry_run_submits_nothing(monkeypatch):
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: (_ for _ in ()).throw(AssertionError("session")))
 
     psc.run_test_launch(make_cfg(test_launch=True), dry_run=True)
+
+
+def test_run_dry_run_logs_the_input_window_each_planned_slice_would_take(monkeypatch, tmp_path, caplog):
+    import split_window
+    split = {
+        "window": "3h", "round": "1", "fts": "1800", "localtime": "0",
+        "first_start": "2026-11-15 00:00", "step": "1d", "lasttime": "2031-04-09",
+    }
+    config_path = make_config_file(tmp_path)
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: RecordingSession())
+    patch_snapshot(monkeypatch, plan=[True, False])
+    caplog.set_level("INFO")
+
+    cfg = make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), last_split=1, split=split)
+    psc.run(cfg, dry_run=True)
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert messages.count(f"dry-run: would take input files created {split_window.describe(split, 1)} with plan=pro") == 1
+    assert messages.count(f"dry-run: would take input files created {split_window.describe(split, 2)} with plan=standard") == 1
+    assert cfg["last_split"] == 1
+
+
+def test_run_dry_run_without_split_logs_no_input_window(monkeypatch, tmp_path, caplog):
+    config_path = make_config_file(tmp_path)
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: RecordingSession())
+    patch_snapshot(monkeypatch, plan=[True])
+    caplog.set_level("INFO")
+
+    psc.run(make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")), dry_run=True)
+
+    assert not any("input files" in r.getMessage() for r in caplog.records)

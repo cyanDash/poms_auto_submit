@@ -2,7 +2,7 @@
 [split] section fixes everything but `firsttime`, which steps by `step` per
 launch. See docs/adr/0023-rewrite-new-split-firsttime-per-launch.md."""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 DURATION_UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1}
@@ -40,9 +40,21 @@ def read(parser):
     return split
 
 
+def _firsttime(split, n):
+    return _unix(split["first_start"]) + n * parse_duration(split["step"])
+
+
+def describe(split, n):
+    """The Central-time range of input files launch `n` takes."""
+    start = datetime.fromtimestamp(_firsttime(split, n), timezone.utc)
+    end = start + timedelta(seconds=parse_duration(split["window"]))
+    local_start, local_end = start.astimezone(USER_TZ), end.astimezone(USER_TZ)
+    return f"{local_start:%Y-%m-%d %H:%M} to {local_end:%Y-%m-%d %H:%M} {local_end:%Z}"
+
+
 def build_split_type(split, n):
     """cs_split_type for launch number `n` (0-based)."""
-    firsttime = _unix(split["first_start"]) + n * parse_duration(split["step"])
+    firsttime = _firsttime(split, n)
     return (
         f"new(window={split['window']},round={split['round']},fts={split['fts']},"
         f"localtime={split['localtime']},firsttime={firsttime},lasttime={_unix(split['lasttime'])})"
