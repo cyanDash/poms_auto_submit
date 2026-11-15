@@ -34,8 +34,7 @@ lives in one file per ini, `logs/<campaign_name>/state_<ini name>.json`, behind
 - **`run_recovery.sh` is unchanged.** It still writes its output defnames to
   a scratch `output_definitions_<id>.txt` (its prestage log is named after
   that path). `recovery.py` moves the list into the state file and deletes
-  the scratch file. A Test Launch's list is dropped rather than diverted to
-  a sibling file as in ADR-0016.
+  the scratch file. A Test Launch never reaches recovery.
 - **The old per-stage files are not imported.** They are named by stage id,
   which the per-ini path does not carry, and what they hold is safe to lose:
   the submission cache refills from POMS and the stuck and Straggler counts

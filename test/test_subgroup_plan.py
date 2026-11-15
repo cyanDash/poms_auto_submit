@@ -1,4 +1,4 @@
-import poms_auto_submit as psc
+import campaign_snapshot as psc
 
 
 def test_plan_subgroups_one_slice_takes_pro_when_available():

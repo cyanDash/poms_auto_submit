@@ -84,3 +84,17 @@ def test_state_file_switch_wins_over_a_stale_ini_value(tmp_path, monkeypatch):
     _, calls = run_main(config_path, monkeypatch)
 
     assert len(calls) == 1
+
+
+def test_main_test_launch_bypasses_switch_and_run(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch, extra="test_launch = 1")
+    cfg = psc.load_config(str(config_path))
+    psc.persist_switch(cfg, False)
+    test_launches = []
+    monkeypatch.setattr(psc, "run_test_launch", lambda cfg, dry_run: test_launches.append(dry_run))
+
+    result, calls = run_main(config_path, monkeypatch)
+
+    assert result == 0
+    assert calls == []
+    assert test_launches == [False]

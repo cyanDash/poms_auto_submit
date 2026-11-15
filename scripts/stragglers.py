@@ -4,7 +4,6 @@ nothing running. See docs/adr/0018-remove-stalled-stragglers-before-recovery.md.
 import logging
 from datetime import datetime
 
-import condor_progress
 import condor_rm
 import state
 
@@ -27,24 +26,20 @@ def _load(cfg):
         return {}
 
 
-def manage(cfg, submissions, get_progress=None, remove=None, dry_run=False, now=None):
-    """One run's Straggler pass over the Submissions already examined. Only
-    call once no splits are left. A condor_q error changes no records; a
-    dry run logs what it would remove and writes nothing."""
+def manage(cfg, snapshot, remove=None, dry_run=False, now=None):
+    """One run's Straggler pass over a CampaignSnapshot. Only call once no
+    splits are left. A condor_q error changes no records; a dry run logs what
+    it would remove and writes nothing."""
     if not cfg.get("state_file"):
         return
-    get_progress = get_progress or condor_progress.get_progress
     remove = remove or condor_rm.remove
     now = (now or datetime.now()).isoformat(timespec="seconds")
     previous = _load(cfg)
 
-    progress_by_id = {}
-    for s in submissions:
-        progress = get_progress(cfg["experiment"], s["jobsub_job_id"]) if s.get("jobsub_job_id") else condor_progress.Progress("no_data")
-        if progress.outcome == "error":
-            logging.warning("condor_q failed for submission_id=%s -- straggler records unchanged", s.get("submission_id"))
-            return
-        progress_by_id[str(s.get("submission_id"))] = (s, progress)
+    if snapshot.condor_error:
+        logging.warning("condor_q failed -- straggler records unchanged")
+        return
+    progress_by_id = {str(s.get("submission_id")): (s, progress) for s, progress in snapshot.entries()}
 
     current = {}
     for sid, (s, progress) in progress_by_id.items():
