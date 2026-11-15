@@ -148,6 +148,6 @@ def duplicated_campaign():
     for i in (1, 2):
         sam.add(None, f"gen_{i}.root", None)
         for pid in (i * 100, i * 100 + 1):
-            sam.add("reco1_def", f"reco1_{pid}.root", f"gen_{i}.root", pid)
-            sam.add("larcv_def", f"larcv_{pid}.root", f"gen_{i}.root", pid)
+            sam.add("x_reco1_sbnd", f"reco1_{pid}.root", f"gen_{i}.root", pid)
+            sam.add("x_larcvreco1_sbnd", f"larcv_{pid}.root", f"gen_{i}.root", pid)
     return sam

@@ -44,14 +44,14 @@ def run_cleanup(cfg, session, sam=None, dry_run=False):
         logging.info(
             "cleanup: full paths of the files to retire are listed in %s", ", ".join(result["retired_files_lists"]),
         )
-    if result["failure"]:
-        logging.error("cleanup: failed (%s) -- %s", result["failure"]["error"], RETRY_NOTE)
-        return False
     if result["bad_inputs"]:
         logging.error(
             "cleanup: verification failed for %d input(s): %s -- %s",
             len(result["bad_inputs"]), ", ".join(sorted(result["bad_inputs"])), RETRY_NOTE,
         )
+        return False
+    if result["failure"]:
+        logging.error("cleanup: failed (%s) -- %s", result["failure"]["error"], RETRY_NOTE)
         return False
     if dry_run:
         logging.info("dry-run: plan written to %s -- nothing retired, switch left on", result["plan_path"])

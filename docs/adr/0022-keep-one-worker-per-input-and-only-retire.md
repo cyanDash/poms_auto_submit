@@ -66,9 +66,26 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   ancestor's depth), is listed as `ungrouped` in the plan. The cleanup then
   fails before anything is retired, names the files, and records no
   `cleanup` section, so the next run plans again.
-- **Deepest first.** Definitions are cleaned one after another, from the
-  deepest Output Tier to the shallowest, each finishing before the next
-  starts. A file is settled after its children.
+- **Deepest first, then youngest tier.** Definitions are cleaned one after
+  another, deeper first (real chained stages), each finishing before the
+  next starts. A file is settled after its children. Within one depth the
+  order is the fixed `TIER_ORDER` in `scripts/duplicate_cleanup.py`:
+  `flatcaf`, `caf`, `histreco2`, `larcvreco1`, `reco1`, youngest first
+  (operator decision 2026-11-15). Lineage depth cannot give it: the standard
+  postscript names the initial fcl as the parent of every tier. A
+  definition's tier is its name ending `_<tier>_sbnd` as an exact token
+  (`_flatcaf_sbnd` is not `caf`). A missing tier is absent from the order.
+- **An unknown tier stops the cleanup.** A definition whose name ends in no
+  known tier fails the run before anything is planned or retired. The error
+  names the definitions and the known tiers; the switch stays on.
+- **Each definition is verified before the next starts.** After a
+  definition is applied it is verified alone (kept files live with live
+  parents, retired files not live, no live file outside the plan). It is
+  recorded in `done` only then. A verification failure stops the run there,
+  the later tiers are not touched, and it is reported as the run's failure
+  with `bad_inputs`. A resume continues with the first definition not in
+  `done`. Kept Worker selection still spans all tiers of an input; only the
+  apply and verify order changes.
 - **Children guard.** A file is retired only if it has no live children, or
   all its live children are retired by the same plan. A child that is
   already retired does not count, so a plan made after a partial apply still
@@ -91,8 +108,8 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   `logs/<campaign_name>/cleanup_plan_<ini name>.json` before anything
   changes. Progress is kept in the State File's `cleanup` section
   (`plan_path`, `done`, `finished`), so a failed run resumes the same plan.
-  Verification checks that each input has only its kept files live in each
-  definition (plus the files the children guard left), and that every kept
+  Verification, per definition, checks that each input has only its kept
+  files live in it (plus the files left in place), and that every kept
   file's parents are live.
 - **The switch goes off only after verification passes.** Any failure leaves
   it on, is logged, and is retried on the next run.

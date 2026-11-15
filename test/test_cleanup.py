@@ -9,7 +9,7 @@ import state
 from cleanup import run_cleanup
 from helpers import FakeSam, duplicated_campaign, make_cfg
 
-DEFINITIONS = [{"name": "reco1_def", "depth": 1}, {"name": "larcv_def", "depth": 1}]
+DEFINITIONS = [{"name": "x_reco1_sbnd", "depth": 1}, {"name": "x_larcvreco1_sbnd", "depth": 1}]
 DUPLICATES = {"reco1_101.root", "larcv_101.root", "reco1_201.root", "larcv_201.root"}
 INI_TEXT = "[poms]\ncampaign_name = test_campaign\n\n[decision]\ndo_cleanup = 1\n"
 
@@ -129,7 +129,7 @@ def test_definitions_that_cannot_be_inferred_keep_the_switch_on_and_say_so(tmp_p
 def test_old_flat_list_of_names_is_not_trusted(tmp_path):
     # A flat list came from unscoped discovery and can name other campaigns'
     # definitions; here it cannot be inferred again, so nothing is cleaned.
-    cfg = make_cleanup_cfg(tmp_path, recorded=["reco1_def", "larcv_def"])
+    cfg = make_cleanup_cfg(tmp_path, recorded=["x_reco1_sbnd", "x_larcvreco1_sbnd"])
     sam = duplicated_campaign()
 
     assert run_cleanup(cfg, NoLaunchCommandSession(), sam=sam) is False
@@ -189,13 +189,13 @@ def test_dry_run_writes_the_plan_and_retires_nothing(tmp_path, caplog):
     with open(plan_path(cfg)) as f:
         plan = json.load(f)
     assert plan["inputs"]["gen_1.root"]["retired"] == {
-        "larcv_def": ["larcv_101.root"], "reco1_def": ["reco1_101.root"],
+        "x_larcvreco1_sbnd": ["larcv_101.root"], "x_reco1_sbnd": ["reco1_101.root"],
     }
     assert sam.retire_calls == []
     assert_switch_still_on(cfg)
     assert state.read(cfg, "cleanup") is None
     assert f"dry-run: plan written to {plan_path(cfg)}" in caplog.text
-    assert f"cleanup: full paths of the files to retire are listed in {tmp_path}/larcv_def_retired_files.txt" in caplog.text
+    assert f"cleanup: full paths of the files to retire are listed in {tmp_path}/x_larcvreco1_sbnd_retired_files.txt" in caplog.text
 
 
 def inferable_campaign():

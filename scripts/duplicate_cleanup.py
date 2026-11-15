@@ -32,6 +32,9 @@ LIVE_CHECK_BATCH_SIZE = 200
 MAX_FILES_NAMED = 20
 # The "dcache:" or "enstore:" in front of a location's full_path.
 LOCATION_PREFIX_PATTERN = re.compile(r"^\w+:")
+# The Output Tiers cleanup knows, youngest first: the order they are cleaned
+# in within one depth. A definition is named <...>_<tier>_sbnd.
+TIER_ORDER = ("flatcaf", "caf", "histreco2", "larcvreco1", "reco1")
 
 # Per-file lines; clean_definitions() gives it a file handler while it runs.
 _DETAIL = logging.getLogger("duplicate_cleanup.detail")
@@ -60,6 +63,18 @@ def _cleanup_log(cfg, dry_run):
     finally:
         _DETAIL.removeHandler(handler)
         handler.close()
+
+
+def _tier(name):
+    """The tier in TIER_ORDER that definition `name` ends with as an exact
+    `_<tier>_sbnd` token, or None."""
+    return next((tier for tier in TIER_ORDER if name.endswith(f"_{tier}_sbnd")), None)
+
+
+def _cleaning_order(definition):
+    """Sort key: deeper first, then youngest tier, then name."""
+    tier = _tier(definition["name"])
+    return (-definition["depth"], TIER_ORDER.index(tier) if tier else len(TIER_ORDER), definition["name"])
 
 
 def _batches(names, size):
@@ -226,7 +241,8 @@ def plan_cleanup(definitions, sam):
     next-best worker, and the input is marked `mixed_workers`.
 
     Returns {"definitions": [...], "inputs": {...}, "fallback_used": bool}.
-    "definitions" is deepest first, each {name, depth, retire, skipped,
+    "definitions" is in cleaning order (deepest first, then youngest tier
+    first, see TIER_ORDER), each {name, depth, retire, skipped,
     ungrouped, totals}. "inputs" maps each input to {kept_process_id,
     fallback, mixed_workers, kept, retired, skipped}, the last three keyed
     by definition; a mixed input also has rescued_from, {definition:
@@ -237,7 +253,7 @@ def plan_cleanup(definitions, sam):
     instead of their input's. A plan with any `ungrouped` file must not be
     applied.
     """
-    ordered = sorted(definitions, key=lambda d: (-d["depth"], d["name"]))
+    ordered = sorted(definitions, key=_cleaning_order)
     depth_of = {d["name"]: d["depth"] for d in ordered}
     known = {}
     gone = set()
@@ -472,12 +488,30 @@ def _apply_definition(cfg, entry, plan, sam, dry_run):
     return None
 
 
-def _apply_plan(cfg, plan, sam, dry_run):
+def _verify_definition(plan, name, sam, result):
+    """Verifies one applied definition. Returns None, or the failure as
+    {definition, file, error}; `result["bad_inputs"]` gets what is wrong."""
+    try:
+        bad = verify_plan(plan, sam, [name])
+    except Exception as e:
+        _summary(logging.ERROR, "cleanup: verification of %s could not be done", name, exc_info=True)
+        return {"definition": name, "file": None, "error": f"verification of {name} could not be done: {e}"}
+    for key, reasons in bad.items():
+        _DETAIL.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
+    if bad:
+        result["bad_inputs"] = bad
+        _summary(logging.ERROR, "cleanup: verification failed for %d input(s)", len(bad))
+        return {"definition": name, "file": None, "error": f"verification of {name} failed for {len(bad)} input(s)"}
+    return None
+
+
+def _apply_plan(cfg, plan, sam, dry_run, result):
     """Retires the plan's files, one definition after another in the plan's
-    order, stopping at the first failure. Each finished definition is
-    recorded in the State File's `cleanup` section and skipped from then
-    on. Returns None, or the failure as {definition, file, error}. A dry
-    run retires nothing and records nothing."""
+    order, verifying each before the next starts and stopping at the first
+    failure. A definition verified is recorded in the State File's `cleanup`
+    section and skipped from then on. Returns None, or the failure as
+    {definition, file, error}. A dry run retires, verifies and records
+    nothing."""
     progress = state.read(cfg, "cleanup") or {}
     done = list(progress.get("done", []))
     for entry in plan["definitions"]:
@@ -488,17 +522,20 @@ def _apply_plan(cfg, plan, sam, dry_run):
         if failure:
             return failure
         if not dry_run:
+            failure = _verify_definition(plan, entry["name"], sam, result)
+            if failure:
+                return failure
             done.append(entry["name"])
             state.write(cfg, "cleanup", {**progress, "done": done})
     return None
 
 
-def verify_plan(plan, sam):
-    """Checks `sam` against an applied plan: per input and definition the
-    live files are the kept ones plus those the children guard skipped, and
-    every kept file's parents are live. Returns {input: [what is wrong]},
-    empty when all is well."""
-    names = [d["name"] for d in plan["definitions"]]
+def verify_plan(plan, sam, definitions=None):
+    """Checks `sam` against an applied plan, for the named `definitions` or
+    all of them: per input and definition the live files are the kept ones
+    plus those left in place, and every kept file's parents are live.
+    Returns {input: [what is wrong]}, empty when all is well."""
+    names = list(definitions) if definitions is not None else [d["name"] for d in plan["definitions"]]
     live = {name: set(sam.listFiles(defname=name)) for name in names}
     kept_files = [f for i in plan["inputs"].values() for files in i["kept"].values() for f in files]
     known = {}
@@ -520,6 +557,8 @@ def verify_plan(plan, sam):
 
     for entry in plan["definitions"]:
         name = entry["name"]
+        if name not in names:
+            continue
         planned = set()
         for plan_input in plan["inputs"].values():
             planned.update(plan_input["kept"].get(name, []))
@@ -552,6 +591,18 @@ def _ungrouped_error(plan, path):
     )
 
 
+def _unknown_tier_error(definitions):
+    """Error text naming the definitions whose tier is not in TIER_ORDER, or
+    None."""
+    unknown = sorted(d["name"] for d in definitions if _tier(d["name"]) is None)
+    if not unknown:
+        return None
+    return (
+        f"no Output Tier known for {', '.join(unknown)}, nothing retired; "
+        f"known tiers (named _<tier>_sbnd): {', '.join(TIER_ORDER)}"
+    )
+
+
 def _load_unfinished_plan(cfg, definitions):
     """(plan, path) of the plan a past run started applying and has not
     finished, or (None, None). Raises RuntimeError when that plan cannot be
@@ -576,7 +627,10 @@ def _load_unfinished_plan(cfg, definitions):
 def clean_definitions(cfg, definitions, sam, dry_run=False):
     """Cleans the duplicates of `definitions` ([{name, depth}]) through
     `sam`: resumes the plan an earlier run left unfinished, or makes a new
-    one and writes its plan file; retires its files; verifies the result. A
+    one and writes its plan file; retires its files one definition at a time
+    in tier order, verifying each before the next. A definition whose name
+    does not end `_<tier>_sbnd` for a tier in TIER_ORDER fails the run
+    before anything is planned. A
     plan with a file that cannot be grouped under an input fails before
     anything is retired. A dry run writes the plan file and the lists of
     full paths, logs what would be retired and changes nothing else:
@@ -585,7 +639,8 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
 
     Returns {"ok", "plan_path", "failure", "bad_inputs", "skipped",
     "retired_files_lists"}. `failure` is None, or {definition, file, error}
-    for what stopped the run. `bad_inputs` is verify_plan()'s answer.
+    for what stopped the run, a failed verification included. `bad_inputs`
+    is verify_plan()'s answer for the definition that failed.
     `skipped` lists the files left in place because they have live children
     outside the plan, as {definition, input, file}; they do not fail
     verification. `retired_files_lists` is the paths of the files listing
@@ -615,6 +670,11 @@ def _clean(cfg, definitions, sam, dry_run, result):
     def fail(error):
         result["failure"] = {"definition": None, "file": None, "error": str(error)}
 
+    unknown = _unknown_tier_error(definitions)
+    if unknown:
+        _summary(logging.ERROR, "cleanup: %s", unknown)
+        return fail(unknown)
+
     try:
         plan, path = _load_unfinished_plan(cfg, definitions)
         resumed = plan is not None
@@ -639,7 +699,7 @@ def _clean(cfg, definitions, sam, dry_run, result):
         for entry in plan["definitions"] for row in entry["skipped"]
     ]
 
-    result["failure"] = _apply_plan(cfg, plan, sam, dry_run)
+    result["failure"] = _apply_plan(cfg, plan, sam, dry_run, result)
     if result["failure"]:
         return
     result["retired_files_lists"] = [
@@ -649,16 +709,6 @@ def _clean(cfg, definitions, sam, dry_run, result):
         result["ok"] = True
         return
 
-    try:
-        result["bad_inputs"] = verify_plan(plan, sam)
-    except Exception as e:
-        _summary(logging.ERROR, "cleanup: verification could not be done", exc_info=True)
-        return fail(e)
-    for key, reasons in result["bad_inputs"].items():
-        _DETAIL.error("cleanup: verification failed for input %s: %s", key, "; ".join(reasons))
-    if result["bad_inputs"]:
-        _summary(logging.ERROR, "cleanup: verification failed for %d input(s)", len(result["bad_inputs"]))
-        return
     _summary(logging.INFO, "cleanup: verified %d input(s)", len(plan["inputs"]))
     state.write(cfg, "cleanup", {**state.read(cfg, "cleanup", {}), "finished": True})
     result["ok"] = True
