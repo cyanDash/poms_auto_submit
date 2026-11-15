@@ -14,7 +14,7 @@
 set -uo pipefail
 
 # Fixed engineering constants, not per-campaign policy knobs.
-RATIO_THRESHOLD="0.98"          # TODO.md step 5
+RATIO_THRESHOLD="${RECOVERY_RATIO_THRESHOLD:-0.98}"  # TODO.md step 5; window_recovery.py sets 1
 DATA_CAMPAIGN_MARKER="data_EventBuilder"  # TODO.md step 6
 PRESTAGE_PARALLEL="5"           # TODO.md step 6, matches setup_recovery.sh
 
@@ -84,7 +84,7 @@ if [[ "$input_count" -eq 0 ]]; then
 fi
 output_count=$((input_count - recovery_count))
 ratio=$(awk "BEGIN { printf \"%.4f\", $output_count / $input_count }")
-if awk "BEGIN { exit !($output_count / $input_count > $RATIO_THRESHOLD) }"; then
+if [[ "$recovery_count" -eq 0 ]] || awk "BEGIN { exit !($output_count / $input_count > $RATIO_THRESHOLD) }"; then
     echo "$ratio"
     echo "$RATIO_THRESHOLD"
     echo "NO_RECOVERY_NEEDED"

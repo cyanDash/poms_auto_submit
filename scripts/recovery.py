@@ -37,12 +37,14 @@ def _direct_output_names(cfg):
     return names
 
 
-def run_recovery_script(input_dataset, campaign_name, prestage_log, output_names):
+def run_recovery_script(input_dataset, campaign_name, prestage_log, output_names, ratio_threshold=None):
     """Returns (ratio, threshold, dataset_name); ratio/dataset_name are None
-    when not applicable. Raises RuntimeError on any other failure."""
+    when not applicable. `ratio_threshold` replaces run_recovery.sh's default
+    (0.98). Raises RuntimeError on any other failure."""
+    env = None if ratio_threshold is None else {**os.environ, "RECOVERY_RATIO_THRESHOLD": str(ratio_threshold)}
     result = subprocess.run(
         [RECOVERY_SCRIPT, input_dataset, campaign_name, prestage_log, *output_names],
-        capture_output=True, text=True, timeout=RECOVERY_SCRIPT_TIMEOUT_SECONDS,
+        capture_output=True, text=True, timeout=RECOVERY_SCRIPT_TIMEOUT_SECONDS, env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(f"run_recovery.sh failed: exit {result.returncode}\n{result.stderr}")

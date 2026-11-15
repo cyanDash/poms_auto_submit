@@ -261,6 +261,32 @@ class PomsSession:
         if data is None:
             raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={self.campaign_stage_id}")
 
+    def update_test_stage_params(self, updates):
+        """Apply test_param_overrides updates (what a Test Launch uses) to the
+        Campaign Stage; param_overrides are left alone."""
+        logging.info("updating test stage params: %s", updates)
+        # Must pre-serialize; see docs/poms_client_gotchas.md.
+        data = self.pc.update_stage_param_overrides(
+            self.cfg["experiment"], self.campaign_stage_id, test_param_overrides=str(list(updates.items()))
+        )
+        if data is None:
+            raise RuntimeError(f"update_stage_param_overrides failed for campaign_stage_id={self.campaign_stage_id}")
+
+    def set_input_dataset(self, dataset_name):
+        """Set the Campaign Stage's Input Dataset only; cs_last_split and the
+        split type are left alone."""
+        data, status = raw_poms_call(
+            self.pc, "update_campaign_stage",
+            pcl_call=1,
+            campaign_stage=self.campaign_stage_id,
+            experiment=self.cfg["experiment"],
+            role=self.cfg["role"],
+            dataset=dataset_name,
+        )
+        if status not in (200, 202):
+            raise RuntimeError(f"update_campaign_stage failed: HTTP status {status}\n{data}")
+        logging.info("set input dataset=%s for campaign_stage_id=%s", dataset_name, self.campaign_stage_id)
+
     def set_recovery_input_dataset(self, dataset_name):
         """Set a new Input Dataset and reset cs_last_split to 0 (recovery.py).
         Confirmed live -- see docs/poms_client_gotchas.md."""

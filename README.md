@@ -112,6 +112,7 @@ The rehearsal passes when it prints what the manual run printed. Then open
 
 ```cron
 0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 16 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/window_recovery.py -c configs/<ini>
 0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py daily
 5 1 * * 1 cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py weekly
 ```
@@ -125,8 +126,9 @@ The rehearsal passes when it prints what the manual run printed. Then open
 - The weekly plot runs Mondays at 01:05, five minutes after the daily one, so
   the two never check out the plotter at the same time. It plots the last 7
   windows.
-- The two lines don't depend on each other: the plot reads yesterday's window
-  and the submission writes today's.
+- The plot and submission lines don't depend on each other: the plot reads
+  yesterday's window and the submission writes today's. The 16:00 recovery
+  shares the submission's lock, so the two never run at once.
 - Check `logs/<campaign_name>/poms_auto_submit.log` daily for errors.
 - Remove both entries when the campaign is done. Production access ends at the
   end of 2026.
@@ -151,6 +153,31 @@ dataset. The script never writes the ini; its own state (`last_split`, the
   `cs_last_split` to 0 (ADR-0024). Times are read as Central and sent as GMT.
   `round`, `fts`, `localtime` and `lasttime` are optional (defaults in
   `configs/config.ini`). A Test Launch does not set the window.
+
+### Recovery of each window (16:00)
+
+`scripts/window_recovery.py -c configs/<ini>` recovers the window of the
+newest real Submission once, twelve hours after its launch (ADR-0025). It
+finds that window's inputs with no output in every depth-one output
+definition, and if there are any, launches them as a Test Launch against a
+Recovery Dataset with `-Osubmit.memory=16GB`, then sets the stage's dataset
+back to `run3_raw_data_ongoing`. It never changes `last_split`, so the next
+04:00 launch takes the next window. It recovers even if the morning's
+Submission is still running; the duplicates that makes are for the cleanup.
+
+Before its first run, set by hand in POMS:
+
+- `test_split_type` to None, so the Test Launch takes the whole Recovery Dataset;
+- every `test_param_overrides` entry other than the subgroup and memory equal
+  to `param_overrides` (remove `-Oglobal.prodtype=test`), so the recovered
+  files land in the real definitions.
+
+The script refuses to launch otherwise and logs which entries differ. While
+the stage is set up this way, a hand-made Test Launch also writes real
+outputs. `--dry-run` logs the window, the number of inputs it would recover
+and those checks, and writes nothing. Handled windows are listed under
+`window_recovery` in the state file; delete a window's entry to recover it
+again.
 
 Design decisions are in `docs/adr/`; domain terms are in `CONTEXT.md`.
 

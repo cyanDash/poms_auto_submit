@@ -33,6 +33,9 @@ POSTSCRIPT_PATH_PATTERN = re.compile(r"-f\s+dropbox://(\S*metadata_postscripts[^
 # The postscript a job runs: ". ${CONDOR_DIR_INPUT}/<name>.sh ..." in --postscript-unquote.
 POSTSCRIPT_RUN_PATTERN = re.compile(r"\$\{?CONDOR_DIR_INPUT\}?/(metadata_postscripts[^/\s]*\.sh)")
 MT_EXPORT_PATTERN = re.compile(r"export\s+(MT_\w+)=(\S+)")
+# The definition POMS made for the launch: on this branch one `new()` window
+# of the Input Dataset (docs/adr/0025).
+LAUNCH_DATASET_PATTERN = re.compile(r"--dataset_definition=['\"]?([^\s'\"]+)")
 VERSION_PATTERN = re.compile(r"--mdappversion[\s=]+(\S+)")
 SETUP_VERSION_PATTERN = re.compile(r"--setup-unquote\s+(?:sbndcode|icaruscode)\s+(v\S+)")
 # The postscripts name the software version this, and never assign it.
@@ -217,13 +220,20 @@ def _trace(cfg, session, sam, outcome):
 
     stage_dataset = session.get_stage_params()["dataset"]
     input_dataset = _original_input_dataset(stage_dataset, cfg["campaign_name"])
-    lineage, newest, stats = _lineage_tags(sam, input_dataset)
+    # Lineage is read under the launch's own window, where most inputs
+    # already have children; verification still reaches the whole dataset.
+    scan_dataset = launch["dataset"] or input_dataset
+    lineage, newest, stats = _lineage_tags(sam, scan_dataset)
+    input_names = (
+        stats["input_names"] if scan_dataset == input_dataset else set(sam.listFiles(defname=input_dataset))
+    )
     dataset_text = (
         f"original Input Dataset {input_dataset} (stage's dataset {stage_dataset}, recovery suffix stripped)"
         if input_dataset != stage_dataset else f"Input Dataset {input_dataset}"
     )
+    scan_text = f"launch dataset {scan_dataset}: " if scan_dataset != input_dataset else ""
     steps.add(
-        f"{dataset_text}; {stats['probed']} of {stats['inputs']} input(s) probed, "
+        f"{dataset_text}; {scan_text}{stats['probed']} of {stats['inputs']} input(s) probed, "
         f"{stats['with_children']} with children"
     )
 
@@ -254,7 +264,7 @@ def _trace(cfg, session, sam, outcome):
             [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags if _matches(t, patterns)],
             name="candidates",
         )
-        verified, failed = _verify(sam, stats["input_names"], candidates, launch)
+        verified, failed = _verify(sam, input_names, candidates, launch)
         steps.add(
             f"{len(verified)} of {len(candidates)} candidate(s) are outputs of this stage "
             f"(files in SAM, first parents reach {input_dataset}, metadata agrees)",
@@ -361,6 +371,7 @@ def _parse_launch_command(command):
         "sample": variables.get(SAMPLE_VARIABLE),
         "production_name": variables.get(PRODUCTION_NAME_VARIABLE),
         "postscript": postscript,
+        "dataset": (LAUNCH_DATASET_PATTERN.search(command) or [None, None])[1],
     }
 
 

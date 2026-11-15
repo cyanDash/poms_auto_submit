@@ -60,6 +60,8 @@ REAL_POSTSCRIPT_PATH = (
     "metadata_postscripts_MC_scrub_detsim_reco1_reco2_caf.sh"
 )
 INPUT_DATASET = "input_ds"
+# FakeSam gives every definition (the Input Dataset, or the launch's
+# --dataset_definition=) the same files unless a test says otherwise.
 SHARED_INPUT = json.loads((RAW / "sam_lineage.json").read_text())["parent"]
 
 # The stage under test is submission 3144257's: Sample3 at v10_14_02_0602.
@@ -148,7 +150,6 @@ class FakeSam:
     def listFiles(self, dimensions=None, defname=None):
         self.calls.append(("listFiles", dimensions or defname))
         if defname is not None:
-            assert defname == INPUT_DATASET
             return iter(self.inputs)
         if dimensions.startswith("defname: ") and " with limit " in dimensions:
             raise DimensionError("No existing dataset definition")
@@ -725,3 +726,24 @@ def test_a_tag_that_carries_the_stage_identity_but_matches_no_pattern_still_rais
 
     with pytest.raises(OutputDefinitionsError, match="calib_sbnd"):
         get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam, dry_run=True)
+
+
+def test_lineage_is_read_under_the_launch_dataset_and_verified_against_the_whole_input():
+    window = "run3_raw_data_ongoing_b78c_time_1794722400__1794733200"
+    window_inputs = [f"in{i}" for i in range(900, 903)]
+
+    class WindowSam(FakeSam):
+        def listFiles(self, dimensions=None, defname=None):
+            if defname == window:
+                self.calls.append(("listFiles", defname))
+                return iter(window_inputs)
+            return super().listFiles(dimensions=dimensions, defname=defname)
+
+    sam = WindowSam(beamlight_sam().inputs, beamlight_sam().children, beamlight_sam().tags)
+    command = launch_command().replace("--dataset_definition=", f"--dataset_definition={window} --was=")
+    trace = trace_of(sam, command)
+
+    assert ("listFiles", window) in sam.calls
+    assert ("listFiles", INPUT_DATASET) in sam.calls
+    assert "launch dataset " + window + ": 3 of 3 input(s) probed, 3 with children" in step_named(trace, "input dataset")["summary"]
+    assert len(trace["definitions"]) == len(ALL_TIERS)
