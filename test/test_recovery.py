@@ -242,7 +242,7 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert handled(tmp_path)
     assert "do_recovery = 1" in config_path.read_text()
     (input_dataset, campaign_name, output_path), = calls
-    assert input_dataset == "input_dataset"
+    assert input_dataset == "test_dataset"
     assert campaign_name == "test_campaign"
     assert output_path.endswith("output_definitions_42.txt")
     assert recorded_outputs(tmp_path) == ["ds_reco1", "ds_caf"]
@@ -311,3 +311,17 @@ def test_any_still_running_true_for_live_dag_at_100_pct():
     from helpers import make_cfg
     subs = [{"submission_id": 1, "status": "Completed", "jobsub_job_id": "1@s"}]
     assert CampaignSnapshot(make_cfg(), subs, lambda e, j: Progress("live", 100.0)).any_still_running() is True
+
+
+def test_recovery_input_is_the_full_dataset_not_the_stage_slice(tmp_path, monkeypatch):
+    cfg = make_cfg(
+        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
+        input_dataset_template="mc_full_caf_sbnd_slice{n}_files10000",
+    )
+    session = FakeSession(stage={"dataset": "mc_full_caf_sbnd_slice26_files10000"})
+    inputs = []
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda ds, *a: inputs.append(ds) or (0.99, 0.98, None))
+
+    evaluate_and_run_recovery(cfg, session)
+
+    assert inputs == ["mc_full_caf_sbnd"]

@@ -123,3 +123,22 @@ def test_load_config_rejects_template_without_slice_placeholder(tmp_path, monkey
 
     with pytest.raises(ValueError, match=r"\{n\}"):
         psc.load_config(str(config_path))
+
+
+def test_full_input_dataset_drops_the_slice_part():
+    assert psc.full_input_dataset("mc_x_caf_sbnd_slice{n}_files10000") == "mc_x_caf_sbnd"
+
+
+def test_load_config_with_recovery_rejects_template_without_slice_part(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch, extra="do_recovery = 1")
+    config_path.write_text(config_path.read_text().replace("test_dataset_slice{n}", "test_dataset_{n}"))
+
+    with pytest.raises(ValueError, match=r"_slice\{n\}"):
+        psc.load_config(str(config_path))
+
+
+def test_load_config_without_recovery_accepts_template_without_slice_part(tmp_path, monkeypatch):
+    config_path = make_config_file(tmp_path, monkeypatch)
+    config_path.write_text(config_path.read_text().replace("test_dataset_slice{n}", "test_dataset_{n}"))
+
+    assert psc.load_config(str(config_path))["input_dataset_template"] == "test_dataset_{n}"

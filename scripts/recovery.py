@@ -57,10 +57,10 @@ def evaluate_and_run_recovery(cfg, session):
     """Runs at most once per campaign stage. Returns 'recovery_script_failed' |
     'no_recovery_needed' | 'recovery_plan_failed' | 'recovery_submitted' |
     'recovery_submit_failed'."""
-    from poms_auto_submit import persist_last_split, plan_next_slices, submit_plan
+    from poms_auto_submit import full_input_dataset, persist_last_split, plan_next_slices, submit_plan
 
-    stage = session.get_stage_params()
-    input_dataset = stage["dataset"]
+    # The stage's own dataset is only the last slice; see docs/adr/0022.
+    input_dataset = full_input_dataset(cfg["input_dataset_template"])
     # Scratch file run_recovery.sh writes its output defnames to; its
     # prestage log is named after it.
     output_defnames_path = os.path.join(

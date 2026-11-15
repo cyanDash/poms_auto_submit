@@ -27,9 +27,13 @@ Slices are then SAM definitions built by hand, one per submission, named
   split counter has no meaning for these stages.
 - **Recovery keeps its dataset.** `recovery.py` switches the stage to the
   Recovery Dataset and then calls `submit_plan(..., set_input_dataset=False)`.
-  Without that, the slice template would overwrite the Recovery Dataset. The
-  template names slice datasets only, so recovery for such a stage needs the
-  Recovery Dataset to be built from the original input as usual (`do_recovery`).
+  Without that, the slice template would overwrite the Recovery Dataset.
+- **Recovery reads the full Input Dataset, not the stage's.** The stage's
+  dataset is only the last slice, so recovery would check that slice alone.
+  `run_recovery.sh` gets the template up to `_slice{n}` instead
+  (`<input>_slice{n}_files10000` -> `<input>`; `full_input_dataset()`), and
+  the Recovery Dataset is named after `<input>`. With `do_recovery` on, a
+  template without `_slice{n}` is refused at config load.
 - **Test launches do not use the template.** A Test Launch is outside the
   planning machinery and never reaches `submit_plan()`. The operator sets the
   stage's dataset by hand before one.

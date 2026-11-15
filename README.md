@@ -92,7 +92,7 @@ The script never writes to the ini. Everything it tracks itself lives in one sta
 `submit_two_slices = 1` implies a pro and a non-pro submission can be 
 simultaneously run.
 
-Each slice is its own pre-built SAM dataset (for example `<input>_slice<n>_files10000`, defined as `<input> with limit 10000 offset n*10000`). Before every submission the script sets the stage's Input Dataset to `input_dataset_template` with `{n}` filled in from `last_split`. Clear the stage's split types in POMS so it does not also divide the dataset. If your input dataset has 43k files and each slice holds 10k files, build slices 0-4 and set `max_splits = 5`. A Test Launch (`test_launch = 1`) does not set the dataset: set it by hand. A recovery submission keeps the Recovery Dataset.
+Each slice is its own pre-built SAM dataset (for example `<input>_slice<n>_files10000`, defined as `<input> with limit 10000 offset n*10000`). Before every submission the script sets the stage's Input Dataset to `input_dataset_template` with `{n}` filled in from `last_split`. Clear the stage's split types in POMS so it does not also divide the dataset. If your input dataset has 43k files and each slice holds 10k files, build slices 0-4 and set `max_splits = 5`. A Test Launch (`test_launch = 1`) does not set the dataset: set it by hand. A recovery submission keeps the Recovery Dataset. Recovery checks the full `<input>` (the template up to `_slice{n}`), not the last slice, so with `do_recovery = 1` the template must contain `_slice{n}`.
 
 ## Example workflow
 

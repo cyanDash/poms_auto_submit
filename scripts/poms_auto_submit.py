@@ -46,6 +46,12 @@ def load_config(path):
     input_dataset_template = parser.get("decision", "input_dataset_template", raw=True)
     if "{n}" not in input_dataset_template:
         raise ValueError(f"{path}: input_dataset_template must contain the {{n}} slice placeholder")
+    do_recovery = parser.getboolean("decision", "do_recovery", fallback=False)
+    if do_recovery and SLICE_PART not in input_dataset_template:
+        raise ValueError(
+            f"{path}: with do_recovery, input_dataset_template must be <input>{SLICE_PART}..., "
+            "so recovery can read the full <input>; see docs/adr/0022"
+        )
 
     cfg = {
         "experiment": parser.get("poms", "experiment"),
@@ -57,7 +63,7 @@ def load_config(path):
         "max_splits": parser.getint("decision", "max_splits"),
         "input_dataset_template": input_dataset_template,
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
-        "do_recovery": parser.getboolean("decision", "do_recovery", fallback=False),
+        "do_recovery": do_recovery,
         "do_cleanup": parser.getboolean("decision", "do_cleanup", fallback=False),
         "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
@@ -109,6 +115,15 @@ def _manage_stragglers(cfg, snapshot, dry_run):
         stragglers.manage(cfg, snapshot, dry_run=dry_run)
     except OSError:
         logging.exception("straggler check failed -- continuing with cleanup and recovery")
+
+
+SLICE_PART = "_slice{n}"
+
+
+def full_input_dataset(template):
+    """The full Input Dataset a slice template is cut from: the template up
+    to `_slice{n}` (`<input>_slice{n}_files10000` -> `<input>`)."""
+    return template.split(SLICE_PART, 1)[0]
 
 
 def slice_dataset(cfg, slice_number):
