@@ -74,3 +74,20 @@ def test_launch_command_of_a_test_launch_is_used_when_there_is_no_other():
 def test_launch_command_is_none_without_submissions():
     assert make_session([], {})[0].get_launch_command() is None
     assert make_session([{"submission_id": 1}], {}, ok=False)[0].get_launch_command() is None
+
+
+def test_launch_source_names_the_submission_and_whether_it_is_a_test_launch():
+    session, _ = make_session(
+        [{"submission_id": n} for n in (1, 2)],
+        {
+            1: {"command_executed": "real", "submission_params": {}},
+            2: {"command_executed": "test", "submission_params": {"test": 1}},
+        },
+    )
+    assert session.get_launch_source() == {"command": "real", "submission_id": 1, "is_test": False}
+
+    only_test, _ = make_session(
+        [{"submission_id": 2}], {2: {"command_executed": "test", "submission_params": {"test": 1}}},
+    )
+    assert only_test.get_launch_source() == {"command": "test", "submission_id": 2, "is_test": True}
+    assert make_session([], {})[0].get_launch_source() is None

@@ -320,7 +320,10 @@ def test_a_test_launchs_outputs_under_the_same_inputs_are_ignored_and_logged_onc
 
     assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
     assert recorded(tmp_path) == definitions
-    ignored = [r for r in caplog.records if "ignoring" in r.getMessage() and r.levelno == logging.INFO]
+    ignored = [
+        r for r in caplog.records
+        if "step 4 test launch tags" in r.getMessage() and r.levelno == logging.INFO
+    ]
     assert len(ignored) == 1
 
 

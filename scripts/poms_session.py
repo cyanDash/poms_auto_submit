@@ -150,6 +150,13 @@ class PomsSession:
         """The jobsub command POMS ran for the newest Submission that is not
         a Test Launch (else the newest of any kind), URL-unquoted. None when
         no Submission has one."""
+        source = self.get_launch_source()
+        return source["command"] if source else None
+
+    def get_launch_source(self):
+        """{command, submission_id, is_test} of the Submission
+        get_launch_command() reads, or None when no Submission has one.
+        `is_test` is True for the newest-of-any-kind fallback."""
         ok, resp = self.pc.campaign_stage_submissions(
             self.cfg["experiment"], self.cfg["role"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"],
         )
@@ -161,10 +168,11 @@ class PomsSession:
             command = submission.get("command_executed")
             if not command:
                 continue
+            found = {"command": unquote(command), "submission_id": s.get("submission_id")}
             if not (submission.get("submission_params") or {}).get("test"):
-                return unquote(command)
-            newest_of_any_kind = newest_of_any_kind or command
-        return unquote(newest_of_any_kind) if newest_of_any_kind else None
+                return {**found, "is_test": False}
+            newest_of_any_kind = newest_of_any_kind or {**found, "is_test": True}
+        return newest_of_any_kind
 
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""

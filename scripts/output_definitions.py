@@ -1,8 +1,9 @@
 """output_definitions: infers a Campaign Stage's Output Definitions and is
 the only writer of the State File's `output_definitions` section.
 get_output_definitions() is the module's main interface; it raises
-OutputDefinitionsError. describe_lineage_tags() is the read-only view of the
-tags it chooses from. See docs/adr/0023.
+OutputDefinitionsError. trace_output_definitions() is the read-only view of
+the same inference: its seven steps and the tags each keeps or drops, which
+get_output_definitions() also logs at INFO. See docs/adr/0023.
 """
 
 import logging
@@ -39,6 +40,12 @@ TEST_TAG_PATTERN = re.compile(r"^test\d*_")
 DTAG_ASSIGNMENT_PATTERN = re.compile(r"^[ \t]*(?:export[ \t]+)?(\w*DTAG\w*)=(\S*)", re.MULTILINE)
 SHELL_VARIABLE_PATTERN = re.compile(r"\$\{(\w+)\}|\$(\w+)")
 
+TRACE_PREFIX = "output definitions: step"
+STEP_NAMES = (
+    "launch command", "input dataset", "lineage tags", "test launch tags",
+    "postscript patterns", "classification", "result",
+)
+
 
 class OutputDefinitionsError(RuntimeError):
     """The output definitions could not be inferred; nothing was recorded."""
@@ -48,16 +55,52 @@ def get_output_definitions(cfg, session, sam, dry_run=False):
     """The Campaign Stage's Output Definitions as [{name, depth}]: what the
     State File holds, else inferred and recorded. A flat list of names is
     never trusted: it is inferred again and replaced. A dry run records
-    nothing. Raises OutputDefinitionsError when the
-    definitions cannot be inferred; the State File is then left as it is."""
+    nothing. The inference logs its steps at INFO. Raises
+    OutputDefinitionsError when the definitions cannot be inferred; the
+    State File is then left as it is."""
     recorded = state.read(cfg, SECTION, []) or []
     if recorded and all(isinstance(entry, dict) for entry in recorded):
         return [dict(entry) for entry in recorded]
 
-    definitions = _infer(cfg, session, sam)
+    trace = _trace(cfg, session, sam, "not recorded (dry run)" if dry_run else "recorded")
+    if trace["error"]:
+        raise OutputDefinitionsError(trace["error"])
     if not dry_run:
-        state.write(cfg, SECTION, definitions)
-    return definitions
+        state.write(cfg, SECTION, trace["definitions"])
+    return trace["definitions"]
+
+
+def trace_output_definitions(cfg, session, sam):
+    """The inference without recording or raising: {steps, rows,
+    definitions, error}. `steps` is the seven steps, each {step, name,
+    summary, keeps, drops} (entries {tag, depth, detail, reason}); `rows`
+    is describe_lineage_tags()'s; `error` is None or why nothing would be
+    recorded. Only reads."""
+    return _trace(cfg, session, sam, "inferred, not recorded (read-only)")
+
+
+def render_step(step, multiline=False):
+    """One step as the INFO line (prefix included) or, with `multiline`, as
+    an indented section."""
+    head = f"step {step['step']} {step['name']}: {step['summary']}"
+    keeps = [_render_entry(e) for e in step["keeps"]]
+    drops = [_render_entry(e) for e in step["drops"]]
+    if multiline:
+        lines = [head]
+        lines += [f"    keeps  {text}" for text in keeps]
+        lines += [f"    drops  {text}" for text in drops]
+        return "\n".join(lines)
+    text = f"output definitions: {head}"
+    if keeps:
+        text += " | keeps: " + "; ".join(keeps)
+    if drops:
+        text += " | drops: " + "; ".join(drops)
+    return text
+
+
+def _render_entry(entry):
+    inside = f"depth {entry['depth']}" + (f", {entry['detail']}" if entry.get("detail") else "")
+    return f"{entry['tag']} ({inside})" + (f": {entry['reason']}" if entry.get("reason") else "")
 
 
 def _original_input_dataset(dataset, campaign_name):
@@ -69,81 +112,177 @@ def _original_input_dataset(dataset, campaign_name):
     return dataset
 
 
-def _infer(cfg, session, sam):
-    scan = _scan(cfg, session, sam)
-    if scan["unexpected"]:
-        logging.error(
-            "output definitions: postscript and lineage disagree -- postscript patterns=%s lineage names=%s",
-            scan["patterns"], scan["names"] + scan["unexpected"],
-        )
-        raise OutputDefinitionsError(f"lineage names match no postscript pattern: {scan['unexpected']}")
-    if not scan["names"]:
-        raise OutputDefinitionsError("no output definition found by postscript or lineage")
-    definitions = [{"name": name, "depth": scan["lineage"][name]} for name in scan["names"]]
-    logging.info("output definitions: %s", definitions)
-    return definitions
-
-
 def describe_lineage_tags(cfg, session, sam):
     """Every lineage tag found under the sampled inputs, as [{tag, depth,
     newest_create_date, status}] sorted by tag. `status` is "accepted" (an
     Output Definition of this stage), "test" (a Test Launch tag, ignored) or
     "rejected" (another campaign's). Only reads. Raises
     OutputDefinitionsError when the stage cannot be told apart."""
-    scan = _scan(cfg, session, sam)
-    rows = []
-    for tag in sorted(scan["lineage"]):
-        status = "test" if tag in scan["test_tags"] else "accepted" if tag in scan["names"] else "rejected"
-        rows.append({
-            "tag": tag, "depth": scan["lineage"][tag],
-            "newest_create_date": scan["newest"].get(tag), "status": status,
-        })
-    return rows
+    trace = trace_output_definitions(cfg, session, sam)
+    if trace["scan_error"]:
+        raise OutputDefinitionsError(trace["scan_error"])
+    return trace["rows"]
 
 
-def _scan(cfg, session, sam):
-    """The lineage tags of the Input Dataset sorted out: {lineage, newest,
-    test_tags, names, unexpected, patterns}. `lineage` holds every tag,
-    Test Launch ones included; `unexpected` are tags the postscript patterns
-    reject that still carry the production name and version."""
-    command = session.get_launch_command()
-    if not command:
-        raise OutputDefinitionsError("no Submission with a launch command -- cannot tell this stage's outputs apart")
-    launch = _parse_launch_command(command)
+class _Steps:
+    """The steps of one inference, logged as they are made."""
 
-    input_dataset = _original_input_dataset(session.get_stage_params()["dataset"], cfg["campaign_name"])
-    lineage, newest = _lineage_tags(sam, input_dataset)
-    test_tags = sorted(tag for tag in lineage if TEST_TAG_PATTERN.match(tag))
-    if test_tags:
-        logging.info("output definitions: ignoring %d Test Launch tag(s): %s", len(test_tags), test_tags)
-    real = [tag for tag in lineage if tag not in test_tags]
-    patterns = _postscript_patterns(launch)
+    def __init__(self):
+        self.steps = []
+
+    def add(self, summary, keeps=(), drops=(), final=False):
+        number = len(STEP_NAMES) if final else len(self.steps) + 1
+        step = {
+            "step": number, "name": STEP_NAMES[number - 1],
+            "summary": summary, "keeps": list(keeps), "drops": list(drops),
+        }
+        self.steps.append(step)
+        logging.info("%s", render_step(step))
+        return step
+
+
+def _entry(tag, depth, detail=None, reason=None):
+    return {"tag": tag, "depth": depth, "detail": detail, "reason": reason}
+
+
+def _trace(cfg, session, sam, outcome):
+    """Runs the inference and returns {steps, rows, definitions, error,
+    scan_error}; never raises for a failed inference."""
+    steps = _Steps()
+    trace = {"steps": [], "rows": [], "definitions": [], "error": None, "scan_error": None}
+
+    def finish(error=None, definitions=(), keeps=()):
+        if error:
+            steps.add(f"nothing recorded: {error}", final=True)
+        else:
+            steps.add(f"{len(definitions)} definition(s) {outcome}", keeps, final=True)
+        trace["steps"] = steps.steps
+        trace["error"] = error
+        trace["definitions"] = list(definitions)
+        return trace
+
+    def stop_scan(error):
+        trace["scan_error"] = error
+        return finish(error)
+
+    source = _launch_source(session)
+    if not source:
+        steps.add("no Submission with a launch command")
+        return stop_scan("no Submission with a launch command -- cannot tell this stage's outputs apart")
+    launch = _parse_launch_command(source["command"])
+    patterns, readable = _postscript_patterns(launch)
+
+    if source["submission_id"] is None:
+        origin = "Submission unknown"
+    elif source["is_test"]:
+        origin = f"Submission {source['submission_id']} (newest of any kind, a Test Launch: no other had a command)"
+    else:
+        origin = f"Submission {source['submission_id']} (not a Test Launch)"
+    postscript = (
+        "no postscript named" if not launch["postscript"]
+        else f"postscript {launch['postscript']} ({'readable' if readable else 'not readable'})"
+    )
+    steps.add(
+        f"{origin}; production name {launch['production_name']}; version {launch['version']}; {postscript}"
+    )
+
+    stage_dataset = session.get_stage_params()["dataset"]
+    input_dataset = _original_input_dataset(stage_dataset, cfg["campaign_name"])
+    lineage, newest, stats = _lineage_tags(sam, input_dataset)
+    dataset_text = (
+        f"original Input Dataset {input_dataset} (stage's dataset {stage_dataset}, recovery suffix stripped)"
+        if input_dataset != stage_dataset else f"Input Dataset {input_dataset}"
+    )
+    steps.add(
+        f"{dataset_text}; {stats['probed']} of {stats['inputs']} input(s) probed, "
+        f"{stats['with_children']} with children"
+    )
+
+    ordered = sorted(lineage)
+    steps.add(
+        f"{len(ordered)} tag(s) found",
+        [_entry(t, lineage[t], f"{len(stats['files'][t])} file(s)") for t in ordered],
+    )
+
+    test_tags = [t for t in ordered if TEST_TAG_PATTERN.match(t)]
+    real = [t for t in lineage if t not in test_tags]
+    steps.add(
+        f"{len(test_tags)} Test Launch tag(s) dropped (test_, test<N>_)",
+        [_entry(t, lineage[t]) for t in real],
+        [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags],
+    )
 
     unexpected = []
     if patterns:
-        names = [tag for tag in real if _matches(tag, patterns)]
+        steps.add(f"{len(patterns)} pattern(s): {', '.join(patterns)}")
+        names = [t for t in real if _matches(t, patterns)]
         unexpected = [
-            tag for tag in real
-            if tag not in names and _carries(tag, launch["production_name"], launch["version"])
+            t for t in real
+            if t not in names and _carries(t, launch["production_name"], launch["version"])
         ]
+        drops = [
+            _entry(t, lineage[t], reason=(
+                "disagreement: carries the production name and version but matches no pattern"
+                if t in unexpected else "another campaign's: matches no pattern"
+            ))
+            for t in real if t not in names
+        ]
+        steps.add("tags matching a pattern are this stage's", [_entry(t, lineage[t]) for t in names], drops)
     else:
+        why = "not readable" if launch["postscript"] and not readable else "no pattern in it"
+        steps.add(f"no patterns: postscript {why}")
         # The postscript is gone, so is the knowledge of whether it wrote
         # the test_ prefix into the names: ignore it.
         production_name = launch["production_name"] or ""
         if production_name.startswith(TEST_PREFIX):
             production_name = production_name[len(TEST_PREFIX):]
         if not (production_name and launch["version"]):
-            raise OutputDefinitionsError("launch command has no production name and version to scope lineage by")
+            steps.add("fallback impossible: no production name and version to scope lineage by")
+            return stop_scan("launch command has no production name and version to scope lineage by")
         scope = f"{production_name}_{launch['version']}"
-        names = [tag for tag in real if f"_{scope}_" in f"_{tag}_"]
+        names = [t for t in real if f"_{scope}_" in f"_{t}_"]
         logging.warning(
             "output definitions: postscript %s not readable -- fallback to lineage names carrying %s",
             launch["postscript"], scope,
         )
-    return {
-        "lineage": lineage, "newest": newest, "test_tags": test_tags,
-        "names": names, "unexpected": unexpected, "patterns": patterns,
-    }
+        steps.add(
+            f"fallback scope {scope}: tags carrying it are this stage's",
+            [_entry(t, lineage[t]) for t in names],
+            [_entry(t, lineage[t], reason=f"does not carry {scope}") for t in real if t not in names],
+        )
+
+    status = {t: "test" for t in test_tags}
+    status.update({t: "accepted" for t in names})
+    trace["rows"] = [
+        {
+            "tag": t, "depth": lineage[t], "newest_create_date": newest.get(t),
+            "status": status.get(t, "rejected"),
+        }
+        for t in ordered
+    ]
+
+    if unexpected:
+        logging.error(
+            "output definitions: postscript and lineage disagree -- postscript patterns=%s lineage names=%s",
+            patterns, names + unexpected,
+        )
+        return finish(f"lineage names match no postscript pattern: {unexpected}")
+    if not names:
+        return finish("no output definition found by postscript or lineage")
+    definitions = [{"name": t, "depth": lineage[t]} for t in names]
+    return finish(definitions=definitions, keeps=[_entry(t, lineage[t]) for t in names])
+
+
+def _launch_source(session):
+    """{command, submission_id, is_test} from the session, or None. A
+    session without get_launch_source() gives the command alone."""
+    reader = getattr(session, "get_launch_source", None)
+    if reader:
+        source = reader()
+    else:
+        command = session.get_launch_command()
+        source = {"command": command, "submission_id": None, "is_test": False}
+    return source if source and source["command"] else None
 
 
 def _parse_launch_command(command):
@@ -161,15 +300,16 @@ def _parse_launch_command(command):
 
 
 def _postscript_patterns(launch):
-    """Expected-name globs from the postscript's *DTAG* assignments, [] when
-    the file cannot be read. The script is read, never executed."""
+    """(patterns, readable): expected-name globs from the postscript's
+    *DTAG* assignments, and whether the file could be read. The script is
+    read, never executed."""
     if not launch["postscript"]:
-        return []
+        return [], False
     try:
         with open(launch["postscript"]) as f:
             text = f.read()
     except (OSError, UnicodeDecodeError):
-        return []
+        return [], False
 
     assigned = {}
     building_blocks = set()
@@ -183,10 +323,11 @@ def _postscript_patterns(launch):
 
     for name, value in DTAG_ASSIGNMENT_PATTERN.findall(text):
         assigned[name] = SHELL_VARIABLE_PATTERN.sub(substitute, value.strip("\"'"))
-    return [
+    patterns = [
         glob for name, glob in assigned.items()
         if name not in building_blocks and glob.strip("*")
     ]
+    return patterns, True
 
 
 def _matches(tag, patterns):
@@ -203,24 +344,27 @@ def _carries(tag, production_name, version):
 
 def _lineage_tags(sam, input_dataset):
     """({Dataset.Tag: depth below the input}, {Dataset.Tag: newest
-    create_date seen}) over the descendants of the Input Dataset's files, or
-    of a sample of them when it is large."""
+    create_date seen}, stats) over the descendants of the Input Dataset's
+    files, or of a sample of them when it is large. `stats` is {inputs,
+    probed, with_children, files: {tag: set of file names}}."""
     inputs = list(sam.listFiles(defname=input_dataset))
     read_all = len(inputs) <= LINEAGE_MAX_PROBED_INPUTS
     tags = {}
     newest = {}
+    files = {}
     sampled = 0
+    probed = 0
     for probed, input_file in enumerate(inputs, start=1):
         level = _children(sam, input_file)
         if level:
             sampled += 1
-            _walk_descendants(sam, level, tags, newest)
+            _walk_descendants(sam, level, tags, newest, files)
         if not read_all and (sampled >= LINEAGE_SAMPLE_SIZE or probed >= LINEAGE_MAX_PROBED_INPUTS):
             break
-    return tags, newest
+    return tags, newest, {"inputs": len(inputs), "probed": probed, "with_children": sampled, "files": files}
 
 
-def _walk_descendants(sam, level, tags, newest):
+def _walk_descendants(sam, level, tags, newest, files):
     seen = set()
     depth = 1
     while level and depth <= LINEAGE_MAX_DEPTH:
@@ -229,6 +373,7 @@ def _walk_descendants(sam, level, tags, newest):
             tag = metadata.get("Dataset.Tag")
             if tag:
                 tags[tag] = min(depth, tags.get(tag, depth))
+                files.setdefault(tag, set()).add(metadata.get("file_name"))
                 created = metadata.get("create_date")
                 if created and created > newest.get(tag, ""):
                     newest[tag] = created
