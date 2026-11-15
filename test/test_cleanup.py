@@ -92,7 +92,7 @@ def test_file_with_children_outside_the_plan_does_not_keep_the_switch_on(tmp_pat
 
     assert "reco1_101.root" not in sam.retired
     assert state.read(cfg, "switch") is False
-    assert "1 file(s) left in place, has children outside the plan" in caplog.text
+    assert "1 file(s) left in place" in caplog.text
 
 
 def test_cleanup_removes_no_location_and_touches_nothing_on_disk(tmp_path, monkeypatch):

@@ -1456,3 +1456,65 @@ def test_a_failed_verification_stops_before_the_next_tier_and_resume_continues(t
     assert result["ok"] is True
     assert sam.retire_calls[1:] == ["p_caf_sbnd_200.root", "p_reco1_sbnd_200.root"]
     assert state.read(cfg, "cleanup")["done"] == ["p_flatcaf_sbnd", "p_caf_sbnd", "p_reco1_sbnd"]
+
+
+# --- merged outputs: several parents ---
+
+def merged_campaign(parents_by_pid):
+    """One flatcaf per worker, each with the given parents; the first parent
+    is the same, so the files group together."""
+    sam = FakeSam()
+    for name in ("caf_a.root", "caf_b.root", "caf_c.root"):
+        sam.add(None, name, None)
+    for pid, parents in parents_by_pid.items():
+        name = f"p_flatcaf_sbnd_{pid}.root"
+        sam.add("p_flatcaf_sbnd", name, parents[0], pid)
+        sam.metadata[name]["parents"] = [{"file_name": p, "file_id": 0} for p in parents]
+    return sam
+
+
+def test_files_with_different_parent_sets_are_left_in_place(tmp_path):
+    sam = merged_campaign({100: ["caf_a.root", "caf_b.root"], 200: ["caf_a.root", "caf_c.root"]})
+    cfg = make_cfg(tmp_path)
+
+    plan = plan_cleanup([T_FLATCAF], sam)
+
+    entry = plan["definitions"][0]
+    assert entry["retire"] == []
+    assert [(r["file"], r["reason"]) for r in entry["skipped"]] == [
+        ("p_flatcaf_sbnd_200.root", "left in place: parent sets differ"),
+    ]
+    assert plan["inputs"]["caf_a.root"]["skipped"] == {
+        "p_flatcaf_sbnd": [{"file": "p_flatcaf_sbnd_200.root", "reason": "left in place: parent sets differ"}],
+    }
+
+    result = clean_definitions(cfg, [T_FLATCAF], sam)
+
+    assert result["ok"] is True
+    assert sam.retire_calls == []
+    assert "p_flatcaf_sbnd_200.root from p_flatcaf_sbnd (input caf_a.root): left in place: parent sets differ" in (
+        cleanup_log(tmp_path)
+    )
+
+
+def test_identical_parent_sets_in_another_order_are_true_duplicates():
+    sam = merged_campaign({
+        100: ["caf_a.root", "caf_b.root", "caf_c.root"],
+        200: ["caf_a.root", "caf_c.root", "caf_b.root"],
+    })
+
+    plan = plan_cleanup([T_FLATCAF], sam)
+
+    assert [r["file"] for r in plan["definitions"][0]["retire"]] == ["p_flatcaf_sbnd_200.root"]
+    assert plan["definitions"][0]["skipped"] == []
+
+
+def test_a_group_with_differing_parent_sets_does_not_hold_back_other_groups():
+    sam = merged_campaign({100: ["caf_a.root", "caf_b.root"], 200: ["caf_a.root", "caf_c.root"]})
+    sam.add("p_flatcaf_sbnd", "p_flatcaf_sbnd_other_100.root", "caf_b.root", 100)
+    sam.add("p_flatcaf_sbnd", "p_flatcaf_sbnd_other_200.root", "caf_b.root", 200)
+
+    plan = plan_cleanup([T_FLATCAF], sam)
+
+    assert [r["file"] for r in plan["definitions"][0]["retire"]] == ["p_flatcaf_sbnd_other_200.root"]
+    assert [r["file"] for r in plan["definitions"][0]["skipped"]] == ["p_flatcaf_sbnd_200.root"]

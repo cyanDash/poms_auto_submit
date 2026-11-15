@@ -32,6 +32,9 @@ LIVE_CHECK_BATCH_SIZE = 200
 MAX_FILES_NAMED = 20
 # The "dcache:" or "enstore:" in front of a location's full_path.
 LOCATION_PREFIX_PATTERN = re.compile(r"^\w+:")
+# A file left in place because the files it would be a duplicate of have
+# other parents (a merged output).
+PARENTS_DIFFER = "left in place: parent sets differ"
 # The Output Tiers cleanup knows, youngest first: the order they are cleaned
 # in within one depth. A definition is named <...>_<tier>_sbnd.
 TIER_ORDER = ("flatcaf", "caf", "histreco2", "larcvreco1", "reco1")
@@ -228,6 +231,18 @@ def _kept_files(group, known, definition_of, covered):
     return kept, kept_pid, rescued
 
 
+def _mismatched_definitions(group, known, definition_of):
+    """The definitions in which files of `group` with the same first parent
+    do not all have the same set of parents (order ignored): they are not
+    true duplicates of each other. Files of different first parents are not
+    compared: in a chained stage each worker's chain has its own."""
+    parent_sets = defaultdict(set)
+    for f in group:
+        parents = known[f]["parents"]
+        parent_sets[(definition_of[f], parents[0] if parents else None)].add(frozenset(parents))
+    return {definition for (definition, _), sets in parent_sets.items() if len(sets) > 1}
+
+
 def plan_cleanup(definitions, sam):
     """The cleanup plan for `definitions` ([{name, depth}]), read from `sam`
     (listFiles, getMultipleMetadata, getMetadata, getFileLineage); nothing
@@ -344,10 +359,17 @@ def plan_cleanup(definitions, sam):
             else:
                 reason = f"under {parent}, kept process id {kept_pid}"
             plan_input["fallback"] = plan_input["fallback"] or kept_pid is None
+            differing = _mismatched_definitions(group, known, definition_of)
             for f in sorted(group):
                 if f in kept:
                     plan_input["kept"].setdefault(definition_of[f], []).append(f)
                     report[definition_of[f]]["totals"]["kept"] += 1
+                    if under[f]:
+                        groups.append((f, under[f]))
+                elif definition_of[f] in differing:
+                    row = {"file": f, "input": key, "process_id": known[f]["process_id"], "reason": PARENTS_DIFFER}
+                    report[definition_of[f]]["skipped"].append(row)
+                    plan_input["skipped"].setdefault(definition_of[f], []).append({"file": f, "reason": PARENTS_DIFFER})
                     if under[f]:
                         groups.append((f, under[f]))
                 else:
@@ -457,7 +479,10 @@ def _apply_definition(cfg, entry, plan, sam, dry_run):
     f = None
     _DETAIL.info("cleanup: %s: start, %d file(s) to retire", name, len(entry["retire"]))
     for row in entry["skipped"]:
-        _DETAIL.info("cleanup: %s from %s left in place (input %s): %s", row["file"], name, row["input"], row["reason"])
+        if row["reason"] == PARENTS_DIFFER:
+            _DETAIL.info("cleanup: %s from %s (input %s): %s", row["file"], name, row["input"], row["reason"])
+        else:
+            _DETAIL.info("cleanup: %s from %s left in place (input %s): %s", row["file"], name, row["input"], row["reason"])
     try:
         if entry["retire"]:
             _list_retired_files(cfg, name, [row["file"] for row in entry["retire"]], sam)
