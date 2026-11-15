@@ -108,13 +108,14 @@ once put 325 files into the dev sample's definitions.
 
 ## Cron
 
-Only after a manual dry run and a manual real run look right. Leave the
-checkout on `new-split-window`; switching branches under a running cron changes
-the code it runs.
+Only after a manual dry run and a manual real run look right. The cron line
+checks out `new-split-window` first, so a stray checkout of another branch
+can't change the code it runs. If the checkout fails (uncommitted edits to
+tracked files), the `&&` stops the run, so look for a missing log entry.
 
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 * * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
 ```
 
 Remove the cron entry when the campaign is done. Production access ends at

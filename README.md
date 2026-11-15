@@ -127,7 +127,7 @@ crontab -e
 And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
+0 * * * * cd /path/to/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
 ```
 Make appropriate changes for the file paths. You now have a crontab installed that runs at the first minute of every hour.
 
