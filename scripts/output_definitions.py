@@ -32,6 +32,8 @@ VERSION_PATTERN = re.compile(r"--mdappversion[\s=]+(\S+)")
 VERSION_VARIABLE = "SBNDCODE_VERSION"
 PRODUCTION_NAME_VARIABLE = "MT_PRODUCTIONNAME"
 TEST_PREFIX = "test_"
+# A Test Launch writes outputs under the same inputs with tags like these.
+TEST_TAG_PATTERN = re.compile(r"^test\d*_")
 
 DTAG_ASSIGNMENT_PATTERN = re.compile(r"^[ \t]*(?:export[ \t]+)?(\w*DTAG\w*)=(\S*)", re.MULTILINE)
 SHELL_VARIABLE_PATTERN = re.compile(r"\$\{(\w+)\}|\$(\w+)")
@@ -74,6 +76,10 @@ def _infer(cfg, session, sam):
 
     input_dataset = _original_input_dataset(session.get_stage_params()["dataset"], cfg["campaign_name"])
     lineage = _lineage_tags(sam, input_dataset)
+    test_tags = sorted(tag for tag in lineage if TEST_TAG_PATTERN.match(tag))
+    if test_tags:
+        logging.info("output definitions: ignoring %d Test Launch tag(s): %s", len(test_tags), test_tags)
+        lineage = {tag: depth for tag, depth in lineage.items() if tag not in test_tags}
     patterns = _postscript_patterns(launch)
 
     if patterns:

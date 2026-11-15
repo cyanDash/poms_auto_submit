@@ -60,6 +60,10 @@ this stage's:
 
 A dry run does not write the section.
 
+Lineage tags that begin with `test_` or `test<N>_` are a Test Launch's outputs
+under the same inputs (its `MT_PRODUCTIONNAME` is `test_...`). They are never
+recorded and never count as a disagreement; one INFO line lists them.
+
 Recovery asks this script for the names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them
 and `recovery.py` no longer writes the section. A failure to infer returns

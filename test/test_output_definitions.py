@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -304,6 +305,32 @@ def test_real_twin_of_a_test_campaign_is_not_a_disagreement(tmp_path):
     definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
 
     assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+
+
+@pytest.mark.parametrize("prefix", ["test_", "test2_"])
+def test_a_test_launchs_outputs_under_the_same_inputs_are_ignored_and_logged_once(tmp_path, caplog, prefix):
+    caplog.set_level(logging.INFO)
+    tags = stage_files("in1", ALL_TIERS)
+    for tier in ALL_TIERS:
+        tags[f"test_{tier}-in1.root"] = f"{prefix}{STAGE}_{tier}"
+    sam = FakeSam(["in1"], {"in1": list(tags)}, tags)
+    cfg = make_state_cfg(tmp_path)
+
+    definitions = get_output_definitions(cfg, FakeSession(launch_command()), sam)
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+    assert recorded(tmp_path) == definitions
+    ignored = [r for r in caplog.records if "ignoring" in r.getMessage() and r.levelno == logging.INFO]
+    assert len(ignored) == 1
+
+
+def test_a_test_launch_tag_does_not_hide_a_real_disagreement(tmp_path):
+    tags = stage_files("in1", ALL_TIERS + ["calib_sbnd"])
+    tags["test_x-in1.root"] = f"test_{STAGE}_caf_sbnd"
+    sam = FakeSam(["in1"], {"in1": list(tags)}, tags)
+
+    with pytest.raises(OutputDefinitionsError, match="calib_sbnd"):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
 
 
 def test_missing_postscript_falls_back_to_scoped_lineage_and_logs_it(tmp_path, caplog):
