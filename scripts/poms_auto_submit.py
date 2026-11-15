@@ -192,7 +192,7 @@ def run_test_launch(cfg, dry_run):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"))
+    parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"), help="path to the campaign ini (default: configs/config.ini)")
     parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
     parser.add_argument("--follow-launch", action="store_true", help="print POMS's launch stdout while waiting for the jobsub id")
     args = parser.parse_args()
