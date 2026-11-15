@@ -62,7 +62,7 @@ A dry run does not write the section.
 
 Lineage tags that begin with `test_` or `test<N>_` are a Test Launch's outputs
 under the same inputs (its `MT_PRODUCTIONNAME` is `test_...`). They are never
-recorded and never count as a disagreement; one INFO line lists them.
+recorded and never count as a disagreement; step 4 of the trace lists them.
 
 Recovery asks this script for the names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them
@@ -98,10 +98,38 @@ recovery handled.
 - A stage that produced no output at all cannot be inferred, so recovery
   retries each run instead of concluding, as before.
 - `scripts/show_output_definitions.py --campaign <c> --stage <s>
-  [--all-tags]` is the read-only lookup for an operator: it calls
-  `get_output_definitions(..., dry_run=True)` with a cfg that has no
-  `state_file`, and prints each definition's depth, tier and file count.
-  `--all-tags` adds `describe_lineage_tags()`: every lineage tag with the
-  newest `create_date` seen among its sampled files and whether it was
-  accepted, rejected (another campaign's) or ignored (a Test Launch tag).
-  It writes nothing: no State File, no SAM or POMS write.
+  [--all-tags]` is the read-only lookup for an operator. It has no ini and
+  no `state_file`, so it always infers. It prints the trace below as
+  sections, then each definition's depth, tier and file count. `--all-tags`
+  is kept and adds every lineage tag with the newest `create_date` seen
+  among its sampled files and whether it was accepted, rejected (another
+  campaign's) or ignored (a Test Launch tag). It writes nothing: no State
+  File, no SAM or POMS write. With a failed inference it still prints the
+  trace, then the error on stderr and exits 1.
+
+## Trace of the inference
+
+For debugging (operator request 2026-11-15), the inference logs at INFO the
+candidates at every decision stage, in order, each line prefixed
+`output definitions: step N <name>:` and listing the tags (with depth) the
+stage keeps and the ones it drops with the reason. The steps are one data
+structure built by the internal scan, shared by `get_output_definitions()`
+(which logs them), `describe_lineage_tags()` and
+`trace_output_definitions()` (the read-only view the lookup tool prints):
+
+1. **launch command**: the Submission it came from (not a Test Launch, or
+   the fallback newest of any kind), production name, version, postscript
+   path and whether it was readable.
+2. **input dataset**: the stage's dataset, the original one when a Recovery
+   Dataset suffix was stripped, and how many inputs were probed and had
+   children.
+3. **lineage tags**: every tag found, with depth and number of sampled files.
+4. **test launch tags**: tags dropped as `test_` / `test<N>_`.
+5. **postscript patterns**: the patterns, or why there are none.
+6. **classification**: with patterns, kept when a pattern matches; dropped
+   as a disagreement (carries this stage's production name and version, no
+   pattern) or as another campaign's (neither). Without them, the fallback
+   scope string, the tags that carry it kept and the rest dropped.
+7. **result**: the definitions recorded, or why nothing was recorded.
+
+A launch command that is missing ends the trace after step 1 and step 7.

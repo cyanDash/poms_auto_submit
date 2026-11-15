@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """show_output_definitions: prints a Campaign Stage's Output Definitions with
-their depth, tier and file count, as output_definitions.py infers them. With
---all-tags it also prints every lineage tag found under the sampled inputs,
-the newest create_date seen for it and whether it was accepted, rejected
-(another campaign's) or ignored (a Test Launch tag). Read-only: no ini, no
-State File, no SAM or POMS write. See docs/adr/0023.
+their depth, tier and file count, as output_definitions.py infers them. It
+first prints the seven steps of the inference, each with the tags it keeps
+and drops and why. With --all-tags it also prints every lineage tag found
+under the sampled inputs, the newest create_date seen for it and whether it
+was accepted, rejected (another campaign's) or ignored (a Test Launch tag).
+Read-only: no ini, no State File, no SAM or POMS write. See docs/adr/0023.
 
 By hand (after `source setup.sh`):
     python scripts/show_output_definitions.py --campaign <campaign_name> --stage <campaign_stage_name> [--all-tags]
@@ -50,20 +51,21 @@ def main(argv=None, session=None, sam=None):
         session = PomsSession(pc, cfg)
     sam = sam_client.get_sam_client(args.experiment, sam)
 
-    try:
-        definitions = output_definitions.get_output_definitions(cfg, session, sam, dry_run=True)
-        tags = output_definitions.describe_lineage_tags(cfg, session, sam) if args.all_tags else []
-    except output_definitions.OutputDefinitionsError as e:
-        print(f"cannot infer the output definitions: {e}", file=sys.stderr)
+    trace = output_definitions.trace_output_definitions(cfg, session, sam)
+    for step in trace["steps"]:
+        print(output_definitions.render_step(step, multiline=True))
+    print()
+    if trace["error"]:
+        print(f"cannot infer the output definitions: {trace['error']}", file=sys.stderr)
         return 1
 
     print("definition depth tier files")
-    for d in definitions:
+    for d in trace["definitions"]:
         print(f"{d['name']} {d['depth']} {_tier(d['name'])} {sam.countFiles(defname=d['name'])}")
     if args.all_tags:
         print()
         print("tag depth newest_create_date status")
-        for row in tags:
+        for row in trace["rows"]:
             print(f"{row['tag']} {row['depth']} {row['newest_create_date'] or '-'} {row['status']}")
     return 0
 

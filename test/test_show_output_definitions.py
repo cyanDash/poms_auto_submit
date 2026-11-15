@@ -95,11 +95,38 @@ def test_tool_prints_name_depth_tier_and_file_count(capsys, monkeypatch, tmp_pat
     code, out = run_tool(["--campaign", "c", "--stage", "s"], sam, capsys, monkeypatch, tmp_path)
 
     assert code == 0
-    line = next(line for line in out.splitlines() if reco1 in line)
+    table = out.split("definition depth tier files")[1]
+    line = next(line for line in table.splitlines() if reco1 in line)
     assert line.split() == [reco1, "1", "reco1", "321"]
-    assert any(line.split()[2] == "flatcaf" for line in out.splitlines() if tod.STAGE in line)
-    assert TEST_TAG not in out
-    assert tod.LY094 not in out
+    assert any(line.split()[2] == "flatcaf" for line in table.splitlines() if tod.STAGE in line)
+    assert TEST_TAG not in table
+    assert tod.LY094 not in table
+
+
+def test_tool_prints_the_trace_steps_as_sections_by_default(capsys, monkeypatch, tmp_path):
+    sam, _ = dated_sam()
+
+    code, out = run_tool(["--campaign", "c", "--stage", "s"], sam, capsys, monkeypatch, tmp_path)
+
+    assert code == 0
+    headings = [line for line in out.splitlines() if line.startswith("step ")]
+    assert [h.split(":")[0] for h in headings] == [
+        "step 1 launch command", "step 2 input dataset", "step 3 lineage tags",
+        "step 4 test launch tags", "step 5 postscript patterns", "step 6 classification", "step 7 result",
+    ]
+    assert f"    drops  {TEST_TAG} (depth 1): Test Launch tag" in out
+    assert f"    drops  {tod.LY094}_reco1_sbnd (depth 1): another campaign's" in out
+
+
+def test_tool_prints_the_trace_before_reporting_a_failed_inference(capsys, monkeypatch, tmp_path):
+    tags = tod.stage_files("in1", tod.ALL_TIERS + ["calib_sbnd"])
+    sam = DatedSam(["in1"], {"in1": list(tags)}, tags, {})
+
+    code, out = run_tool(["--campaign", "c", "--stage", "s"], sam, capsys, monkeypatch, tmp_path)
+
+    assert code == 1
+    assert "disagreement" in out
+    assert "nothing recorded" in out
 
 
 def test_tool_all_tags_lists_every_tag_with_date_and_status(capsys, monkeypatch, tmp_path):
@@ -108,6 +135,7 @@ def test_tool_all_tags_lists_every_tag_with_date_and_status(capsys, monkeypatch,
     code, out = run_tool(["--campaign", "c", "--stage", "s", "--all-tags"], sam, capsys, monkeypatch, tmp_path)
 
     assert code == 0
+    out = out.split("tag depth newest_create_date status")[1]
     test_line = next(line for line in out.splitlines() if TEST_TAG in line)
     assert "2026-11-09" in test_line and "test" in test_line.split()
     other = next(line for line in out.splitlines() if f"{tod.LY094}_reco1_sbnd" in line)

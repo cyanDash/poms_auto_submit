@@ -187,10 +187,14 @@ cleanup again on an ini that is already switched off, also set
 python scripts/show_output_definitions.py --campaign <campaign_name> --stage <campaign_stage_name> [--all-tags]
 ```
 
-It prints each definition's depth, tier and file count. `--all-tags` also
-lists every lineage tag with the newest `create_date` seen for it and
-whether it was accepted, rejected (another campaign's) or ignored (a Test
-Launch tag).
+It prints the seven steps of the inference (launch command, input dataset,
+lineage tags, Test Launch tags, postscript patterns, classification,
+result), each with the tags it keeps and drops and why, then each
+definition's depth, tier and file count. `--all-tags` also lists every
+lineage tag with the newest `create_date` seen for it and whether it was
+accepted, rejected (another campaign's) or ignored (a Test Launch tag). The
+same steps are logged at INFO, prefixed `output definitions: step N`, when
+a run infers the definitions.
 
 ## Example workflow
 
