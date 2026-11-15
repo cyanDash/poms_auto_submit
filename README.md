@@ -99,12 +99,14 @@ Only after a manual dry run and a manual real run look right. Open `crontab -e`
 and paste:
 
 ```cron
-SHELL=/bin/bash
-0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
-0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
-5 1 * * 1 cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py weekly
+0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py daily
+5 1 * * 1 cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py weekly
 ```
 
+- Use `source ./setup.sh`, not `source setup.sh`. Cron runs lines with
+  `/bin/sh` unless the crontab sets `SHELL=`, and in that mode `source` searches
+  `PATH` for a bare name and fails with `setup.sh: file not found`.
 - The checkout in each line stops a stray branch from changing the code that
   runs. If it fails (uncommitted edits to tracked files), the `&&` stops the
   run, so look for a missing log entry.
