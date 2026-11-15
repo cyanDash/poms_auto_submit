@@ -22,24 +22,14 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
    git checkout new-split-window
    source setup.sh
    ```
-2. Copy `configs/sbnd_beamlight_run3.ini` (inis are gitignored) and set it to:
-   ```ini
-   [poms]
-   experiment = sbnd
-   campaign_name = Auto_POMS_SBND2026A_Gen2_Run3_BeamLight
-   campaign_stage_name = decode_reco1_reco2_caf
-
-   [decision]
-   pct_complete_threshold = 0
-   submit_two_slices = 0
-   max_splits = 60                  ; one launch per day: the number of days to run
-   test_launch = 0
-
-   [split]
-   first_start = 2026-11-15 00:00   ; Central; the first run is at 04:00 on this date
-   step = 1d                        ; slice n starts at first_start + n*step
-   window = 3h                      ; length of each slice
+2. Copy `configs/config.ini`, already filled in for this campaign, to your own
+   ini (inis other than `config.ini` are gitignored):
+   ```bash
+   cp configs/config.ini configs/<ini>
    ```
+   Check `[split]`: `first_start = 2026-11-15 00:00`, `step = 1d`,
+   `window = 3h`, and `max_splits = 60` (one launch per day, so the number of
+   days to run).
    The 04:00 run on date D takes the files created that day between 00:00 and
    03:00. Slice n is `first_start + n*1d`, so the first run, at 04:00 on
    2026-11-15, submits 2026-11-15 00:00–03:00. `configs/config.ini` documents
