@@ -19,16 +19,6 @@ class NoCallSession:
         raise AssertionError(f"unexpected POMS call: {name}")
 
 
-class NoLaunchCommandSession:
-    """A stage whose output definitions cannot be inferred."""
-
-    def get_launch_command(self):
-        return None
-
-    def get_stage_params(self):
-        return {"dataset": "input_ds"}
-
-
 @pytest.fixture(autouse=True)
 def stub_poms_client(monkeypatch):
     # cleanup.py's lazy `from poms_auto_submit import persist_switch` needs
@@ -111,28 +101,28 @@ def test_cleanup_removes_no_location_and_touches_nothing_on_disk(tmp_path, monke
 
 # --- definitions ---
 
-def test_definitions_that_cannot_be_inferred_keep_the_switch_on_and_say_so(tmp_path, caplog):
+def test_nothing_recorded_means_no_cleanup_and_the_switch_stays_on(tmp_path, caplog):
     caplog.set_level("INFO")
     cfg = make_cleanup_cfg(tmp_path, recorded=None)
     sam = duplicated_campaign()
 
-    assert run_cleanup(cfg, NoLaunchCommandSession(), sam=sam) is False
+    assert run_cleanup(cfg, NoCallSession(), sam=sam) is False
 
     assert_switch_still_on(cfg)
     assert sam.retire_calls == []
-    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
-    assert any("could not get the output definitions" in m and "switch stays on" in m for m in errors)
-    assert "nothing to clean" not in caplog.text
+    assert state.read(cfg, "output_definitions") is None
+    assert any(
+        "no output definitions recorded" in r.getMessage() and "switch stays on" in r.getMessage()
+        for r in caplog.records
+    )
     assert not os.path.exists(plan_path(cfg))
 
 
 def test_old_flat_list_of_names_is_not_trusted(tmp_path):
-    # A flat list came from unscoped discovery and can name other campaigns'
-    # definitions; here it cannot be inferred again, so nothing is cleaned.
     cfg = make_cleanup_cfg(tmp_path, recorded=["x_reco1_sbnd", "x_larcvreco1_sbnd"])
     sam = duplicated_campaign()
 
-    assert run_cleanup(cfg, NoLaunchCommandSession(), sam=sam) is False
+    assert run_cleanup(cfg, NoCallSession(), sam=sam) is False
 
     assert_switch_still_on(cfg)
     assert sam.retire_calls == []
@@ -196,54 +186,3 @@ def test_dry_run_writes_the_plan_and_retires_nothing(tmp_path, caplog):
     assert state.read(cfg, "cleanup") is None
     assert f"dry-run: plan written to {plan_path(cfg)}" in caplog.text
     assert f"cleanup: full paths of the files to retire are listed in {tmp_path}/x_larcvreco1_sbnd_retired_files.txt" in caplog.text
-
-
-def inferable_campaign():
-    """A duplicated campaign whose Output Definitions can be inferred: the
-    session's launch command and a SAM that also holds the Input Dataset."""
-    import test_output_definitions as tod
-
-    reco1, larcv = f"{tod.STAGE}_reco1_sbnd", f"{tod.STAGE}_larcvreco1_sbnd"
-    sam = FakeSam()
-    sam.add(tod.INPUT_DATASET, "gen_1.root", None)
-    for pid in (100, 101):
-        sam.add(reco1, f"reco1_{pid}.root", "gen_1.root", pid)
-        sam.add(larcv, f"larcv_{pid}.root", "gen_1.root", pid)
-    session = tod.FakeSession(tod.launch_command())
-    return session, sam, [{"name": reco1, "depth": 1}, {"name": larcv, "depth": 1}]
-
-
-def by_name(definitions):
-    return sorted(definitions, key=lambda d: d["name"])
-
-
-def test_real_run_records_the_inferred_output_definitions(tmp_path):
-    cfg = make_cleanup_cfg(tmp_path, recorded=None)
-    session, sam, definitions = inferable_campaign()
-
-    assert run_cleanup(cfg, session, sam=sam) is True
-
-    assert by_name(state.read(cfg, "output_definitions")) == by_name(definitions)
-    assert sam.retired == {"reco1_101.root", "larcv_101.root"}
-
-
-def test_dry_run_writes_no_state(tmp_path):
-    cfg = make_cleanup_cfg(tmp_path, recorded=None)
-    session, sam, _ = inferable_campaign()
-
-    assert run_cleanup(cfg, session, sam=sam, dry_run=True) is True
-
-    assert os.path.exists(plan_path(cfg))
-    assert not os.path.exists(cfg["state_file"])
-    assert sam.retire_calls == []
-
-
-def test_dry_run_does_not_overwrite_a_flat_list(tmp_path):
-    cfg = make_cleanup_cfg(tmp_path, recorded=["some_other_campaigns_def"])
-    session, sam, _ = inferable_campaign()
-
-    assert run_cleanup(cfg, session, sam=sam, dry_run=True) is True
-
-    assert state.read(cfg, "output_definitions") == ["some_other_campaigns_def"]
-    with open(plan_path(cfg)) as f:
-        assert len(json.load(f)["definitions"]) == 2

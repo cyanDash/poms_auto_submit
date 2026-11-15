@@ -9,7 +9,6 @@ import os
 import subprocess
 
 import output_definitions
-import sam_client
 import state
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,14 +28,12 @@ def _mark_handled(cfg):
     state.write(cfg, "recovery_handled", True)
 
 
-def _direct_output_names(cfg, session, sam):
-    """Names of the depth-one Output Definitions. Raises
+def _direct_output_names(cfg):
+    """Names of the recorded depth-one Output Definitions. Raises
     OutputDefinitionsError when there are none."""
-    sam = sam_client.get_sam_client(cfg["experiment"], sam)
-    definitions = output_definitions.get_output_definitions(cfg, session, sam)
-    names = [d["name"] for d in definitions if d["depth"] == 1]
+    names = [d["name"] for d in output_definitions.recorded_output_definitions(cfg) if d["depth"] == 1]
     if not names:
-        raise output_definitions.OutputDefinitionsError("no output definition is a direct child of the input")
+        raise output_definitions.OutputDefinitionsError("no depth-one output definition is recorded")
     return names
 
 
@@ -55,9 +52,9 @@ def run_recovery_script(input_dataset, campaign_name, prestage_log, output_names
     dataset_name = None if outcome_line == NO_RECOVERY_NEEDED_MARKER else outcome_line
     return ratio, threshold, dataset_name
 
-def evaluate_and_run_recovery(cfg, session, sam=None):
-    """Runs at most once per campaign stage. `sam` is the SAM client the
-    Output Definitions are inferred with; the real one when None. Returns
+def evaluate_and_run_recovery(cfg, session):
+    """Runs at most once per campaign stage. Reads the recorded Output
+    Definitions and never infers them. Returns
     'output_definitions_failed' | 'recovery_script_failed' |
     'no_recovery_needed' | 'recovery_plan_failed' | 'recovery_submitted' |
     'recovery_submit_failed'."""
@@ -68,10 +65,10 @@ def evaluate_and_run_recovery(cfg, session, sam=None):
     prestage_log = os.path.join(cfg["cache_dir"], f"recovery_{session.campaign_stage_id}_prestage.log")
 
     try:
-        output_names = _direct_output_names(cfg, session, sam)
+        output_names = _direct_output_names(cfg)
     except Exception:
         # Any SAM, POMS or import failure: nothing conclusive was learned.
-        logging.exception("recovery: could not get the output definitions -- will retry next run")
+        logging.exception("recovery: no usable output definitions recorded -- will retry next run")
         return "output_definitions_failed"
 
     try:

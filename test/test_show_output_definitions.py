@@ -26,7 +26,9 @@ class DatedSam(tod.FakeSam):
             row["create_date"] = self.dates.get(row["file_name"], "2026-01-01T00:00:00+00:00")
         return rows
 
-    def countFiles(self, defname=None):
+    def countFiles(self, defname=None, dimensions=None):
+        if dimensions is not None:
+            return super().countFiles(dimensions=dimensions)
         self.count_calls.append(defname)
         return self.counts.get(defname, 0)
 
@@ -112,7 +114,8 @@ def test_tool_prints_the_trace_steps_as_sections_by_default(capsys, monkeypatch,
     headings = [line for line in out.splitlines() if line.startswith("step ")]
     assert [h.split(":")[0] for h in headings] == [
         "step 1 launch command", "step 2 input dataset", "step 3 lineage tags",
-        "step 4 test launch tags", "step 5 postscript patterns", "step 6 classification", "step 7 result",
+        "step 4 test launch tags", "step 5 postscript patterns", "step 6 candidates",
+        "step 7 verification", "step 8 classification", "step 9 result",
     ]
     assert f"    drops  {TEST_TAG} (depth 1): Test Launch tag" in out
     assert f"    drops  {tod.LY094}_reco1_sbnd (depth 1): another campaign's" in out
@@ -173,3 +176,68 @@ def test_tool_reports_an_inference_error_with_a_nonzero_exit(capsys, monkeypatch
 
     assert code == 1
     assert "no Submission with a launch command" in capsys.readouterr().err
+
+
+class SubmissionSession:
+    """get_submission_source() is the only POMS call a lookup by Submission id makes."""
+
+    def __init__(self, source="default"):
+        self.seen = []
+        self.source = source
+
+    def get_submission_source(self, submission_id):
+        self.seen.append(submission_id)
+        if self.source != "default":
+            return self.source
+        return {
+            "command": tod.launch_command(), "submission_id": submission_id, "is_test": False,
+            "dataset": tod.INPUT_DATASET,
+        }
+
+    def __getattr__(self, name):
+        raise AssertionError(f"unexpected POMS call: {name}")
+
+
+def test_submission_id_needs_no_campaign_or_stage_and_uses_the_submissions_command_and_dataset(
+    capsys, monkeypatch, tmp_path,
+):
+    sam, _ = dated_sam()
+    monkeypatch.chdir(tmp_path)
+    session = SubmissionSession()
+
+    code = show_output_definitions.main(["--submission", "3144257"], session=session, sam=sam)
+    out = capsys.readouterr().out
+
+    assert code == 0
+    assert session.seen == [3144257]
+    assert "Submission 3144257" in out
+    assert f"{tod.STAGE}_reco1_sbnd 1 reco1" in out
+    assert os.listdir(tmp_path) == []
+
+
+def test_submission_id_writes_nothing(monkeypatch, tmp_path):
+    sam, _ = dated_sam()
+    monkeypatch.chdir(tmp_path)
+    written = []
+    monkeypatch.setattr(state, "write", lambda *a, **k: written.append(a))
+
+    show_output_definitions.main(["--submission", "1", "--all-tags"], session=SubmissionSession(), sam=sam)
+
+    assert written == []
+    assert os.listdir(tmp_path) == []
+
+
+def test_submission_id_without_a_command_is_reported(capsys, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    code = show_output_definitions.main(
+        ["--submission", "9"], session=SubmissionSession(source=None), sam=tod.NoCallSam(),
+    )
+
+    assert code == 1
+    assert "no Submission with a launch command" in capsys.readouterr().err
+
+
+def test_campaign_and_stage_are_required_without_a_submission():
+    with pytest.raises(SystemExit):
+        show_output_definitions.main([], session=object(), sam=tod.NoCallSam())

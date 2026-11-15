@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 import state
-from helpers import FileNotFound, make_cfg
-from output_definitions import OutputDefinitionsError, get_output_definitions
+from helpers import DimensionError, FileNotFound, make_cfg
+from output_definitions import OutputDefinitionsError, get_output_definitions, recorded_output_definitions
 
 RAW = Path(__file__).resolve().parent.parent / "docs" / "raw"
 
@@ -36,6 +36,20 @@ def test_filled_section_is_returned_without_any_poms_or_sam_call(tmp_path):
     (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
 
     assert get_output_definitions(make_state_cfg(tmp_path), NoCallSession(), NoCallSam()) == entries
+
+
+def test_recorded_definitions_are_read_without_inferring(tmp_path):
+    entries = [{"name": "ds_reco1", "depth": 1}]
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
+
+    assert recorded_output_definitions(make_state_cfg(tmp_path)) == entries
+
+
+@pytest.mark.parametrize("content", [{}, {"output_definitions": []}, {"output_definitions": ["ds_reco1"]}])
+def test_recorded_definitions_are_empty_when_unfilled_or_a_flat_list(tmp_path, content):
+    (tmp_path / "state.json").write_text(json.dumps(content))
+
+    assert recorded_output_definitions(make_state_cfg(tmp_path)) == []
 
 
 # --- inference: fakes built from docs/raw ---
@@ -106,27 +120,56 @@ class FakeSession:
 
 
 class FakeSam:
-    """children: {file: [child, ...]}; tags: {file: Dataset.Tag}."""
+    """children: {file: [child, ...]}; tags: {file: Dataset.Tag}; a file's
+    parents are the files listing it as a child, in input order. `meta` is
+    extra metadata per file; `definitions` the names listDefinitions gives."""
 
-    def __init__(self, inputs, children, tags, gone=()):
+    def __init__(self, inputs, children, tags, gone=(), meta=None, definitions=()):
         self.inputs = inputs
         self.children = children
         self.tags = tags
         self.gone = set(gone)
+        self.meta = meta or {}
+        self.definitions = list(definitions)
+        self.calls = []
+
+    def listDefinitions(self, **criteria):
+        self.calls.append(("listDefinitions", criteria))
+        return list(self.definitions)
+
+    def countFiles(self, dimensions=None, defname=None):
+        self.calls.append(("countFiles", dimensions))
+        return len(self._tagged(dimensions))
+
+    def _tagged(self, dimensions):
+        tag = dimensions.split()[1]
+        return [f for f, t in self.tags.items() if t == tag and f not in self.gone]
 
     def listFiles(self, dimensions=None, defname=None):
-        assert defname == INPUT_DATASET
-        return iter(self.inputs)
+        self.calls.append(("listFiles", dimensions or defname))
+        if defname is not None:
+            assert defname == INPUT_DATASET
+            return iter(self.inputs)
+        if dimensions.startswith("defname: ") and " with limit " in dimensions:
+            raise DimensionError("No existing dataset definition")
+        if dimensions.startswith("dataset.tag "):
+            limit = int(dimensions.split(" with limit ")[1])
+            return iter(self._tagged(dimensions)[:limit])
+        head, names = dimensions.split(" and file_name ")
+        assert head == f"defname: {INPUT_DATASET}"
+        return iter([n for n in names.split(",") if n in self.inputs])
 
     def getFileLineage(self, lineagetype, name):
-        assert lineagetype == "children"
         if name in self.gone:
             raise FileNotFound(f"File '{name}' not found")
+        if lineagetype == "parents":
+            return [{"file_name": p} for p, kids in self.children.items() if name in kids]
+        assert lineagetype == "children"
         return [{"file_name": c, "file_id": i} for i, c in enumerate(self.children.get(name, []))]
 
     def getMultipleMetadata(self, names):
         return [
-            {"file_name": n, "Dataset.Tag": self.tags[n]}
+            {"file_name": n, "Dataset.Tag": self.tags[n], **self.meta.get(n, {})}
             for n in names if n in self.tags and n not in self.gone
         ]
 
@@ -222,7 +265,7 @@ def test_small_input_dataset_is_read_in_full(tmp_path):
     assert f"{STAGE}_reco1_sbnd" in names(definitions)
 
 
-def test_large_input_dataset_is_sampled(tmp_path):
+def test_large_input_dataset_is_sampled_but_a_name_the_scan_missed_is_still_found(tmp_path):
     most = ["histreco2_sbnd", "caf_sbnd", "flatcaf_sbnd", "larcvreco1_sbnd"]
     inputs = [f"in{i}" for i in range(201)]
     files = {name: stage_files(name, ALL_TIERS if name == "in24" else most) for name in inputs}
@@ -231,8 +274,7 @@ def test_large_input_dataset_is_sampled(tmp_path):
 
     definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
 
-    assert f"{STAGE}_reco1_sbnd" not in names(definitions)
-    assert len(definitions) == 4
+    assert len(definitions) == 5
 
 
 # --- scoping ---
@@ -541,3 +583,145 @@ def test_disagreement_check_sees_a_sample_and_version_tag_that_matches_no_patter
         get_output_definitions(
             make_state_cfg(tmp_path), FakeSession(nusyst_command(postscript)), nusyst_sam()
         )
+
+
+# --- name first, then verify ---
+
+def beamlight_sam(n_inputs=1000, own_from=900, tiers=ALL_TIERS, **kw):
+    """The first inputs only have children of another campaign; the stage's
+    own outputs are under later inputs."""
+    inputs = [f"in{i}" for i in range(n_inputs)]
+    children, tags = {}, {}
+    for i in range(30):
+        f = f"old{i}_reco1.root"
+        children[f"in{i}"] = [f]
+        tags[f] = f"{LY094}_reco1_sbnd"
+    for i in range(own_from, own_from + 3):
+        files = stage_files(f"in{i}", tiers)
+        children[f"in{i}"] = list(files)
+        tags.update(files)
+    return FakeSam(inputs, children, tags, **kw)
+
+
+def trace_of(sam, command=None):
+    from output_definitions import trace_output_definitions
+    return trace_output_definitions(make_cfg(), FakeSession(command or launch_command()), sam)
+
+
+def step_named(trace, name):
+    return next(s for s in trace["steps"] if s["name"] == name)
+
+
+def test_beamlight_names_from_postscript_are_found_though_the_scan_sees_only_another_campaign(tmp_path):
+    sam = beamlight_sam()
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert names(definitions) == sorted(f"{STAGE}_{tier}" for tier in ALL_TIERS)
+    assert all(d["depth"] == 1 for d in definitions)
+
+
+def test_verification_checks_parents_against_the_inputs_already_read(tmp_path):
+    sam = beamlight_sam()
+
+    get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert not [c for c in sam.calls if c[0] == "listFiles" and " and file_name " in (c[1] or "")]
+    assert sum(1 for c in sam.calls if c == ("listFiles", INPUT_DATASET)) == 1
+
+
+def test_every_kth_input_is_probed_when_the_dataset_is_large():
+    probed = []
+
+    class Spy(FakeSam):
+        def getFileLineage(self, lineagetype, name):
+            if lineagetype == "children":
+                probed.append(name)
+            return super().getFileLineage(lineagetype, name)
+
+    trace_of(Spy([f"in{i}" for i in range(1000)], {}, {}))
+
+    assert probed[:3] == ["in0", "in5", "in10"]
+    assert len(probed) == 200
+
+
+def test_a_candidate_with_no_files_in_sam_is_listed_with_the_reason():
+    sam = beamlight_sam()
+    for f in [f for f, t in sam.tags.items() if t == f"{STAGE}_caf_sbnd"]:
+        del sam.tags[f]
+
+    trace = trace_of(sam)
+
+    drops = step_named(trace, "verification")["drops"]
+    assert any(e["tag"] == f"{STAGE}_caf_sbnd" and "no files in SAM" in e["reason"] for e in drops)
+    assert len(trace["definitions"]) == 4
+
+
+def test_a_candidate_whose_files_are_not_descendants_of_the_input_dataset_is_dropped():
+    sam = beamlight_sam()
+    sam.tags["orphan.root"] = f"{STAGE}_caf_sbnd"
+    sam.children["other_input"] = ["orphan.root"]
+
+    trace = trace_of(sam)
+
+    drops = step_named(trace, "verification")["drops"]
+    assert any(
+        e["tag"] == f"{STAGE}_caf_sbnd" and "not descendants of this Input Dataset" in e["reason"] for e in drops
+    )
+    assert f"{STAGE}_caf_sbnd" not in names(trace["definitions"])
+
+
+def test_a_chain_up_to_the_input_gives_the_depth():
+    children = {"in1": ["mid.root"], "mid.root": ["out.root"]}
+    tags = {"mid.root": f"{STAGE}_reco1_sbnd", "out.root": f"{STAGE}_caf_sbnd"}
+
+    depths = {d["name"]: d["depth"] for d in trace_of(FakeSam(["in1"], children, tags))["definitions"]}
+
+    assert depths == {f"{STAGE}_reco1_sbnd": 1, f"{STAGE}_caf_sbnd": 2}
+
+
+def test_metadata_that_contradicts_the_launch_command_drops_the_candidate():
+    sam = beamlight_sam()
+    for f, t in sam.tags.items():
+        if t == f"{STAGE}_caf_sbnd":
+            sam.meta[f] = {"production.name": "some_other_production"}
+
+    trace = trace_of(sam)
+
+    drops = step_named(trace, "verification")["drops"]
+    assert any(e["tag"] == f"{STAGE}_caf_sbnd" and "production.name" in e["reason"] for e in drops)
+    assert f"{STAGE}_caf_sbnd" not in names(trace["definitions"])
+
+
+def wildcard_command(tmp_path):
+    postscript = tmp_path / "metadata_postscripts_wild.sh"
+    postscript.write_text('DTAG_CAF="${NOPE}_caf_sbnd"\n')
+    return launch_command(postscript)
+
+
+def test_wildcard_patterns_ask_sam_for_definitions_with_percent_and_verify_them(tmp_path):
+    sam = beamlight_sam(tiers=["caf_sbnd"], definitions=[f"{STAGE}_caf_sbnd", "unrelated_name"])
+
+    trace = trace_of(sam, wildcard_command(tmp_path))
+
+    assert ("listDefinitions", {"defname": "%_caf_sbnd"}) in sam.calls
+    assert names(trace["definitions"]) == [f"{STAGE}_caf_sbnd"]
+
+
+def test_trace_steps_are_named_and_numbered_for_candidates_and_verification():
+    trace = trace_of(beamlight_sam())
+
+    assert [(s["step"], s["name"]) for s in trace["steps"]] == [
+        (1, "launch command"), (2, "input dataset"), (3, "lineage tags"), (4, "test launch tags"),
+        (5, "postscript patterns"), (6, "candidates"), (7, "verification"), (8, "classification"),
+        (9, "result"),
+    ]
+
+
+def test_a_tag_that_carries_the_stage_identity_but_matches_no_pattern_still_raises(tmp_path):
+    sam = beamlight_sam()
+    sam.tags["odd.root"] = f"{STAGE}_calib_sbnd"
+    sam.children["in0"] = sam.children["in0"] + ["odd.root"]
+
+    with pytest.raises(OutputDefinitionsError, match="calib_sbnd"):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam, dry_run=True)

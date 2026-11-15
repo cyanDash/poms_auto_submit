@@ -30,7 +30,13 @@ is left as it is and an error is raised.
 Two methods:
 
 - **Postscript.** The newest Submission's `command_executed` names the
-  metadata postscript (`-f dropbox://.../metadata_postscripts*.sh`) and
+  metadata postscript (`-f dropbox://.../metadata_postscripts*.sh`). It is
+  the command `fife_launch` built after applying the cfg and every
+  `param_overrides` entry, so a `submit.f_N` or postscript line changed
+  through an override is already in it. When several postscripts are
+  shipped, the one the job runs (`. ${CONDOR_DIR_INPUT}/<name>.sh` in
+  `--postscript-unquote`) is used; else the first one shipped. The command
+  also
   carries the `export MT_*=` values and the version (`--mdappversion`, which
   the postscripts call `SBNDCODE_VERSION`). Without `--mdappversion` (the
   sbnnusyst reprocess, submission 3179008) the version is `MT_PROJECTVERSION`,
@@ -40,23 +46,28 @@ Two methods:
   wildcards, give the expected-name patterns. The script is read as text,
   never executed.
 - **Lineage.** `Dataset.Tag` of the descendants, with depth, of the Input
-  Dataset's files: all of them when it has at most 200 files, else up to 20
-  inputs that have children (at most 200 probed). The dataset sampled is the
+  Dataset's files: all of them when it has at most 200 files, else every
+  k-th input (k = size // 200, so the sample spans the whole dataset) until
+  20 inputs with children were read. The dataset sampled is the
   original Input Dataset: after recovery the stage's dataset is
   `<input>_<campaign_name>_recovery_campaign`, and that suffix is stripped.
 
-Names always come from lineage; the postscript only says which of them are
-this stage's:
+With a readable postscript the names come first and lineage verifies them
+(amended 2026-11-15, see Name first below); without it the names come from
+lineage, scoped by the production name or sample:
 
-- Both available: a lineage name is recorded if it matches a pattern. A
-  lineage name that carries the stage's production name and version but
+- Postscript readable: the candidates are the patterns with no wildcard
+  (the name itself), the SAM definitions matching a wildcard pattern
+  (`listDefinitions(defname=<pattern, * as %>)`) and the lineage tags
+  matching a pattern. A candidate is recorded when it is verified (below).
+  A lineage name that carries the stage's production name and version but
   matches no pattern is a disagreement: nothing is recorded and
   `OutputDefinitionsError` is raised. A pattern with no file under it is an
   optional tier and is fine.
 - Postscript unreadable (it is deleted when a production area is cleaned
   up): the lineage names carrying `<production name>_<version>` or
   `<MT_SAMPLE>_<version>` as one piece (leading `test_` ignored) are
-  recorded, and the fallback is logged; step 6 shows the scope. The sample
+  recorded, and the fallback is logged; step 8 shows the scope. The sample
   covers campaigns whose tags have no production name (sbnnusyst: `..._<sample>_<version>_flatcaf_sbnd`).
   The two must be next to each other, so a sibling campaign
   `PDS_detvar` does not take `PDS_detvar_Sample3_<version>` names, and
@@ -70,11 +81,11 @@ Lineage tags that begin with `test_` or `test<N>_` are a Test Launch's outputs
 under the same inputs (its `MT_PRODUCTIONNAME` is `test_...`). They are never
 recorded and never count as a disagreement; step 4 of the trace lists them.
 
-Recovery asks this script for the names and passes the depth-one ones to
+Recovery reads the recorded names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them
-and `recovery.py` no longer writes the section. A failure to infer returns
-`output_definitions_failed`, which is retried next run and does not mark
-recovery handled.
+and `recovery.py` neither infers nor writes the section. Nothing recorded
+(or only depth-two ones) returns `output_definitions_failed`, which is
+retried next run and does not mark recovery handled.
 
 ## Consequences
 
@@ -113,6 +124,48 @@ recovery handled.
   File, no SAM or POMS write. With a failed inference it still prints the
   trace, then the error on stderr and exits 1.
 
+## Name first, then verify (2026-11-15)
+
+Live evidence: stage `decode_reco1_reco2_caf` of
+`Auto_POMS_SBND2026A_Gen2_Run3_BeamLight` processes a 3 h window per day of a
+17,149-file Input Dataset. Its postscript gave the exact names
+`data_SBND2026A_Auto_POMS_SBND2026A_Gen2_Run3_BeamLight_v10_14_02_08_{reco1,larcvreco1,histreco2,caf,flatcaf}_sbnd`
+and SAM held 121 files under each `Dataset.Tag`. The lineage scan read
+inputs in list order and stopped after 20 inputs with children (46 probed);
+those only had children from an earlier campaign
+(`..._BeamLight_Fixed_Dev_Data_..._sbnd`, correctly rejected), so the result
+was "no output definition found". Reading names from lineage assumed nearly
+every input was already processed.
+
+A candidate now counts only when it is a genuine output of this stage:
+
+- SAM has files under it (`countFiles(dimensions="dataset.tag <name>")` > 0);
+- up to 5 of its files (`listFiles(dimensions="dataset.tag <name> with limit 5")`)
+  reach a file of the original Input Dataset by walking first parents, at most
+  6 steps; the depth is the number of steps (the smallest of the sample).
+  Membership is one query per level:
+  `listFiles(dimensions="defname: <input> and file_name a,b,c")`. A retired or
+  unknown file ends its walk and counts as not reached;
+- the files' `production.name` and `sbnd_project.version` do not contradict
+  `MT_PRODUCTIONNAME` and the version of the launch command (a field absent
+  on either side is skipped).
+
+A failing candidate is listed in step 7 with its reason (no files in SAM,
+files not descendants of this Input Dataset, metadata mismatch). Test Launch
+names are never candidates. Lineage stays as the cross-check: a tag that
+carries the stage's identity but matches no pattern still raises. The
+depth recorded is the verified one.
+
+## Lookup by Submission id
+
+POMS's `show_campaign_stages` hides inactive campaigns, so a finished
+campaign may have no stage to look up. `show_output_definitions.py
+--submission <id>` takes the launch command from
+`submission_details(<id>)["submission"]["command_executed"]` and the Input
+Dataset from `["submission"]["campaign_stage_snapshot_obj"]["dataset"]`;
+campaign and stage names are not needed. The call is
+`PomsSession.get_submission_source(id)`. Still read-only.
+
 ## Trace of the inference
 
 For debugging (operator request 2026-11-15), the inference logs at INFO the
@@ -132,10 +185,48 @@ structure built by the internal scan, shared by `get_output_definitions()`
 3. **lineage tags**: every tag found, with depth and number of sampled files.
 4. **test launch tags**: tags dropped as `test_` / `test<N>_`.
 5. **postscript patterns**: the patterns, or why there are none.
-6. **classification**: with patterns, kept when a pattern matches; dropped
+6. **candidates** (patterns only): the names to verify and where each came
+   from (named by the postscript, SAM definition, lineage).
+7. **verification** (patterns only): candidates kept with their depth, and
+   dropped with the reason.
+8. **classification**: with patterns, lineage tags not verified are dropped
    as a disagreement (carries this stage's production name and version, no
-   pattern) or as another campaign's (neither). Without them, the fallback
-   scope string, the tags that carry it kept and the rest dropped.
-7. **result**: the definitions recorded, or why nothing was recorded.
+   pattern), as failed verification, or as another campaign's. Without
+   patterns, the fallback scope string, the tags that carry it kept and the
+   rest dropped. Steps 6 and 7 are absent then; numbers are fixed, not
+   renumbered.
+9. **result**: the definitions recorded, or why nothing was recorded.
 
-A launch command that is missing ends the trace after step 1 and step 7.
+A launch command that is missing ends the trace after step 1 and step 9.
+
+## When inference runs (2026-11-15)
+
+Operator decision: the definitions are inferred once, in `run()` of
+`scripts/poms_auto_submit.py`, when the Campaign Stage has no splits left
+(`max_splits` reached, or POMS reports the Input Dataset exhausted when a
+slice is submitted), before recovery is evaluated, whether or not recovery
+then runs. It happens only when `do_recovery` or `do_cleanup` is on and the
+section is not yet filled (a flat list counts as not filled).
+`recovery.py` and `cleanup.py` only read the section
+(`recorded_output_definitions(cfg)`) and never infer:
+
+- Cleanup finding the section empty does not run, logs why, and leaves the
+  switch on.
+- Recovery finding it empty returns `output_definitions_failed` (retry next
+  run, not handled).
+- A failed inference is logged with "will retry next run" and does not stop
+  the rest of the run. A `--dry-run` infers and logs the trace but records
+  nothing, so a dry run's cleanup finds nothing to read on a fresh campaign.
+
+Inference must not run between recovery and cleanup. After recovery switches
+the stage to the Recovery Dataset, the stage's Input Dataset is that dataset
+and its files are not the original inputs' files; inferring then would read
+the wrong lineage. Running once before recovery, on the original Input
+Dataset, avoids it (the Recovery Dataset suffix is still stripped as a guard).
+
+A future mandatory step will also depend on the output names and will drop
+the `do_recovery`/`do_cleanup` condition.
+
+The launch command is read from the newest non-test Submission, which may be
+older than POMS's one time window: older windows are read, at most 12, and
+step 1 of the trace says how many were read.
