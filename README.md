@@ -192,6 +192,13 @@ accepted, rejected (another campaign's) or ignored (a Test Launch tag). The
 same steps are logged at INFO, prefixed `output definitions: step N`, when
 a run infers the definitions.
 
+The software version is `--mdappversion`, else `MT_PROJECTVERSION`, else the
+version of the `sbndcode`/`icaruscode` setup in the launch command; step 1
+says which. If the postscript cannot be read, a tag is this stage's when it
+carries the production name (leading `test_` ignored) or `MT_SAMPLE`, next
+to the version (`<name>_<version>` or `<sample>_<version>`); step 6 shows the
+scope used. With none of name, sample and version known, nothing is recorded.
+
 ## Example workflow
 
 Validate against a real campaign before trusting it unattended:

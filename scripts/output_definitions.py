@@ -30,9 +30,12 @@ RECOVERY_DATASET_SUFFIX = "_{campaign_name}_recovery_campaign"
 POSTSCRIPT_PATH_PATTERN = re.compile(r"-f\s+dropbox://(\S*metadata_postscripts[^/\s]*\.sh)")
 MT_EXPORT_PATTERN = re.compile(r"export\s+(MT_\w+)=(\S+)")
 VERSION_PATTERN = re.compile(r"--mdappversion[\s=]+(\S+)")
+SETUP_VERSION_PATTERN = re.compile(r"--setup-unquote\s+(?:sbndcode|icaruscode)\s+(v\S+)")
 # The postscripts name the software version this, and never assign it.
 VERSION_VARIABLE = "SBNDCODE_VERSION"
 PRODUCTION_NAME_VARIABLE = "MT_PRODUCTIONNAME"
+PROJECT_VERSION_VARIABLE = "MT_PROJECTVERSION"
+SAMPLE_VARIABLE = "MT_SAMPLE"
 TEST_PREFIX = "test_"
 # A Test Launch writes outputs under the same inputs with tags like these.
 TEST_TAG_PATTERN = re.compile(r"^test\d*_")
@@ -182,8 +185,10 @@ def _trace(cfg, session, sam, outcome):
         "no postscript named" if not launch["postscript"]
         else f"postscript {launch['postscript']} ({'readable' if readable else 'not readable'})"
     )
+    version = f"{launch['version']} (from {launch['version_source']})" if launch["version"] else None
     steps.add(
-        f"{origin}; production name {launch['production_name']}; version {launch['version']}; {postscript}"
+        f"{origin}; production name {launch['production_name']}; sample {launch['sample']}; "
+        f"version {version}; {postscript}"
     )
 
     stage_dataset = session.get_stage_params()["dataset"]
@@ -212,13 +217,14 @@ def _trace(cfg, session, sam, outcome):
         [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags],
     )
 
+    identities = _identities(launch)
     unexpected = []
     if patterns:
         steps.add(f"{len(patterns)} pattern(s): {', '.join(patterns)}")
         names = [t for t in real if _matches(t, patterns)]
         unexpected = [
             t for t in real
-            if t not in names and _carries(t, launch["production_name"], launch["version"])
+            if t not in names and _carries(t, identities, launch["version"])
         ]
         drops = [
             _entry(t, lineage[t], reason=(
@@ -233,20 +239,19 @@ def _trace(cfg, session, sam, outcome):
         steps.add(f"no patterns: postscript {why}")
         # The postscript is gone, so is the knowledge of whether it wrote
         # the test_ prefix into the names: ignore it.
-        production_name = launch["production_name"] or ""
-        if production_name.startswith(TEST_PREFIX):
-            production_name = production_name[len(TEST_PREFIX):]
-        if not (production_name and launch["version"]):
-            steps.add("fallback impossible: no production name and version to scope lineage by")
-            return stop_scan("launch command has no production name and version to scope lineage by")
-        scope = f"{production_name}_{launch['version']}"
-        names = [t for t in real if f"_{scope}_" in f"_{t}_"]
+        identities = _identities(launch, ignore_test_prefix=True)
+        if not (identities and launch["version"]):
+            steps.add("fallback impossible: no production name or sample, and version, to scope lineage by")
+            return stop_scan("launch command has no production name or sample, and version, to scope lineage by")
+        scopes = [f"{identity}_{launch['version']}" for identity in identities]
+        scope = " or ".join(scopes)
+        names = [t for t in real if any(f"_{s}_" in f"_{t}_" for s in scopes)]
         logging.warning(
             "output definitions: postscript %s not readable -- fallback to lineage names carrying %s",
             launch["postscript"], scope,
         )
         steps.add(
-            f"fallback scope {scope}: tags carrying it are this stage's",
+            f"fallback scope {scope}: tags carrying one are this stage's",
             [_entry(t, lineage[t]) for t in names],
             [_entry(t, lineage[t], reason=f"does not carry {scope}") for t in real if t not in names],
         )
@@ -287,13 +292,23 @@ def _launch_source(session):
 
 def _parse_launch_command(command):
     variables = dict(MT_EXPORT_PATTERN.findall(command))
-    version = VERSION_PATTERN.search(command)
     postscript = POSTSCRIPT_PATH_PATTERN.search(command)
+    version, source = None, None
+    for found, label in (
+        (VERSION_PATTERN.search(command), "--mdappversion"),
+        (re.search(rf"(?<![\w-]){PROJECT_VERSION_VARIABLE}=(\S+)", command), PROJECT_VERSION_VARIABLE),
+        (SETUP_VERSION_PATTERN.search(command), "the sbndcode/icaruscode setup"),
+    ):
+        if found:
+            version, source = found.group(1), label
+            break
     if version:
-        variables[VERSION_VARIABLE] = version.group(1)
+        variables[VERSION_VARIABLE] = version
     return {
         "variables": variables,
-        "version": version.group(1) if version else None,
+        "version": version,
+        "version_source": source,
+        "sample": variables.get(SAMPLE_VARIABLE),
         "production_name": variables.get(PRODUCTION_NAME_VARIABLE),
         "postscript": postscript.group(1) if postscript else None,
     }
@@ -334,12 +349,28 @@ def _matches(tag, patterns):
     return any(fnmatchcase(tag, pattern) for pattern in patterns)
 
 
-def _carries(tag, production_name, version):
-    """Whether a Dataset.Tag carries a production name and a version."""
-    if not (production_name and version):
+def _identities(launch, ignore_test_prefix=False):
+    """The names a stage's tags carry besides the version: the production
+    name and the sample. With `ignore_test_prefix` a leading `test_` is
+    dropped: a postscript that is gone cannot say whether it wrote it into
+    the names."""
+    found = []
+    for value in (launch["production_name"], launch["sample"]):
+        value = value or ""
+        if ignore_test_prefix and value.startswith(TEST_PREFIX):
+            value = value[len(TEST_PREFIX):]
+        if value and value not in found:
+            found.append(value)
+    return found
+
+
+def _carries(tag, identities, version):
+    """Whether a Dataset.Tag carries one of `identities` and the version,
+    each as whole `_`-delimited tokens, anywhere in the tag."""
+    if not (identities and version):
         return False
     padded = f"_{tag}_"
-    return f"_{production_name}_" in padded and f"_{version}_" in padded
+    return f"_{version}_" in padded and any(f"_{i}_" in padded for i in identities)
 
 
 def _lineage_tags(sam, input_dataset):

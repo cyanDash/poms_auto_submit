@@ -111,6 +111,31 @@ def test_without_a_postscript_the_fallback_scope_and_its_tags_are_traced(tmp_pat
     assert f"{tod.LY094}_reco1_sbnd (depth 1): does not carry" in drops
 
 
+def test_step_1_says_where_the_version_came_from(tmp_path, caplog):
+    for sub in "bc":
+        (tmp_path / sub).mkdir()
+    steps = run(tmp_path, caplog, SourceSession(tod.launch_command()), tod.shared_input_sam())
+    assert "version v10_14_02_0602 (from --mdappversion)" in steps[1]
+
+    caplog.clear()
+    steps = run(tmp_path / "b", caplog, SourceSession(tod.nusyst_command()), tod.nusyst_sam())
+    assert "version v1_01_00 (from MT_PROJECTVERSION)" in steps[1]
+
+    caplog.clear()
+    command = tod.nusyst_command().replace("export MT_PROJECTVERSION=v1_01_00 && ", "").replace(
+        "--setup-unquote sbnnusyst v1_01_00", "--setup-unquote sbndcode v1_01_00"
+    )
+    steps = run(tmp_path / "c", caplog, SourceSession(command), tod.nusyst_sam())
+    assert "version v1_01_00 (from the sbndcode/icaruscode setup)" in steps[1]
+
+
+def test_the_fallback_scope_names_the_production_name_and_the_sample(tmp_path, caplog):
+    steps = run(tmp_path, caplog, SourceSession(tod.nusyst_command()), tod.nusyst_sam())
+
+    assert "Ar23plus_caf_Repro_IntrinsicNuE_lynnt_v1_01_00" in steps[6]
+    assert "IntrinsicNuE_CV_v1_01_00" in steps[6]
+
+
 def test_a_fallback_launch_command_and_a_recovery_dataset_are_said_so(tmp_path, caplog):
     recovery = f"{tod.INPUT_DATASET}_{tod.make_cfg()['campaign_name']}_recovery_campaign"
     session = SourceSession(tod.launch_command(), is_test=True, dataset=recovery)

@@ -32,7 +32,10 @@ Two methods:
 - **Postscript.** The newest Submission's `command_executed` names the
   metadata postscript (`-f dropbox://.../metadata_postscripts*.sh`) and
   carries the `export MT_*=` values and the version (`--mdappversion`, which
-  the postscripts call `SBNDCODE_VERSION`). The postscript's `*DTAG*=`
+  the postscripts call `SBNDCODE_VERSION`). Without `--mdappversion` (the
+  sbnnusyst reprocess, submission 3179008) the version is `MT_PROJECTVERSION`,
+  else that of the `setup-unquote sbndcode <v>` (or `icaruscode`); step 1
+  says which source was used. The postscript's `*DTAG*=`
   assignments, with known variables substituted and unknown ones left as
   wildcards, give the expected-name patterns. The script is read as text,
   never executed.
@@ -51,11 +54,14 @@ this stage's:
   `OutputDefinitionsError` is raised. A pattern with no file under it is an
   optional tier and is fine.
 - Postscript unreadable (it is deleted when a production area is cleaned
-  up): the lineage names carrying `<production name>_<version>` as one
-  piece (leading `test_` of the name ignored) are recorded, and the fallback
-  is logged. The two must be next to each other, so a sibling campaign
-  `PDS_detvar` does not take `PDS_detvar_Sample3_<version>` names.
-- No launch command, or no name found: nothing is recorded and
+  up): the lineage names carrying `<production name>_<version>` or
+  `<MT_SAMPLE>_<version>` as one piece (leading `test_` ignored) are
+  recorded, and the fallback is logged; step 6 shows the scope. The sample
+  covers campaigns whose tags have no production name (sbnnusyst: `..._<sample>_<version>_flatcaf_sbnd`).
+  The two must be next to each other, so a sibling campaign
+  `PDS_detvar` does not take `PDS_detvar_Sample3_<version>` names, and
+  `..._IntrinsicNuE_CV_v1_00_01_...` is not taken for `v1_01_00`.
+- No launch command, or none of production name, sample and version found: nothing is recorded and
   `OutputDefinitionsError` is raised. Unscoped lineage is never used.
 
 A dry run does not write the section.
@@ -92,8 +98,8 @@ recovery handled.
 - A campaign whose names put something between the production name and the
   version (the stream name in sbnutil's `metadata_postscripts.sh`) finds
   nothing by the fallback and raises. It needs its postscript.
-- The disagreement check still uses the loose form (name and version
-  anywhere in the tag). It can only raise, so with the postscript present a
+- The disagreement check still uses the loose form (production name or
+  sample, and version, each anywhere in the tag). It can only raise, so with the postscript present a
   sibling campaign sharing inputs and version is reported as a disagreement.
 - A stage that produced no output at all cannot be inferred, so recovery
   retries each run instead of concluding, as before.

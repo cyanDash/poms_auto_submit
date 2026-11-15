@@ -476,3 +476,68 @@ def test_commented_out_assignment_is_not_a_pattern(tmp_path):
 
     with pytest.raises(OutputDefinitionsError):
         get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command(postscript)), sam)
+
+
+# --- no --mdappversion: the sbnnusyst reprocess (submission 3179008) ---
+
+NUSYST_TAG_NEW = "Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd"
+NUSYST_TAG_OLD = "mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_00_01_flatcaf_sbnd"
+NUSYST_POSTSCRIPT = (
+    "/exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/metadata_postscripts_sbnnusyst.sh"
+)
+
+
+def nusyst_command(postscript="/nonexistent/metadata_postscripts_gone.sh"):
+    from urllib.parse import unquote
+    details = json.loads((RAW / "submission_details_3179008.json").read_text())
+    command = unquote(details["submission"]["command_executed"])
+    assert NUSYST_POSTSCRIPT in command
+    return command.replace(NUSYST_POSTSCRIPT, str(postscript))
+
+
+def nusyst_sam(tags=(NUSYST_TAG_NEW, NUSYST_TAG_OLD)):
+    files = {f"out{i}.root": t for i, t in enumerate(tags)}
+    return FakeSam(["in1"], {"in1": list(files)}, files)
+
+
+def test_fallback_scopes_by_sample_and_project_version_when_there_is_no_mdappversion(tmp_path):
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(nusyst_command()), nusyst_sam())
+
+    assert names(definitions) == [NUSYST_TAG_NEW]
+
+
+def test_fallback_takes_the_version_from_the_setup_when_nothing_else_names_it(tmp_path):
+    command = nusyst_command().replace("export MT_PROJECTVERSION=v1_01_00 && ", "").replace(
+        "--setup-unquote sbnnusyst v1_01_00", "--setup-unquote sbndcode v1_01_00"
+    )
+
+    definitions = get_output_definitions(make_state_cfg(tmp_path), FakeSession(command), nusyst_sam())
+
+    assert names(definitions) == [NUSYST_TAG_NEW]
+
+
+def test_fallback_with_no_version_anywhere_raises(tmp_path):
+    command = nusyst_command().replace("export MT_PROJECTVERSION=v1_01_00 && ", "")
+
+    with pytest.raises(OutputDefinitionsError):
+        get_output_definitions(make_state_cfg(tmp_path), FakeSession(command), nusyst_sam())
+
+
+def test_fallback_does_not_take_another_samples_tag_of_the_same_version(tmp_path):
+    other = NUSYST_TAG_NEW.replace("IntrinsicNuE_CV", "Other_CV")
+
+    definitions = get_output_definitions(
+        make_state_cfg(tmp_path), FakeSession(nusyst_command()), nusyst_sam((NUSYST_TAG_NEW, other))
+    )
+
+    assert names(definitions) == [NUSYST_TAG_NEW]
+
+
+def test_disagreement_check_sees_a_sample_and_version_tag_that_matches_no_pattern(tmp_path):
+    postscript = tmp_path / "metadata_postscripts_x.sh"
+    postscript.write_text("DTAG=Reprocess_${MT_PRODUCTIONTYPE}_${MT_SAMPLE}_${MT_PROJECTVERSION}_caf_sbnd\n")
+
+    with pytest.raises(OutputDefinitionsError, match="flatcaf_sbnd"):
+        get_output_definitions(
+            make_state_cfg(tmp_path), FakeSession(nusyst_command(postscript)), nusyst_sam()
+        )
