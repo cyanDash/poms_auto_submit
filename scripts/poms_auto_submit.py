@@ -20,7 +20,7 @@ import state
 import stragglers
 from campaign_snapshot import PRO_ELIGIBLE_ROLE, CampaignSnapshot, no_splits_left
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import PomsSession
+from poms_session import LaunchFailed, PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -116,7 +116,12 @@ def submit_plan(cfg, session, plan):
                 cfg["last_split"], split_window.describe(cfg["split"], cfg["last_split"]), split_type,
             )
             session.set_split_type(split_type)
-        submission_id = session.submit_next_slice()
+        try:
+            submission_id = session.submit_next_slice()
+        except LaunchFailed as e:
+            # Not counted as a slice: the next run retries this window.
+            logging.error("%s -- not counted; stopping further slice submissions this run", e)
+            return True
         if submission_id is None:
             logging.info(
                 "submit_next_slice returned no submission (campaign stage exhausted) "
@@ -179,8 +184,11 @@ def run_test_launch(cfg, dry_run):
     if dry_run:
         logging.info("dry-run: would submit 1 test launch")
         return
-    if PomsSession(pc, cfg).submit_next_slice() is None:
-        logging.info("test launch: POMS reports no more splits in this campaign stage")
+    try:
+        if PomsSession(pc, cfg).submit_next_slice() is None:
+            logging.info("test launch: POMS reports no more splits in this campaign stage")
+    except LaunchFailed as e:
+        logging.error("test launch: %s", e)
 
 
 def main():

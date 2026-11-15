@@ -285,3 +285,21 @@ def test_run_dry_run_without_split_logs_no_input_window(monkeypatch, tmp_path, c
     psc.run(make_cfg(config_path=str(config_path), cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json")), dry_run=True)
 
     assert not any("input files" in r.getMessage() for r in caplog.records)
+
+
+def test_run_test_launch_logs_a_launch_failed_submission_instead_of_crashing(monkeypatch, caplog):
+    from poms_session import LaunchFailed
+
+    class Failing:
+        def __init__(self, pc, cfg):
+            pass
+
+        def submit_next_slice(self):
+            raise LaunchFailed("submission 77 is LaunchFailed")
+
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", Failing)
+
+    psc.run_test_launch(make_cfg(test_launch=True), dry_run=False)
+
+    assert any(r.levelname == "ERROR" and "LaunchFailed" in r.getMessage() for r in caplog.records)

@@ -7,6 +7,7 @@ import pytest
 import split_window
 from helpers import make_cfg
 from poms_auto_submit import submit_plan
+from poms_session import LaunchFailed
 
 SPLIT = {
     "window": "1h", "round": "1", "fts": "1800", "localtime": "0",
@@ -124,3 +125,24 @@ def test_submit_plan_logs_the_input_window_of_each_launch(monkeypatch, caplog):
     messages = [r.getMessage() for r in caplog.records]
     for n in (1, 2):
         assert any(f"launch {n}" in m and split_window.describe(SPLIT, n) in m for m in messages)
+
+
+def test_submit_plan_stops_without_counting_a_launch_failed_submission(monkeypatch, caplog):
+    persisted = []
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: persisted.append(n))
+    caplog.set_level("INFO")
+
+    class FailingSession(FakeSession):
+        def submit_next_slice(self):
+            self.calls.append(("submit",))
+            raise LaunchFailed("submission 77 is LaunchFailed")
+
+    cfg = make_cfg(split=SPLIT, last_split=1)
+    session = FailingSession()
+
+    assert submit_plan(cfg, session, [False, False]) is True
+
+    assert [c for c in session.calls if c[0] == "submit"] == [("submit",)]
+    assert cfg["last_split"] == 1 and persisted == []
+    assert any(r.levelname == "ERROR" and "LaunchFailed" in r.getMessage() for r in caplog.records)
+

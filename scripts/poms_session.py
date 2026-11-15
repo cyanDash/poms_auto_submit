@@ -39,6 +39,11 @@ ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
 SUBMISSION_WINDOW = timedelta(hours=72)
 
 
+class LaunchFailed(RuntimeError):
+    """POMS marked a just-launched Submission LaunchFailed, so it will never
+    get a jobsub_job_id (e.g. its Input Dataset was empty)."""
+
+
 class PomsSession:
     def __init__(self, pc, cfg):
         self.pc = pc
@@ -258,9 +263,11 @@ class PomsSession:
         printed = 0
         while jobsub_job_id is None:
             time.sleep(JOBSUB_ID_POLL_SECONDS)
-            jobsub_job_id = self._get_jobsub_job_id(submission_id)
+            jobsub_job_id, status = self._poll_submission(submission_id)
             if self.cfg.get("follow_launch"):
                 printed = self._print_new_launch_lines(submission_id, printed)
+            if jobsub_job_id is None and status == "LaunchFailed":
+                raise LaunchFailed(f"submission {submission_id} is LaunchFailed in POMS (see its launch log)")
         logging.info("jobsub_job_id=%s", jobsub_job_id)
         return submission_id
 
@@ -276,12 +283,20 @@ class PomsSession:
         return len(lines)
 
     def _get_jobsub_job_id(self, submission_id):
-        """Best-effort lookup of the grid job id for a just-submitted Submission.
-        Routes through _fetch_submission_details() so it's cached immediately."""
+        """Best-effort lookup of the grid job id for a just-submitted Submission."""
+        return self._poll_submission(submission_id)[0]
+
+    def _poll_submission(self, submission_id):
+        """Best-effort (jobsub_job_id, Status name) of a just-submitted
+        Submission; either is None when unknown. Routes through
+        _fetch_submission_details() so the id is cached immediately. The
+        current Status is the last `history` entry, named by `statusmap`."""
         try:
             ok, details = self._fetch_submission_details(submission_id)
         except Exception:
-            return None
+            return None, None
         if not ok:
-            return None
-        return details.get("submission", {}).get("jobsub_job_id")
+            return None, None
+        history = details.get("history") or []
+        status = (details.get("statusmap") or {}).get(str(history[-1].get("status_id"))) if history else None
+        return details.get("submission", {}).get("jobsub_job_id"), status

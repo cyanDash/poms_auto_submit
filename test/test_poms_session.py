@@ -738,7 +738,7 @@ def _follow_session(monkeypatch, launch_log_results):
     fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
     ids = iter([None, "12345@jobsub01"])
     session = make_session(cfg=make_cfg(follow_launch=True))
-    monkeypatch.setattr(session, "_get_jobsub_job_id", lambda submission_id: next(ids))
+    monkeypatch.setattr(session, "_poll_submission", lambda submission_id: (next(ids), None))
     results = iter(launch_log_results)
     monkeypatch.setattr(session, "launch_log", lambda submission_id: next(results))
     return session
@@ -767,3 +767,42 @@ def test_submit_next_slice_does_not_fetch_launch_log_by_default(monkeypatch):
 
     monkeypatch.setattr(session, "launch_log", boom)
     assert session.submit_next_slice() == "555"
+
+
+# Real shape (confirmed live, 2026-11-15, submission 3181392): the current
+# Status is the last `history` entry's status_id, named by `statusmap`.
+STATUSMAP = {"1000": "New", "2000": "LaunchFailed", "4000": "Running"}
+
+
+def details_with_status(*status_ids, jobsub_job_id=None):
+    return True, {
+        "submission": {"jobsub_job_id": jobsub_job_id},
+        "history": [{"status_id": s} for s in status_ids],
+        "statusmap": STATUSMAP,
+    }
+
+
+def test_submit_next_slice_raises_launch_failed_instead_of_polling_forever(monkeypatch):
+    calls = []
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session(
+        submission_details=lambda experiment, role, submission_id: calls.append(submission_id)
+        or details_with_status(1000, 2000),
+    )
+
+    with pytest.raises(poms_session.LaunchFailed, match="555"):
+        session.submit_next_slice()
+
+    assert calls == ["555"]
+
+
+def test_submit_next_slice_keeps_polling_while_the_submission_is_new(monkeypatch):
+    answers = iter([
+        details_with_status(1000),
+        details_with_status(1000, 4000, jobsub_job_id="71717566@jobsub03.fnal.gov"),
+    ])
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session(submission_details=lambda experiment, role, submission_id: next(answers))
+
+    assert session.submit_next_slice() == "555"
+
