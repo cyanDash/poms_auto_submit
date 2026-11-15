@@ -1,142 +1,191 @@
-# poms_auto_submit
+# Run 3 BeamLight campaign: operating manual
 
-Cron script for SBND production: checks how far a POMS campaign
-stage's Running submissions have progressed, decides how many new slices (0,
-1, or 2) are ready to go out, and submits them via POMS. Every decision is
-logged. Assumes that you have a well-tested campaign ready to be launched.
+Runs `poms_auto_submit` for `Auto_POMS_SBND2026A_Gen2_Run3_BeamLight`, stage
+`decode_reco1_reco2_caf`, as `sbndpro`, and plots the daily output counts. Two
+cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
 
-## What it does, each run
+| | |
+|---|---|
+| campaign_id / campaign_stage_id | 11649 / 27154 |
+| Input dataset (stage `dataset`) | `run3_raw_data_ongoing` (grows with new files) |
+| Split type | `new()` time window, driven by the ini's `[split]` section |
+| Submit code | this repo, branch **`new-split-window`** (the `[split]` code lives only here) |
+| Plot code | `/exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter`, branch **`auto-run3-data`** |
+| Output base dir | `/pnfs/sbnd/scratch/users/sbndpro/poms_production/` (set in POMS `param_overrides` and `test_param_overrides`; not in the ini) |
+| Plot output | `/exp/sbnd/app/users/sbndpro/mcp/SBND2026A/srcs/sbnutil/keepups/sbnd/data_run3/plots/sbnd_data_run3_keepup_{daily,weekly}.pdf` |
 
-1. **Check progress** — reads back status, `pct_complete`, and `subgroup` for
-   every currently-active submission (or the latest one, if none are active).
-2. **Decide how many** — submits enough new slices to bring the number of
-   **in-flight** submissions (active and still under `pct_complete_threshold`)
-   up to target (1, or 2 with `submit_two_slices`), capped by remaining
-   `max_splits`. A submission that's crossed `pct_complete_threshold` no
-   longer counts as in-flight, freeing its slot for a replacement even before
-   it finishes. `last_split` is a counter the script maintains itself in
-   its state file, `logs/<campaign_name>/state_<ini name>.json`;
-   edit it there to reset or correct the count.
-3. **Decide subgroup, submit** — only one submission may hold the
-   higher-priority `pro` subgroup at a time. A new slice takes it if no
-   in-flight submission already does; when 2 slices go out in the same run,
-   at most one of them gets `pro`.
-4. **Recover on exhaustion** — once POMS reports the Input Dataset
-   exhausted and the last slice has finished, builds and submits a recovery
-   slice for input files that never made it into an output dataset (see
-   TODO.md item 1).
+## 1. Submission (`poms_auto_submit`)
 
-`--dry-run` logs what would happen without calling POMS to update params or submit anything.
+1. Check out the branch and set up, as `sbndpro` (this mints the production token):
+   ```bash
+   cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit
+   git checkout new-split-window
+   source setup.sh
+   ```
+2. Copy `configs/sbnd_beamlight_run3.ini` (inis are gitignored) and set it to:
+   ```ini
+   [poms]
+   experiment = sbnd
+   campaign_name = Auto_POMS_SBND2026A_Gen2_Run3_BeamLight
+   campaign_stage_name = decode_reco1_reco2_caf
 
-## Setup
+   [decision]
+   pct_complete_threshold = 0
+   submit_two_slices = 0
+   max_splits = 60                  ; one launch per day: the number of days to run
+   test_launch = 0
 
-Must be run as the `sbndpro` user — it has managed tokens configured, so
-the setup script can fetch a bearer token with `htgettoken` alone, no `kinit`
-needed. Clone the repo in your working area.
+   [split]
+   first_start = 2026-11-15 00:00   ; Central; the first run is at 04:00 on this date
+   step = 1d                        ; slice n starts at first_start + n*step
+   window = 3h                      ; length of each slice
+   ```
+   The 04:00 run on date D takes the files created that day between 00:00 and
+   03:00. Slice n is `first_start + n*1d`, so the first run, at 04:00 on
+   2026-11-15, submits 2026-11-15 00:00–03:00. `configs/config.ini` documents
+   the other keys.
+3. Check that `last_split` is 0. It lives in
+   `logs/Auto_POMS_SBND2026A_Gen2_Run3_BeamLight/state_<ini name>.json`, one
+   state file per ini (a new ini starts at 0). Edit the file to reset it.
+4. Preview the slice's size. Convert the window to GMT and run
+   `samweb count-files "defname: run3_raw_data_ongoing and create_date > '<start Z>' and create_date <= '<end Z>'"`.
+   A 3h window holds roughly 26–40 files. An empty window fails to launch.
+5. Dry run, then one real run by hand:
+   ```bash
+   ./scripts/poms_auto_submit.py -c configs/<ini> --dry-run
+   ./scripts/poms_auto_submit.py -c configs/<ini> --follow-launch
+   ```
+   `--dry-run` logs the decision without touching POMS. `--follow-launch`
+   prints POMS's launch output until the jobsub id appears. The decision log is
+   `logs/<campaign_name>/poms_auto_submit.log`. Confirm in the POMS page that
+   the submission went out. If you launched a window you didn't want,
+   `jobsub_rm -G sbnd --jobid=<id>` removes the cluster.
+6. Install the cron line (step 3 below), starting 2026-11-15.
 
-```bash
-git clone https://github.com/cyanDash/poms_auto_submit.git
-cd poms_auto_submit
-source setup.sh
-```
+## 2. Plot (`window_output_plotter.py`)
 
-## Configure
+`scripts/window_output_plotter.py daily` plots yesterday's window: for each of
+the five `data_SBND2026A_…` tiers (`reco1`, `larcvreco1`, `histreco2`,
+`flatcaf`, `caf`), the output file count against the input count for the
+window that started at 00:00 the day before. The 01:00 run on Nov 16 plots
+Nov 15 00:00–03:00, the slice submitted at 04:00 on Nov 15, which has had 21
+hours to finish. `weekly` plots the last 7 windows. An optional date argument
+replaces "today"; the date comes from the system clock, so a missed day
+doesn't shift the plot.
 
-Copy the `configs/config.ini` template to your own ini file to make changes
-according to your campaign.
+1. Check the constants at the top of `scripts/window_output_plotter.py`. They
+   are hard-coded and **must match the ini**: `first_start`
+   (`2026-11-15 00:00`; its time of day sets the plotted window), `step` (1d),
+   `window` (3h), plus `input_dataset`, `campaign`, `version` and `tiers`.
+   Edit and commit them on `auto-run3-data`.
+2. Try it by hand (needs no token; it only reads SAM):
+   ```bash
+   cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter
+   git checkout auto-run3-data
+   source setup.sh
+   python scripts/window_output_plotter.py daily 2026-11-16
+   ```
+   Before the first full window has passed, it exits with "No window has
+   started before <date>; nothing to plot." Output is
+   `sbnd_data_run3_keepup_daily.pdf` (or `_weekly`) in the plots directory
+   above, overwritten on each run.
+3. Install the cron line on 2026-11-16, or let it print "nothing to plot" on
+   Nov 15.
 
-```ini
-[poms]
-experiment = sbnd
-campaign_name = override_me
-campaign_stage_name = override_me
+## 3. Cron
 
-[decision]
-; what percentage of the total number of jobs must be completed before the
-; next slice is submitted; 0-100
-pct_complete_threshold = 70
+Only after a manual dry run and a manual real run look right. Open `crontab -e`
+and paste:
 
-; 0: keep 1 slice in flight at a time. 1: keep 2 slices in flight at a time.
-submit_two_slices = 0
-
-; total number of slices this campaign stage needs; submission stops once
-; the script has submitted that many (it keeps the count in its state file)
-max_splits = 5
-
-; when true, a run is only a Test Launch: it submits once with the stage's
-; test_param_overrides (set its subgroup to `test` in POMS) and does nothing
-; else -- no planning, in-flight checks, last_split, switch, lock, stragglers, recovery or cleanup
-test_launch = 0
-
-; when true, automatically build a Recovery Dataset and submit it once the
-; Input Dataset is exhausted. Never changed by the script.
-do_recovery = 1
-
-; when true, automatically clean up duplicates once the campaign is fully
-; done, then turn the campaign off in its state file.
-do_cleanup = 0
-```
-
-Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
-
-The script never writes to the ini. Everything it tracks itself lives in one state file per ini, `logs/<campaign_name>/state_<ini name>.json`: the `last_split` counter, the `switch` that cleanup turns off when the campaign is done, the recovery flag, and its caches. To stop a campaign, stop its cron job. To re-run an ini that cleanup has switched off, set `"switch": true` in its state file.
-
-`submit_two_slices = 1` implies a pro and a non-pro submission can be 
-simultaneously run.
-
-If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
-
-### Time-window splits (`[split]`, this branch only)
-
-For a stage on POMS's `new()` split type whose Input Dataset keeps growing, add a `[split]` section:
-
-```ini
-[split]
-first_start = 2026-11-13 00:00   ; Central time, start of the first slice
-step = 1d                        ; slice n starts at first_start + n * step
-window = 1h                      ; length of each slice
-```
-
-Before every submission the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step` and resets `cs_last_split` to 0. `round`, `fts`, `localtime` and `lasttime` are optional (defaults in `configs/config.ini`). A Test Launch does not set the window. See `docs/adr/0023-rewrite-new-split-firsttime-per-launch.md`, and `auto_poms_run3_instructions.md` for a worked campaign.
-
-## Example workflow
-
-Validate against a real campaign before trusting it unattended:
-
-```bash
-source setup.sh
-./scripts/poms_auto_submit.py --config configs/<config file> --dry-run
-```
-`-c`/`--config` point at the config file to use. A dry run fetches
-information about the currently active submissions and prints out what it
-would do given this information. It does not submit a new slice, nor does it
-update the parameters for a stage.
-
-Check `logs/<campaign_name>/poms_auto_submit.log` for the logged progress/status/decision,
-then run for real once manually and confirm in the POMS page that the submission goes out:
-
-```bash
-./scripts/poms_auto_submit.py -c configs/config.ini
-```
-
-Then wire it into cron. Open the crontab:
-```bash
-crontab -e
-```
-
-And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /path/to/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
+0 4 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 1 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
 ```
-Make appropriate changes for the file paths. You now have a crontab installed that runs at the first minute of every hour.
 
-Check the logs on a daily basis during the campaign to notice errors.
+- The checkout in each line stops a stray branch from changing the code that
+  runs. If it fails (uncommitted edits to tracked files), the `&&` stops the
+  run, so look for a missing log entry.
+- The two lines don't depend on each other: the plot reads yesterday's window
+  and the submission writes today's.
+- Check `logs/<campaign_name>/poms_auto_submit.log` daily for errors.
+- Remove both entries when the campaign is done. Production access ends at the
+  end of 2026.
 
-Make sure to delete the crontab at the end of your campaign.
+## 4. How the submit script works
 
-# A note on the usage of LLM:
-Approximately 99% of the code and commit messages in this repository are written by Claude.
-I have tried my best to ensure transparency regarding the AI usage and also spent hours to ensure that this damn thing works.
-I have also attached the CLAUDE.md and CONTEXT.md files so that if someone uses an LLM to explore this repo, the LLM can have a better idea about the domain-specific terms and the design decisions. To ensure efficient token usage and best coding practices while avoiding slop, I have taken the
-help of [Matt Pocock's skills](https://github.com/mattpocock/skills). A tutorial for using the skills is linked [here](https://youtu.be/M6mYodf0dJM?si=BR_nni--bqirschO). These skills are a gateway to software development fundamentals, like **test-driven development**, **deep modular architecture** (fancy way of saying that your codebase should be dividable into interconnected submodules which are easy to understand in terms of what they do or depend on, but they hide away the complexities of implementation as much as possible) etc. I had the privilege of learning these concepts while working on this project and I hope you do as well.
+Each run it reads the stage's submissions from POMS and `condor_q`, decides
+how many slices (0, 1 or 2) to launch, and launches them. A submission that
+crosses `pct_complete_threshold` stops counting as in flight, freeing its slot.
+The new slice takes the `pro` subgroup unless an in-flight submission already
+holds it. When the Input Dataset is exhausted and the last slice has finished,
+it builds a recovery slice for input files that never reached an output
+dataset. The script never writes the ini; its own state (`last_split`, the
+`switch` that cleanup turns off, caches) is the state file above.
+
+- `max_splits` is the total number of launches an ini may make. With
+  `max_splits = 1` and `last_split = 1`, re-running does nothing.
+- To stop a campaign, stop its cron job. To re-run an ini that cleanup
+  switched off, set `"switch": true` in its state file.
+- Before every launch the script writes the stage's `cs_split_type` as
+  `new(window=…,firsttime=<first_start + last_split*step>,…)` and resets
+  `cs_last_split` to 0 (ADR-0023). Times are read as Central and sent as GMT.
+  `round`, `fts`, `localtime` and `lasttime` are optional (defaults in
+  `configs/config.ini`). A Test Launch does not set the window.
+
+Design decisions are in `docs/adr/`; domain terms are in `CONTEXT.md`.
+
+## 5. Output and test launches
+
+A real run (`test_launch = 0`) tags files `data_SBND2026A_<campaign>_v10_14_02_08`:
+
+- `data_SBND2026A_Auto_POMS_SBND2026A_Gen2_Run3_BeamLight_v10_14_02_08_{reco1,larcvreco1,histreco2,caf,flatcaf}_sbnd`
+
+Files land in `${IFDH_OUTPUT_DIR}/<tier>/<stream>/<hash prefix>/` with
+`IFDH_OUTPUT_DIR=<basedir>/data/SBND2026A/v10_14_02_08/<campaign>/`.
+
+`test_launch = 1` uses the stage's `test_param_overrides` (`prodtype=test`,
+subgroup `test`) and writes separate `test_SBND2026A_…` definitions. It does
+not set the window: the stage's `test_split_type` is `new(window=1m, firsttime=<blank>)`,
+so a test launch is not tied to the ini's `[split]`.
+
+## 6. History
+
+- Oct 23–29: 3h slices under `sbnd_beamlight_newsplit_test.ini` (`first_start`
+  2026-10-25 04:00). The stage's windows ran up to 10-29 04:00 CDT.
+- 2026-11-14: one 1h slice, Nov 13 00:00–01:00 CST, using `sbnd_beamlight_run3.ini`
+  (submission 3181354, cluster `30771358@jobsub04.fnal.gov`, 16 files, subgroup
+  `pro`). It was a launch check. A stray submission, 3181349, was removed with
+  `jobsub_rm` right after it launched.
+- **Not processed: Oct 30 – Nov 12.** Set `first_start` to where you want to
+  resume. `step` and `window` should match, or slices will overlap or leave gaps.
+
+## 7. Gotchas
+
+- **Windows follow `last_split`, not the date.** If a day's launch doesn't
+  happen (the previous slice is still in flight at 04:00, the checkout fails,
+  or the host is down), the next run takes the skipped window and every later
+  one lags by a day. The plotter picks windows by calendar date, so its labels
+  stop matching what was submitted. Check `last_split` in the state file when
+  a day is missed.
+- **Slow slices.** One day is normally enough for a 3h slice to finish, so the
+  plot's counts are final. A slow or held slice shows partial outputs.
+- **One stuck POMS submission blocks all planning.** A submission left in
+  `New`/`Idle` with no `condor_q` data counts as in flight at any age, and the
+  script only WARNs after 5 runs (ADR-0017). 3175072 (`New`) did this until it
+  became `LaunchFailed`. If the dry run says `submit 0 slice(s) (in_flight=1 …)`,
+  list the submissions and cancel the stuck one in POMS.
+- **A stage that has been inactive looks empty.** `show_campaign_stages` and
+  `scripts show_stage.sh` returned 0 stages (stage not found) until a
+  submission was made. Stage ids and submissions are still listed via
+  `campaign_stage_submissions`.
+- **Empty slices fail to launch** with `LaunchFailed`. Count the files first.
+- **State file per ini.** Two inis on one stage do not share state (ADR-0020).
+- **Stage overrides.** `-Oglobal.configuration=` is still unset, so
+  `configuration.name` is `override_me` in the metadata. Check the stage
+  overrides (`-Oglobal.campaign`, `project_name`, `version`) before the next
+  launch. A cloned campaign override once put 325 files into the dev sample's
+  definitions.
+- **Plotter constants drift.** The plotter's hard-coded `first_start`, `step`
+  and `window` are not read from the ini. Change one side without the other
+  and the plot shows the wrong window.

@@ -2,8 +2,9 @@ Hourly cron script that submits POMS production slices for one SBND campaign
 stage. Small (~400 line), TDD-built, config-driven. Start here, then go deeper
 as needed:
 
-- **README.md** — what it does, how to set up (`source setup.sh`), configure
-  (`configs/config.ini`), and run (dry-run → real run → crontab).
+- **README.md** — operating manual for the Run 3 BeamLight campaign: submit
+  steps (`source setup.sh`, ini, dry-run → real run), plot steps, crontab, and
+  gotchas. Generic ini keys are documented in `configs/config.ini`.
 - **docs/adr/** — why past decisions were made (e.g. dropping the
   campaign-wide concurrency cap, defaulting new slices to the `pro`
   subgroup, running as `sbndpro` with managed tokens instead of `kinit`).
