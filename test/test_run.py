@@ -1,3 +1,4 @@
+import pytest
 import sys
 import types
 
@@ -246,3 +247,108 @@ def test_run_test_launch_dry_run_submits_nothing(monkeypatch):
     monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: (_ for _ in ()).throw(AssertionError("session")))
 
     psc.run_test_launch(make_cfg(test_launch=True), dry_run=True)
+
+
+# --- when output definitions are inferred (docs/adr/0023) ---
+
+DEFINITIONS = [{"name": "x_reco1_sbnd", "depth": 1}]
+
+
+def run_inference_case(monkeypatch, tmp_path, dry_run=False, plan=(), submit_exhausts=False, recovery_ready=False,
+                       recorded=None, fail=False, **cfg_overrides):
+    """Runs run() with a fake inference; returns (cfg, events) where events
+    lists "infer(dry_run)" and "recovery" in call order."""
+    events = []
+    session = RecordingSessionNoMoreSplits() if submit_exhausts else SESSION
+    monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
+    monkeypatch.setattr(psc, "PomsSession", lambda pc, cfg: session)
+    patch_snapshot(monkeypatch, plan=plan, recovery=recovery_ready)
+    monkeypatch.setattr(psc.sam_client, "get_sam_client", lambda experiment, sam=None: "sam")
+
+    def infer(cfg, session, sam, dry_run=False):
+        events.append(f"infer({dry_run})")
+        if fail:
+            raise psc.output_definitions.OutputDefinitionsError("boom")
+        if not dry_run:
+            state.write(cfg, "output_definitions", DEFINITIONS)
+        return DEFINITIONS
+
+    monkeypatch.setattr(psc.output_definitions, "get_output_definitions", infer)
+    monkeypatch.setattr(psc.recovery, "evaluate_and_run_recovery", lambda cfg, session: events.append("recovery"))
+    monkeypatch.setattr(psc.stragglers, "manage", lambda *a, **k: None)
+    monkeypatch.setattr(psc.cleanup, "run_cleanup", lambda *a, **k: events.append("cleanup"))
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), **cfg_overrides)
+    if recorded is not None:
+        state.write(cfg, "output_definitions", recorded)
+    psc.run(cfg, dry_run=dry_run)
+    return cfg, events
+
+
+def test_run_infers_once_when_no_splits_are_left(monkeypatch, tmp_path):
+    cfg, events = run_inference_case(monkeypatch, tmp_path, max_splits=5, last_split=5, do_cleanup=True)
+
+    assert events == ["infer(False)"]
+    assert state.read(cfg, "output_definitions") == DEFINITIONS
+
+
+@pytest.mark.parametrize("flags", [{"do_recovery": True}, {"do_cleanup": True}])
+def test_run_infers_for_either_flag(monkeypatch, tmp_path, flags):
+    _, events = run_inference_case(monkeypatch, tmp_path, max_splits=5, last_split=5, **flags)
+
+    assert events == ["infer(False)"]
+
+
+def test_run_does_not_infer_without_a_flag_or_while_splits_remain(monkeypatch, tmp_path):
+    assert run_inference_case(monkeypatch, tmp_path, max_splits=5, last_split=5)[1] == []
+    assert run_inference_case(monkeypatch, tmp_path, max_splits=5, last_split=4, do_cleanup=True)[1] == []
+
+
+def test_run_does_not_infer_again_once_recorded(monkeypatch, tmp_path):
+    _, events = run_inference_case(
+        monkeypatch, tmp_path, max_splits=5, last_split=5, do_cleanup=True, recorded=DEFINITIONS,
+    )
+
+    assert events == []
+
+
+def test_run_infers_again_over_a_flat_list(monkeypatch, tmp_path):
+    _, events = run_inference_case(
+        monkeypatch, tmp_path, max_splits=5, last_split=5, do_cleanup=True, recorded=["x_reco1_sbnd"],
+    )
+
+    assert events == ["infer(False)"]
+
+
+def test_dry_run_infers_and_records_nothing(monkeypatch, tmp_path):
+    cfg, events = run_inference_case(monkeypatch, tmp_path, dry_run=True, max_splits=5, last_split=5, do_cleanup=True)
+
+    assert events == ["infer(True)"]
+    assert state.read(cfg, "output_definitions") is None
+
+
+def test_inference_failure_is_logged_and_the_rest_of_the_run_goes_on(monkeypatch, tmp_path, caplog):
+    cfg, events = run_inference_case(
+        monkeypatch, tmp_path, fail=True, max_splits=5, last_split=5, do_cleanup=True,
+    )
+
+    assert events == ["infer(False)"]
+    assert "will retry next run" in caplog.text
+    assert state.read(cfg, "output_definitions") is None
+
+
+def test_run_infers_before_recovery_when_poms_runs_out_of_splits(monkeypatch, tmp_path):
+    _, events = run_inference_case(
+        monkeypatch, tmp_path, plan=[True], submit_exhausts=True, recovery_ready=True,
+        max_splits=5, last_split=2, do_recovery=True,
+    )
+
+    assert events == ["infer(False)", "recovery"]
+
+
+def test_run_infers_once_when_poms_runs_out_and_recovery_is_not_ready(monkeypatch, tmp_path):
+    _, events = run_inference_case(
+        monkeypatch, tmp_path, plan=[True], submit_exhausts=True, recovery_ready=False,
+        max_splits=5, last_split=2, do_recovery=True,
+    )
+
+    assert events == ["infer(False)"]
