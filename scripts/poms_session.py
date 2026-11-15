@@ -174,6 +174,22 @@ class PomsSession:
             newest_of_any_kind = newest_of_any_kind or {**found, "is_test": True}
         return newest_of_any_kind
 
+    def get_submission_source(self, submission_id):
+        """{command, submission_id, is_test, dataset} of one Submission,
+        looked up by id (no campaign or stage needed), or None when POMS has
+        no command for it. `dataset` is its stage snapshot's Input Dataset."""
+        ok, details = self._fetch_submission_details(submission_id)
+        submission = details.get("submission", {}) if ok else {}
+        command = submission.get("command_executed")
+        if not command:
+            return None
+        return {
+            "command": unquote(command),
+            "submission_id": submission_id,
+            "is_test": bool((submission.get("submission_params") or {}).get("test")),
+            "dataset": (submission.get("campaign_stage_snapshot_obj") or {}).get("dataset"),
+        }
+
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""
         ok, resp = self.pc.show_campaign_stages(campaign_name=self.cfg["campaign_name"])

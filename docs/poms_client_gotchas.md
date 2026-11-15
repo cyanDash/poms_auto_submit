@@ -281,6 +281,12 @@ A Test Launch's `submission_params` has `test: 1` and its command can carry
 different `MT_*` values, so `get_launch_command()` prefers a Submission
 without it.
 
+`show_campaign_stages()` returns no stages for an inactive campaign (checked
+live 2026-11-15), so a lookup by campaign and stage name cannot reach it.
+`PomsSession.get_submission_source(id)` reads one Submission instead:
+`command_executed` and `campaign_stage_snapshot_obj["dataset"]` of
+`submission_details(id)["submission"]` (`docs/raw/submission_details_3179008.json`).
+
 ## samweb_client shapes (scripts/output_definitions.py)
 
 - `listFiles(defname=<name>)` — a generator of file names.

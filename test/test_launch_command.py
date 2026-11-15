@@ -16,6 +16,8 @@ def make_session(submissions, details_by_id, ok=True):
 
     def submission_details(experiment, role, submission_id):
         calls.append(submission_id)
+        if submission_id not in details_by_id:
+            return False, {}
         return True, {"submission": details_by_id[submission_id]}
 
     pc = types.SimpleNamespace(
@@ -91,3 +93,22 @@ def test_launch_source_names_the_submission_and_whether_it_is_a_test_launch():
     )
     assert only_test.get_launch_source() == {"command": "test", "submission_id": 2, "is_test": True}
     assert make_session([], {})[0].get_launch_source() is None
+
+
+def test_submission_source_reads_the_command_and_input_dataset_of_one_submission():
+    session, calls = make_session([], {3144257: REAL_DETAILS["submission"]})
+
+    source = session.get_submission_source(3144257)
+
+    assert source["submission_id"] == 3144257
+    assert "--mdappversion v10_14_02_0602" in source["command"]
+    assert source["dataset"] == REAL_DETAILS["submission"]["campaign_stage_snapshot_obj"]["dataset"]
+    assert source["is_test"] is False
+    assert calls == [3144257]
+
+
+def test_submission_source_is_none_when_poms_has_no_command_for_it():
+    session, _ = make_session([], {7: {"command_executed": None}})
+
+    assert session.get_submission_source(7) is None
+    assert make_session([], {}, ok=False)[0].get_submission_source(7) is None

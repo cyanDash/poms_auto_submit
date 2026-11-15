@@ -181,7 +181,12 @@ cleanup again on an ini that is already switched off, also set
 
 ```bash
 python scripts/show_output_definitions.py --campaign <campaign_name> --stage <campaign_stage_name> [--all-tags]
+python scripts/show_output_definitions.py --submission <submission_id> [--all-tags]
 ```
+
+POMS hides the stages of inactive campaigns, so a finished campaign may not
+be found by name; `--submission` needs only a Submission id and reads its
+launch command and Input Dataset (`PomsSession.get_submission_source()`).
 
 It prints the steps of the inference (launch command, input dataset,
 lineage tags, Test Launch tags, postscript patterns, candidates,
