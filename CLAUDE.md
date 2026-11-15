@@ -30,12 +30,12 @@ changes a live campaign stage's params. Always validate with `--dry-run`
 first when testing against a real campaign, per the README's example
 workflow.
 
-## Convention: campaign-specific ini files and logs are never tracked
+## Convention: which ini files are tracked
 
-Each real production campaign runs off its own config file carrying 
-campaign-specific parameters (different `campaign_name`,
-`max_splits`, etc.). They are never tracked. The logs are also not
-never tracked.
+`configs/config.ini` is the tracked template. On `main` it stays generic
+(`override_me` campaign names); on any other branch it may hold anything, e.g.
+one campaign's values. Each real campaign runs from its own `configs/<name>.ini`
+(gitignored), and logs are gitignored too.
 
 ## Agent skills
 
