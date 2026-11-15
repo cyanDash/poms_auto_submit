@@ -100,9 +100,10 @@ It never runs with `test_launch = 1`.
 
 What it does, in one run, under the same lock:
 
-1. **Find the output definitions** of this campaign stage (from the metadata
-   postscript and from file lineage). If they cannot be found, it logs an
-   error and tries again next run.
+1. **Read the output definitions** of this campaign stage. They are inferred
+   (from the metadata postscript and from file lineage) once, earlier in the
+   run that finds no splits left, and recorded in the state file. If none are
+   recorded, cleanup does not run, logs why and tries again next run.
 2. **Plan.** For each input file it picks one job (the *kept worker*) and
    keeps that job's files in every output tier. Files of that input from any
    other job are marked for retirement. If a deeper tier was written by
@@ -157,7 +158,8 @@ Things to know:
   plan and the `<definition>_retired_files.txt` lists and retires nothing.
   Check that `fallback_used` is `false` and that the `retired` lists look
   right. A dry run reads SAM; it records no output definitions and no
-  `cleanup` section in the state file.
+  `cleanup` section in the state file, so on a fresh campaign it has no
+  recorded definitions to plan with.
 - **A big campaign takes long.** The first run reads the metadata of every
   output file and retires files one by one. Hourly runs that start in the
   meantime skip with "previous run still active".
@@ -195,7 +197,8 @@ definition's depth, tier and file count. `--all-tags` also lists every
 lineage tag with the newest `create_date` seen for it and whether it was
 accepted, rejected (another campaign's) or ignored (a Test Launch tag). The
 same steps are logged at INFO, prefixed `output definitions: step N`, when
-a run infers the definitions.
+a run infers the definitions: once, when no splits are left, before recovery,
+and only with `do_recovery` or `do_cleanup` on.
 
 The software version is `--mdappversion`, else `MT_PROJECTVERSION`, else the
 version of the `sbndcode`/`icaruscode` setup in the launch command; step 1

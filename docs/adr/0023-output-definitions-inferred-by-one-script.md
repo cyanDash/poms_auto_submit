@@ -81,11 +81,11 @@ Lineage tags that begin with `test_` or `test<N>_` are a Test Launch's outputs
 under the same inputs (its `MT_PRODUCTIONNAME` is `test_...`). They are never
 recorded and never count as a disagreement; step 4 of the trace lists them.
 
-Recovery asks this script for the names and passes the depth-one ones to
+Recovery reads the recorded names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them
-and `recovery.py` no longer writes the section. A failure to infer returns
-`output_definitions_failed`, which is retried next run and does not mark
-recovery handled.
+and `recovery.py` neither infers nor writes the section. Nothing recorded
+(or only depth-two ones) returns `output_definitions_failed`, which is
+retried next run and does not mark recovery handled.
 
 ## Consequences
 
@@ -198,3 +198,35 @@ structure built by the internal scan, shared by `get_output_definitions()`
 9. **result**: the definitions recorded, or why nothing was recorded.
 
 A launch command that is missing ends the trace after step 1 and step 9.
+
+## When inference runs (2026-11-15)
+
+Operator decision: the definitions are inferred once, in `run()` of
+`scripts/poms_auto_submit.py`, when the Campaign Stage has no splits left
+(`max_splits` reached, or POMS reports the Input Dataset exhausted when a
+slice is submitted), before recovery is evaluated, whether or not recovery
+then runs. It happens only when `do_recovery` or `do_cleanup` is on and the
+section is not yet filled (a flat list counts as not filled).
+`recovery.py` and `cleanup.py` only read the section
+(`recorded_output_definitions(cfg)`) and never infer:
+
+- Cleanup finding the section empty does not run, logs why, and leaves the
+  switch on.
+- Recovery finding it empty returns `output_definitions_failed` (retry next
+  run, not handled).
+- A failed inference is logged with "will retry next run" and does not stop
+  the rest of the run. A `--dry-run` infers and logs the trace but records
+  nothing, so a dry run's cleanup finds nothing to read on a fresh campaign.
+
+Inference must not run between recovery and cleanup. After recovery switches
+the stage to the Recovery Dataset, the stage's Input Dataset is that dataset
+and its files are not the original inputs' files; inferring then would read
+the wrong lineage. Running once before recovery, on the original Input
+Dataset, avoids it (the Recovery Dataset suffix is still stripped as a guard).
+
+A future mandatory step will also depend on the output names and will drop
+the `do_recovery`/`do_cleanup` condition.
+
+The launch command is read from the newest non-test Submission, which may be
+older than POMS's one time window: older windows are read, at most 12, and
+step 1 of the trace says how many were read.
