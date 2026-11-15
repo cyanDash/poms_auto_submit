@@ -95,8 +95,20 @@ doesn't shift the plot.
 
 ## 3. Cron
 
-Only after a manual dry run and a manual real run look right. Open `crontab -e`
-and paste:
+Only after a manual dry run, a manual real run and a cron rehearsal look right.
+
+**Rehearse each line under cron's environment.** Cron runs lines with `/bin/sh`,
+`PATH=/usr/bin:/bin` and no login profile, so a line that works in your shell can
+still fail there (`source setup.sh` and `condor_q` both did). Rehearse as
+`sbndpro`, with `--dry-run` on the submit line. The plot line writes the real PDF:
+
+```bash
+env -i SHELL=/bin/sh PATH=/usr/bin:/bin HOME=/exp/sbnd/app/home/sbnd LOGNAME=sbndpro USER=sbndpro \
+  /bin/sh -c '<the line from the cron block, after the five time fields>'
+```
+
+The rehearsal passes when it prints what the manual run printed. Then open
+`crontab -e` and paste:
 
 ```cron
 0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
