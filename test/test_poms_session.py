@@ -806,3 +806,60 @@ def test_submit_next_slice_keeps_polling_while_the_submission_is_new(monkeypatch
 
     assert session.submit_next_slice() == "555"
 
+
+# Real launch log of a launch on an empty dataset (submission 3181392, 2026-11-15).
+EMPTY_DATASET_LOG = [
+    "Doing Prelaunch\n",
+    "Using SAM Consumer\n",
+    "Ignoring launch request on empty dataset\n",
+    "01:29:16.701051076\n",
+    "== completed: 3336429 ==\n",
+]
+
+
+def _failed_launch_session(monkeypatch, launch_log_results):
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session(
+        submission_details=lambda experiment, role, submission_id: details_with_status(1000, 2000),
+    )
+    results = iter(launch_log_results)
+    monkeypatch.setattr(session, "launch_log", lambda submission_id: next(results))
+    return session
+
+
+def test_launch_failed_with_empty_dataset_log_raises_empty_dataset(monkeypatch):
+    session = _failed_launch_session(monkeypatch, [(EMPTY_DATASET_LOG, False)])
+
+    with pytest.raises(poms_session.EmptyDataset):
+        session.submit_next_slice()
+
+
+def test_launch_failed_without_the_marker_at_the_end_is_a_plain_launch_failed(monkeypatch):
+    other = [
+        "Ignoring launch request on empty dataset\n", "retrying\n", "token expired\n",
+        "01:29:16.701051076\n", "== completed: 1 ==\n",
+    ]
+    session = _failed_launch_session(monkeypatch, [(other, False)])
+
+    with pytest.raises(poms_session.LaunchFailed) as excinfo:
+        session.submit_next_slice()
+
+    assert not isinstance(excinfo.value, poms_session.EmptyDataset)
+
+
+def test_launch_failed_with_unreadable_launch_log_is_a_plain_launch_failed(monkeypatch):
+    session = _failed_launch_session(monkeypatch, [])  # next() raises StopIteration -> any exception
+
+    with pytest.raises(poms_session.LaunchFailed) as excinfo:
+        session.submit_next_slice()
+
+    assert not isinstance(excinfo.value, poms_session.EmptyDataset)
+
+
+def test_launch_failed_waits_for_the_launch_log_to_finish_writing(monkeypatch):
+    session = _failed_launch_session(
+        monkeypatch, [(EMPTY_DATASET_LOG[:2], True), (EMPTY_DATASET_LOG, False)],
+    )
+
+    with pytest.raises(poms_session.EmptyDataset):
+        session.submit_next_slice()

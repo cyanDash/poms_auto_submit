@@ -7,7 +7,7 @@ import pytest
 import split_window
 from helpers import make_cfg
 from poms_auto_submit import submit_plan
-from poms_session import LaunchFailed
+from poms_session import EmptyDataset, LaunchFailed
 
 SPLIT = {
     "window": "1h", "round": "1", "fts": "1800", "localtime": "0",
@@ -146,3 +146,26 @@ def test_submit_plan_stops_without_counting_a_launch_failed_submission(monkeypat
     assert cfg["last_split"] == 1 and persisted == []
     assert any(r.levelname == "ERROR" and "LaunchFailed" in r.getMessage() for r in caplog.records)
 
+
+def test_submit_plan_counts_an_empty_window_and_moves_on(monkeypatch, caplog):
+    persisted = []
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: persisted.append(n))
+    caplog.set_level("INFO")
+    outcomes = iter([EmptyDataset("submission 77 had no input files"), "78"])
+
+    class EmptyThenOk(FakeSession):
+        def submit_next_slice(self):
+            self.calls.append(("submit",))
+            outcome = next(outcomes)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    cfg = make_cfg(split=SPLIT, last_split=1)
+    session = EmptyThenOk()
+
+    assert submit_plan(cfg, session, [False, False]) is True
+
+    assert [c[0] for c in session.calls].count("submit") == 2
+    assert cfg["last_split"] == 3 and persisted == [2, 3]
+    assert any("no input files" in r.getMessage() and split_window.describe(SPLIT, 1) in r.getMessage() for r in caplog.records)

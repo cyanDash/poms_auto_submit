@@ -44,6 +44,18 @@ class LaunchFailed(RuntimeError):
     get a jobsub_job_id (e.g. its Input Dataset was empty)."""
 
 
+class EmptyDataset(LaunchFailed):
+    """The launch failed because the Input Dataset had no files: POMS's launch
+    log ends with "Ignoring launch request on empty dataset"."""
+
+
+# POMS's launch log for such a launch ends with this line, a timestamp and
+# "== completed: <pid> ==" (confirmed live, submission 3181392, 2026-11-15).
+EMPTY_DATASET_MARKER = "Ignoring launch request on empty dataset"
+LAUNCH_LOG_TAIL_LINES = 4
+LAUNCH_LOG_SETTLE_TRIES = 6
+
+
 class PomsSession:
     def __init__(self, pc, cfg):
         self.pc = pc
@@ -267,7 +279,7 @@ class PomsSession:
             if self.cfg.get("follow_launch"):
                 printed = self._print_new_launch_lines(submission_id, printed)
             if jobsub_job_id is None and status == "LaunchFailed":
-                raise LaunchFailed(f"submission {submission_id} is LaunchFailed in POMS (see its launch log)")
+                raise self._launch_failure(submission_id)
         logging.info("jobsub_job_id=%s", jobsub_job_id)
         return submission_id
 
@@ -281,6 +293,24 @@ class PomsSession:
         sys.stdout.write("".join(lines[printed:]))
         sys.stdout.flush()
         return len(lines)
+
+    def _launch_failure(self, submission_id):
+        """EmptyDataset if the finished launch log ends with POMS's
+        empty-dataset line, else a plain LaunchFailed."""
+        failure = LaunchFailed(f"submission {submission_id} is LaunchFailed in POMS (see its launch log)")
+        try:
+            for _ in range(LAUNCH_LOG_SETTLE_TRIES):
+                lines, still_writing = self.launch_log(submission_id)
+                if not still_writing:
+                    break
+                time.sleep(JOBSUB_ID_POLL_SECONDS)
+        except Exception as e:
+            logging.warning("could not read launch log of %s: %s", submission_id, e)
+            return failure
+        tail = [line.strip() for line in lines if line.strip()][-LAUNCH_LOG_TAIL_LINES:]
+        if EMPTY_DATASET_MARKER in tail:
+            return EmptyDataset(f"submission {submission_id} had no input files (POMS: empty dataset)")
+        return failure
 
     def _get_jobsub_job_id(self, submission_id):
         """Best-effort lookup of the grid job id for a just-submitted Submission."""

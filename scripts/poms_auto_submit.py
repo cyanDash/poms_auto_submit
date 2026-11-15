@@ -20,7 +20,7 @@ import state
 import stragglers
 from campaign_snapshot import PRO_ELIGIBLE_ROLE, CampaignSnapshot, no_splits_left
 from poms_client_bootstrap import setup_poms_client_path
-from poms_session import LaunchFailed, PomsSession
+from poms_session import EmptyDataset, LaunchFailed, PomsSession
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -118,6 +118,15 @@ def submit_plan(cfg, session, plan):
             session.set_split_type(split_type)
         try:
             submission_id = session.submit_next_slice()
+        except EmptyDataset:
+            window = f" created {split_window.describe(cfg['split'], cfg['last_split'])}" if cfg.get("split") else ""
+            logging.info(
+                "launch %d: no input files%s (POMS: empty dataset) -- counting it and moving on",
+                cfg["last_split"], window,
+            )
+            cfg["last_split"] += 1
+            persist_last_split(cfg, cfg["last_split"])
+            continue
         except LaunchFailed as e:
             # Not counted as a slice: the next run retries this window.
             logging.error("%s -- not counted; stopping further slice submissions this run", e)
