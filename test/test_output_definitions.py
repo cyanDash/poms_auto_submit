@@ -6,7 +6,7 @@ import pytest
 
 import state
 from helpers import DimensionError, FileNotFound, make_cfg
-from output_definitions import OutputDefinitionsError, get_output_definitions
+from output_definitions import OutputDefinitionsError, get_output_definitions, recorded_output_definitions
 
 RAW = Path(__file__).resolve().parent.parent / "docs" / "raw"
 
@@ -36,6 +36,20 @@ def test_filled_section_is_returned_without_any_poms_or_sam_call(tmp_path):
     (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
 
     assert get_output_definitions(make_state_cfg(tmp_path), NoCallSession(), NoCallSam()) == entries
+
+
+def test_recorded_definitions_are_read_without_inferring(tmp_path):
+    entries = [{"name": "ds_reco1", "depth": 1}]
+    (tmp_path / "state.json").write_text(json.dumps({"output_definitions": entries}))
+
+    assert recorded_output_definitions(make_state_cfg(tmp_path)) == entries
+
+
+@pytest.mark.parametrize("content", [{}, {"output_definitions": []}, {"output_definitions": ["ds_reco1"]}])
+def test_recorded_definitions_are_empty_when_unfilled_or_a_flat_list(tmp_path, content):
+    (tmp_path / "state.json").write_text(json.dumps(content))
+
+    assert recorded_output_definitions(make_state_cfg(tmp_path)) == []
 
 
 # --- inference: fakes built from docs/raw ---

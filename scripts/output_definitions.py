@@ -61,6 +61,15 @@ class OutputDefinitionsError(RuntimeError):
     """The output definitions could not be inferred; nothing was recorded."""
 
 
+def recorded_output_definitions(cfg):
+    """The Output Definitions the State File holds as [{name, depth}]; empty
+    when the section is unfilled or an old flat list of names. Only reads."""
+    recorded = state.read(cfg, SECTION, []) or []
+    if recorded and all(isinstance(entry, dict) for entry in recorded):
+        return [dict(entry) for entry in recorded]
+    return []
+
+
 def get_output_definitions(cfg, session, sam, dry_run=False):
     """The Campaign Stage's Output Definitions as [{name, depth}]: what the
     State File holds, else inferred and recorded. A flat list of names is
@@ -68,9 +77,9 @@ def get_output_definitions(cfg, session, sam, dry_run=False):
     nothing. The inference logs its steps at INFO. Raises
     OutputDefinitionsError when the definitions cannot be inferred; the
     State File is then left as it is."""
-    recorded = state.read(cfg, SECTION, []) or []
-    if recorded and all(isinstance(entry, dict) for entry in recorded):
-        return [dict(entry) for entry in recorded]
+    recorded = recorded_output_definitions(cfg)
+    if recorded:
+        return recorded
 
     trace = _trace(cfg, session, sam, "not recorded (dry run)" if dry_run else "recorded")
     if trace["error"]:
