@@ -19,7 +19,7 @@ The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns ident
 _Avoid_: PomsGateway, poms_client wrapper.
 
 **State File**:
-The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions`, `last_split`, `switch`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
+The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`, once, when no splits are left and `do_recovery` or `do_cleanup` is on; recovery and cleanup only read it), `last_split`, `switch` (turned off by cleanup once it has verified its result), `cleanup` (`{plan_path, done, finished}`: the duplicate cleanup's plan file, the Output Definitions already cleaned, and whether verification passed; deleting the section makes the next run plan afresh). A `--dry-run` writes neither `output_definitions` nor `cleanup`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
 _Avoid_: cache file, marker file.
 
 **Campaign Snapshot**:
@@ -48,7 +48,7 @@ A Submission in the window with 50 or fewer unfinished jobs once no splits are l
 _Avoid_: Held Submission (a Straggler is judged by progress, not by Status).
 
 **Split window**:
-Optional `[split]` ini section for a Campaign Stage on the `new()` split type. Before every launch the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step`, so each Submission rakes in the files of one `window` from a growing Input Dataset (see docs/adr/0023-rewrite-new-split-firsttime-per-launch.md).
+Optional `[split]` ini section for a Campaign Stage on the `new()` split type. Before every launch the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step`, so each Submission rakes in the files of one `window` from a growing Input Dataset (see docs/adr/0024-rewrite-new-split-firsttime-per-launch.md).
 
 **Stagger count**:
 Consecutive runs in which a Straggler's unfinished count failed to drop by 5 from the last time it did. A Straggler is removed with `condor_rm` when it reaches 3.
@@ -57,7 +57,19 @@ Consecutive runs in which a Straggler's unfinished count failed to drop by 5 fro
 The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.subgroup=` param override. Only the `production` role may hold `pro`, and only one slice at a time.
 
 **Recovery Dataset**:
-A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's output datasets (missing even one output counts as incomplete), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).
+A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's depth-one Output Definitions (missing even one counts as incomplete; the names come from `scripts/output_definitions.py`, not from the shell script), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).
+
+**Output Definition**:
+A SAM definition holding one kind of output file of a Campaign Stage, named by the files' `Dataset.Tag`. Recorded in the State File as `{name, depth}`, where depth counts generations below the input file (1 = direct child). Inferred by `scripts/output_definitions.py` from the metadata postscript (its names are verified against SAM: files exist and their first parents reach the Input Dataset) and cross-checked against lineage, because an input file can be shared by several campaigns and lineage alone cannot tell their outputs apart (see docs/adr/0023). Inferred once, when the stage has no splits left, before recovery is evaluated; recovery (depth-one ones only) and cleanup read the recorded section and never infer.
+_Avoid_: output dataset.
+
+**Output Tier**:
+One kind of output a Campaign Stage writes per input file (reco1, larcv, caf, flat caf, histograms, ...). Each Output Tier has one Output Definition. In a standard campaign every tier is a direct child of the initial fcl file (depth 1), so the tiers of one input are siblings and lineage cannot tell which reco1 file belongs with which larcv file. Cleanup works through the definitions deeper first, and within a depth in a fixed tier order, youngest first: `flatcaf`, `caf`, `histreco2`, `larcvreco1`, `reco1` (`TIER_ORDER` in `scripts/duplicate_cleanup.py`). A definition's tier is its name ending `_<tier>_sbnd`; a definition with no known tier is cleaned after all known tiers (deeper ones still first, unknown ones by name) with a warning that the order is a guess. Each definition is verified before the next starts.
+_Avoid_: stage, Executable (one Executable can write several Output Tiers).
+
+**Kept Worker**:
+The one grid job whose output files cleanup keeps for an input, across all Output Tiers. A worker is identified by the SAM process id its files share. Per input it is the process id with files in the most Output Definitions, lowest id on a tie. A file of another worker is retired in SAM only when another live file stays in the same (input, Output Definition); a definition the Kept Worker lacks keeps one file from the next-best worker and the input is marked `mixed_workers` in the plan; nothing is deleted from disk, and the retired files are listed with full paths in `logs/<campaign_name>/<definition>_retired_files.txt`, the only record of them because SAM cannot list a retired file (see docs/poms_client_gotchas.md). In a chained campaign (a deeper Output Tier written by other jobs) the Kept Worker is chosen among the files nearest the input, counting the definitions covered by its files and their descendants; files under a retired file are retired, and the files under each kept file get a Kept Worker of their own by the same rule, so one consistent chain is kept. If a file of a group has no process id, there is no Kept Worker: the first file by name is kept in each definition (see docs/adr/0022).
+_Avoid_: keeper, best file.
 
 **Campaign Type** (`data` / `mc`):
 Not a POMS field — inferred by `scripts/run_recovery.sh` from whether the Input Dataset's first file's name contains `data_EventBuilder`. A `data` campaign's Recovery Dataset gets prestaged from tape before its recovery slice is submitted; an `mc` (Monte Carlo) campaign's files were never written to tape from a detector, so prestaging is skipped.

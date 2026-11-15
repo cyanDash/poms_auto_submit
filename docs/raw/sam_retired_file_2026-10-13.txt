@@ -1,0 +1,20 @@
+Read-only probe of real SAM (experiment sbnd), 2026-10-13, samweb_client v3_6.
+File: gen_g4_detsim_torch-258932e9-91ef-2ec0-2338-8c974240c872.root
+It is still returned by getFileLineage("children", <its parent>), but it is
+no longer a live file (the stage's earlier duplicate cleanup retired files in
+this definition).
+
+getMetadata(f)                 RAISED FileNotFound: File '<f>' not found
+getMultipleMetadata([f])       -> []
+getFileLineage("children", f)  RAISED FileNotFound: File '<f>' not found
+getFileLineage("parents", f)   RAISED FileNotFound: File '<f>' not found
+locateFile(f)                  RAISED FileNotFound: File '<f>' not found
+listFiles(dimensions="file_name <f>")                                 -> []
+listFiles(dimensions="file_name <f> and availability: retired")       -> []
+listFiles(dimensions="file_name <f> and availability: anylocation")   -> []
+
+Also: countFiles/listFiles over "dataset.tag <250k-file definition> and
+availability: retired" did not return within 3 minutes.
+
+Found by running output_definitions.get_output_definitions() against the
+torch-vs-triton stage: the lineage walk raised FileNotFound on this child.

@@ -1,0 +1,26 @@
+# Output definitions trace: SBND2026A_Gen1_AR23_Plus_Reprocess_IntrinsicNuE / Ar23plus_caf
+# 2026-11-15, read-only, from the sdas1 clone at 0b3d7cd:
+#   python scripts/show_output_definitions.py --campaign SBND2026A_Gen1_AR23_Plus_Reprocess_IntrinsicNuE --stage Ar23plus_caf --all-tags
+# The same input caf files were reprocessed by an earlier campaign (v1_00_01, July 2026); only this stage's v1_01_00 tag is accepted.
+
+step 1 launch command: Submission 3179008 (not a Test Launch); production name Ar23plus_caf_Repro_IntrinsicNuE_lynnt; version None; postscript /exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/metadata_postscripts_sbnnusyst.sh (readable)
+step 2 input dataset: Input Dataset mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000; 20 of 4500 input(s) probed, 20 with children
+step 3 lineage tags: 2 tag(s) found
+    keeps  Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd (depth 1, 14 file(s))
+    keeps  mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_00_01_flatcaf_sbnd (depth 1, 20 file(s))
+step 4 test launch tags: 0 Test Launch tag(s) dropped (test_, test<N>_)
+    keeps  mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_00_01_flatcaf_sbnd (depth 1)
+    keeps  Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd (depth 1)
+step 5 postscript patterns: 1 pattern(s): Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd
+step 6 classification: tags matching a pattern are this stage's
+    keeps  Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd (depth 1)
+    drops  mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_00_01_flatcaf_sbnd (depth 1): another campaign's: matches no pattern
+step 7 result: 1 definition(s) inferred, not recorded (read-only)
+    keeps  Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd (depth 1)
+
+definition depth tier files
+Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd 1 flatcaf 5289
+
+tag depth newest_create_date status
+Reprocess_mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_01_00_flatcaf_sbnd 1 2026-11-09T07:46:14+00:00 accepted
+mc_SBND2026A_AR23plus_knobs_IntrinsicNuE_CV_v1_00_01_flatcaf_sbnd 1 2026-07-26T17:38:00+00:00 rejected

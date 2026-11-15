@@ -1,0 +1,553 @@
+{
+ "submission_id": "3179008",
+ "submission": {
+  "submission_id": 3179008,
+  "campaign_stage_id": 27193,
+  "creator": 486,
+  "created": "2026-11-09T01:36:27",
+  "submission_params": {
+   "dataset": "mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000"
+  },
+  "depends_on": null,
+  "depend_threshold": null,
+  "updater": 486,
+  "updated": "2026-11-14T02:38:46",
+  "command_executed": "jobsub_submit /opt/jobsub_lite/bin/jobsub_submit -e IFDH_DEBUG -e SAM_EXPERIMENT -e SAM_GROUP -e SAM_STATION -e XRD_CONNECTIONRETRY -e XRD_REQUESTTIMEOUT -e XRD_REDIRECTLIMIT -e XRD_LOADBALANCERTTL -e XRD_STREAMTIMEOUT -e IFDH_CP_MAXRETRIES -e POMS_CAMPAIGN_ID -e POMS_TASK_ID -e POMS_ENV -G sbnd -N 90 --resource-provides=usage_model=OPPORTUNISTICDEDICATEDOFFSITE --generate-email-summary --expected-lifetime=4h --memory=6GB --line=+SingularityImage=/cvmfs/singularity.opensciencegrid.org/fermilab/fnal-wn-sl7:latest --append_condor_requirements=(TARGET.HAS_SINGULARITY=?=true) --append_condor_requirements=(TARGET.GLIDEIN_Site isnt RAL) --append_condor_requirements=(TARGET.GLIDEIN_Site isnt NotreDame) --append_condor_requirements=(TARGET.GLIDEIN_Site isnt SU-ITS) --auth-methods=token --maxConcurrent=1000 -f dropbox:///exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/metadata_prescripts_sbnnusyst.sh -f dropbox:///exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/mix_sbnnusyst.sh -f dropbox:///exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/metadata_postscripts_sbnnusyst.sh -f dropbox:///exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/scripts/sbnnusyst_inputlist_maker_ifdh.sh --lines=+FERMIHTC_AutoRelease=True --lines=+FERMIHTC_GraceMemory=4000 --lines=+FERMIHTC_GraceLifetime=3600 --disk=6GB --subgroup=pro --dataset_definition=mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000 file://///cvmfs/fermilab.opensciencegrid.org/packages/common/fife-utils/3.7.8/linux-almalinux9-x86_64_v2-gcc-11.4.1-74cylyrrnko6x7qnaqg5bcr4t7hwusdl/libexec/fife_wrap --debug --source-unquote /cvmfs/sbnd.opensciencegrid.org/products/sbnd/setup_sbnd.sh --setup-unquote sbnutil --setup-unquote sbnnusyst%20v1_01_00%20-q%20e26%3AG4J05P3%3Aprof --setup-unquote sam_web_client --ifdh_art --setup_local --prescript-unquote export%20FHICL_FILE_PATH%3D%24%7BCONDOR_DIR_INPUT%7D%3A%24%7BFHICL_FILE_PATH%7D --prescript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_prescripts_sbnnusyst.sh --prescript-unquote setup%20ifdhc%20v2_8_0%20-q%20e26%3Ap3915%3Aprof --prescript-unquote export%20MT_PRODUCTIONNAME%3DAr23plus_caf_Repro_IntrinsicNuE_lynnt%20%26%26%20export%20MT_PRODUCTIONTYPE%3DReprocess_mc%20%26%26%20export%20MT_PROJECTNAME%3Dsbnd_sbnnusyst_Reprocess_mc%20%26%26%20export%20MT_PROJECTSTAGE%3Dsbnnusyst%20%26%26%20export%20MT_PROJECTSOFTWARE%3Dsbnnusyst%20%26%26%20export%20MT_PRODUCTIONLABEL%3DSBND2026A%20%26%26%20export%20MT_PROJECTVERSION%3Dv1_01_00%20%26%26%20export%20MT_FCLNAME%3DAR23plus_knobs%20%26%26%20export%20MT_SAMPLE%3DIntrinsicNuE_CV --prescript-unquote export%20IFDH_OUTPUT_DIR%3D/pnfs/sbn/data_add/sbn_nd/poms_production//Reprocess_mc/SBND2026A/v1_01_00/Ar23plus_caf_Repro_IntrinsicNuE_lynnt/%20%26%26%20echo%20%22IFDH_OUTPUT_DIR%20is%20%24%7BIFDH_OUTPUT_DIR%7D%22 --prescript-unquote echo%20%26%26%20echo%20%26%26%20ups%20active%20%26%26%20echo%20%26%26%20echo --prescript-unquote cp%20%24%7BCONDOR_DIR_INPUT%7D/sbnnusyst_inputlist_maker_ifdh.sh%20.%20%26%26%20chmod%20u%2Bx%20sbnnusyst_inputlist_maker_ifdh.sh --postscript-unquote ls%20-ltrh --postscript-unquote .%20%24%7BCONDOR_DIR_INPUT%7D/metadata_postscripts_sbnnusyst.sh%20Ar23%2B_knobs.ParamHeader.fcl --limit 50 --appname sbnnusyst --appvers v1_01_00 --schema root --addoutput  --rename  --dest /pnfs/sbn/data_add/sbn_nd/poms_production//Reprocess_mc/SBND2026A/v1_01_00/Ar23plus_caf_Repro_IntrinsicNuE_lynnt//mc_reprocessed --declare_metadata --metadata_extractor json --add_location --hash 0 --filter_metadata rootout --filter_metadata art.first_event --filter_metadata art.last_event --add_to_dataset _poms_task --exe ./sbnnusyst_inputlist_maker_ifdh.sh --exe UpdateReweight -- -- -c Ar23+_knobs.ParamHeader.fcl -i input.list -o output.root \\",
+  "project": "mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf",
+  "files_consumed": 4450,
+  "files_generated": 4500,
+  "login_setup_snapshot_id": 1757491,
+  "campaign_stage_snapshot_id": 392396,
+  "job_type_snapshot_id": 6756082,
+  "recovery_position": 0,
+  "recovery_tasks_parent": null,
+  "jobsub_job_id": "30728720@jobsub04.fnal.gov",
+  "data_dispatcher_project_idx": null,
+  "pct_complete": 1.0869565217391304,
+  "data_dispatcher_stage_methodology": null,
+  "data_dispatcher_recovery_mode": null,
+  "campaign_stage_obj": {
+   "campaign_stage_id": 27193,
+   "experiment": "sbnd",
+   "name": "Ar23plus_caf",
+   "job_type_id": 23184,
+   "creator": 4670,
+   "created": "2026-11-05T12:34:01",
+   "updater": 486,
+   "updated": "2026-11-09T01:36:27",
+   "vo_role": "Production",
+   "cs_last_split": null,
+   "last_split_test": null,
+   "cs_split_type": "",
+   "cs_split_dimensions": null,
+   "dataset": "mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000",
+   "software_version": "v1_00_01",
+   "login_setup_id": 10527,
+   "param_overrides": [
+    [
+     "--stage=",
+     "sbnnusyst"
+    ],
+    [
+     "-Oglobal.version=",
+     "v1_01_00"
+    ],
+    [
+     "-Oglobal.quals=",
+     "e26:G4J05P3:prof"
+    ],
+    [
+     "-Oglobal.dataset=",
+     "%(dataset)s"
+    ],
+    [
+     "-Oglobal.fclname=",
+     "AR23plus_knobs"
+    ],
+    [
+     "-Osubmit.maxConcurrent=",
+     "1000"
+    ],
+    [
+     "-Osubmit.memory=",
+     "6GB"
+    ],
+    [
+     "-Osubmit.disk=",
+     "6GB"
+    ],
+    [
+     "-Osubmit.expected-lifetime=",
+     "4h"
+    ],
+    [
+     "-Oglobal.sample=",
+     "IntrinsicNuE_CV"
+    ],
+    [
+     "-Oglobal.productionlabel=",
+     "SBND2026A"
+    ],
+    [
+     "-Oglobal.prodtype=",
+     "Reprocess_mc"
+    ],
+    [
+     "-Oglobal.campaign=",
+     "Ar23plus_caf_Repro_IntrinsicNuE_lynnt"
+    ],
+    [
+     "-Oglobal.n_files_per_job=",
+     "50"
+    ],
+    [
+     "-Osubmit.subgroup=",
+     "pro"
+    ]
+   ],
+   "test_param_overrides": [
+    [
+     "-Osubmit.subgroup=",
+     "test"
+    ],
+    [
+     "-Oglobal.prodtype=",
+     "test_Reprocess_mc"
+    ],
+    [
+     "-Oglobal.basedir=",
+     "/pnfs/sbnd/scratch/users/sbndpro/poms_production/"
+    ]
+   ],
+   "test_split_type": "",
+   "completion_type": "located",
+   "completion_pct": 95.0,
+   "hold_experimenter_id": null,
+   "creator_role": "production",
+   "role_held_with": null,
+   "campaign_stage_type": "regular",
+   "merge_overrides": false,
+   "output_ancestor_depth": 1,
+   "default_clear_cronjob": true,
+   "data_dispatcher_dataset_query": null,
+   "data_dispatcher_project_id": null,
+   "data_dispatcher_dataset_only": false,
+   "data_dispatcher_project_virtual": null,
+   "data_dispatcher_load_limit": null,
+   "data_dispatcher_stage_methodology": null,
+   "data_dispatcher_recovery_mode": null,
+   "data_dispatcher_idle_timeout": null,
+   "data_dispatcher_worker_timeout": null,
+   "data_dispatcher_settings": {
+    "idle_timeout": null,
+    "worker_timeout": null,
+    "project_id": null,
+    "dataset_query": null,
+    "virtual": null,
+    "stage_methodology": null,
+    "recovery_mode": null,
+    "load_limit": null
+   },
+   "campaign_id": 11689,
+   "experimenter_creator_obj": {
+    "experimenter_id": 4670,
+    "first_name": "Sayan",
+    "last_name": "Das",
+    "username": "sdas1",
+    "last_login": "2024-09-11T16:25:03",
+    "session_experiment": "sbnd",
+    "session_role": "analysis",
+    "root": false,
+    "exp_expers": null,
+    "exp_watch": null
+   },
+   "experimenter_updater_obj": {
+    "experimenter_id": 486,
+    "first_name": "SNBD",
+    "last_name": "Production",
+    "username": "sbndpro",
+    "last_login": "2019-10-13T06:30:09",
+    "session_experiment": "minerva",
+    "session_role": "production",
+    "root": true,
+    "exp_expers": null,
+    "exp_watch": null
+   },
+   "experimenter_holder_obj": null,
+   "experiment_obj": null,
+   "job_type_obj": null,
+   "login_setup_obj": null,
+   "campaign_obj": {
+    "name": "SBND2026A_Gen1_AR23_Plus_Reprocess_IntrinsicNuE"
+   },
+   "providers": null,
+   "consumers": null,
+   "consumer_associations": null,
+   "provider_associations": null
+  },
+  "experimenter_creator_obj": {
+   "experimenter_id": 486,
+   "first_name": "SNBD",
+   "last_name": "Production",
+   "username": "sbndpro",
+   "last_login": "2019-10-13T06:30:09",
+   "session_experiment": "minerva",
+   "session_role": "production",
+   "root": true,
+   "exp_expers": null,
+   "exp_watch": null
+  },
+  "experimenter_updater_obj": {
+   "experimenter_id": 486,
+   "first_name": "SNBD",
+   "last_name": "Production",
+   "username": "sbndpro",
+   "last_login": "2019-10-13T06:30:09",
+   "session_experiment": "minerva",
+   "session_role": "production",
+   "root": true,
+   "exp_expers": null,
+   "exp_watch": null
+  },
+  "parent_obj": null,
+  "login_setup_snapshot_obj": {
+   "login_setup_snapshot_id": 1757491,
+   "login_setup_id": 10527,
+   "experiment": "sbnd",
+   "launch_host": "sbndgpvm04.fnal.gov",
+   "launch_account": "sbndpro",
+   "launch_setup": "export HTGETTOKENOPTS=\"-a htvaultprod.fnal.gov -i sbnd --credkey sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production\"",
+   "creator": 29,
+   "created": "2024-06-30T19:10:02",
+   "updater": 4380,
+   "updated": "2026-10-26T17:44:57",
+   "name": "sbnd_setup_sbndgpvm04_spack",
+   "login_setup": null
+  },
+  "campaign_stage_snapshot_obj": {
+   "campaign_stage_snapshot_id": 392396,
+   "campaign_stage_id": 27193,
+   "experiment": "sbnd",
+   "name": "Ar23plus_caf",
+   "job_type_id": 23184,
+   "vo_role": "Production",
+   "creator": 4670,
+   "created": "2026-11-05T12:34:01",
+   "dataset": "mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000",
+   "software_version": "v1_00_01",
+   "login_setup_id": 10527,
+   "param_overrides": [
+    [
+     "--stage=",
+     "sbnnusyst"
+    ],
+    [
+     "-Oglobal.version=",
+     "v1_01_00"
+    ],
+    [
+     "-Oglobal.quals=",
+     "e26:G4J05P3:prof"
+    ],
+    [
+     "-Oglobal.dataset=",
+     "%(dataset)s"
+    ],
+    [
+     "-Oglobal.fclname=",
+     "AR23plus_knobs"
+    ],
+    [
+     "-Osubmit.maxConcurrent=",
+     "1000"
+    ],
+    [
+     "-Osubmit.memory=",
+     "6GB"
+    ],
+    [
+     "-Osubmit.disk=",
+     "6GB"
+    ],
+    [
+     "-Osubmit.expected-lifetime=",
+     "4h"
+    ],
+    [
+     "-Oglobal.sample=",
+     "IntrinsicNuE_CV"
+    ],
+    [
+     "-Oglobal.productionlabel=",
+     "SBND2026A"
+    ],
+    [
+     "-Oglobal.prodtype=",
+     "Reprocess_mc"
+    ],
+    [
+     "-Oglobal.campaign=",
+     "Ar23plus_caf_Repro_IntrinsicNuE_lynnt"
+    ],
+    [
+     "-Oglobal.n_files_per_job=",
+     "50"
+    ],
+    [
+     "-Osubmit.subgroup=",
+     "pro"
+    ]
+   ],
+   "updater": 486,
+   "updated": "2026-11-09T01:36:27",
+   "cs_last_split": null,
+   "last_split_test": null,
+   "cs_split_type": "",
+   "test_split_type": "",
+   "cs_split_dimensions": null,
+   "completion_type": "located",
+   "data_dispatcher_dataset_query": null,
+   "data_dispatcher_project_id": null,
+   "data_dispatcher_dataset_only": false,
+   "data_dispatcher_project_virtual": null,
+   "data_dispatcher_load_limit": null,
+   "data_dispatcher_stage_methodology": null,
+   "data_dispatcher_recovery_mode": null,
+   "data_dispatcher_idle_timeout": null,
+   "data_dispatcher_worker_timeout": null,
+   "data_dispatcher_settings": {
+    "idle_timeout": null,
+    "worker_timeout": null,
+    "project_id": null,
+    "dataset_query": null,
+    "virtual": null,
+    "stage_methodology": null,
+    "recovery_mode": null,
+    "load_limit": null
+   },
+   "completion_pct": 95.0,
+   "default_clear_cronjob": true,
+   "campaign_stage": null
+  },
+  "job_type_snapshot_obj": {
+   "job_type_snapshot_id": 6756082,
+   "job_type_id": 23184,
+   "name": "Ar23plus_caf",
+   "experiment": "sbnd",
+   "launch_script": "fife_launch -c /exp/sbnd/app/users/sdas1/production_helper_scripts/ar23plus_cfg/SBND2026A-MC-AR23plus_caf.cfg",
+   "definition_parameters": [],
+   "input_files_per_job": 0,
+   "output_files_per_job": 0,
+   "output_file_patterns": "((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root'))",
+   "creator": 4413,
+   "created": "2026-07-09T10:14:47",
+   "updater": 4670,
+   "updated": "2026-11-08T17:01:08",
+   "job_type": null
+  },
+  "status_history": null,
+  "data_dispatcher_submission_obj": null
+ },
+ "history": [
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-09T01:36:27",
+   "status_id": 1000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-09T01:38:12",
+   "status_id": 4000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-09T01:44:24",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-09T01:54:40",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-09T02:05:01",
+   "status_id": 8000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T01:49:24",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T01:55:49",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:02:14",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:05:01",
+   "status_id": 8000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:08:39",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:12:56",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:17:14",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:21:31",
+   "status_id": 6000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:27:58",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:32:16",
+   "status_id": 7000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:35:01",
+   "status_id": 8000,
+   "submission_obj": null,
+   "status_type": null
+  },
+  {
+   "submission_id": 3179008,
+   "created": "2026-11-14T02:38:46",
+   "status_id": 6000,
+   "submission_obj": null,
+   "status_type": null
+  }
+ ],
+ "dataset": "mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000",
+ "recoverymap": {
+  "consumed_status": [
+   1,
+   "Include files which were not flagged \"consumed\" by the original job"
+  ],
+  "pending_files": [
+   3,
+   "Include files which do not have suitable children declared for this version of software"
+  ],
+  "added_files": [
+   4,
+   "Include files added to definition since previous job ran"
+  ],
+  "script_run": [
+   5,
+   "Launch script with some recovery flag can recover"
+  ],
+  "process_status": [
+   2,
+   "Include files which were processed by jobs that say they failed."
+  ],
+  "state_failed": [
+   6,
+   "Reset files that failed during processing, and resubmit."
+  ],
+  "state_not_done": [
+   7,
+   "Reset files with a reserved or failed state, and resubmit."
+  ],
+  "reprocess_orphans": [
+   8,
+   "Reset files that have completed with a \"done\" state, but did not produce children."
+  ],
+  "reprocess_all": [
+   9,
+   "Reset and resubmit the entire project."
+  ]
+ },
+ "statusmap": {
+  "1000": "New",
+  "2000": "LaunchFailed",
+  "3000": "Idle",
+  "4000": "Running",
+  "5000": "Held",
+  "6000": "Failed",
+  "7000": "Completed",
+  "8000": "Located",
+  "9000": "Removed",
+  "2400": "Awaiting Approval",
+  "2500": "Approved",
+  "1500": "Cancelled"
+ },
+ "ds": "20261109_073627",
+ "submission_log_format": 4,
+ "recovery_ids": [],
+ "depend_ids": [],
+ "statuses": [
+  [
+   "Available output: ",
+   0,
+   "/poms/show_dimension_files/sbnd/production?dims=ischildof:(  snapshot_for_project_name mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf  ) and create_date > '2026-11-09T01:36:27-0600' and  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v1_00_01'"
+  ],
+  [
+   "Submitted to SAM: ",
+   4500,
+   "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf "
+  ],
+  [
+   "Consumed by SAM: ",
+   4450,
+   "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf  and consumed_status co%"
+  ],
+  [
+   "Pending: ",
+   0,
+   "/poms/show_dimension_files/sbnd/production?dims=snapshot_for_project_name mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf  minus ( snapshot_for_project_name mc_MCP2025C_v10_06_00_09_prodgenie_corsika_proton_rockbox_ccnue_sbnd_CV_caf_sbnd_slice26_files10000_sbndpro_a31efa37-6c38-49a2-8c39-43858053baaf  and isparentof:(  ((data_tier != 'root-tuple' and file_name like '%%.root') or (data_tier = 'root-tuple' and file_name like 'anatree%%.root')) and version 'v1_00_01' and create_date > '2026-11-09T01:36:27-0600' with availability anylocation )  ) "
+  ]
+ ],
+ "data_dispatcher_projects": null,
+ "data_handling_service": "sam"
+}

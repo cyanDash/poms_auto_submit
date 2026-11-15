@@ -10,7 +10,7 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import state
 from poms_raw_client import raw_poms_call
@@ -37,6 +37,7 @@ ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
 # its POMS Status, plus any POMS-active one of any age. A fixed constant, not
 # a config knob.
 SUBMISSION_WINDOW = timedelta(hours=72)
+LAUNCH_SOURCE_MAX_WINDOWS = 12
 
 
 class LaunchFailed(RuntimeError):
@@ -163,6 +164,73 @@ class PomsSession:
         match = SUBGROUP_COMMAND_PATTERN.search(command_executed or "")
         return match.group(1) if match else None
 
+    def get_launch_command(self):
+        """The jobsub command POMS ran for the newest Submission that is not
+        a Test Launch (else the newest of any kind), URL-unquoted. None when
+        no Submission has one."""
+        source = self.get_launch_source()
+        return source["command"] if source else None
+
+    def get_launch_source(self):
+        """{command, submission_id, is_test, windows} of the Submission
+        get_launch_command() reads, or None when no Submission has one.
+        `is_test` is True for the newest-of-any-kind fallback. POMS lists
+        one time window per call, so older windows are read, at most
+        LAUNCH_SOURCE_MAX_WINDOWS, until a non-test Submission with a command
+        is found; `windows` is how many were read."""
+        newest_of_any_kind = None
+        kwargs = {}
+        windows = 0
+        while windows < LAUNCH_SOURCE_MAX_WINDOWS:
+            ok, resp = self.pc.campaign_stage_submissions(
+                self.cfg["experiment"], self.cfg["role"], self.cfg["campaign_name"], self.cfg["campaign_stage_name"],
+                **kwargs,
+            )
+            windows += 1
+            data = resp.get("data", {}) if ok else {}
+            for s in sorted(data.get("submissions", []), key=lambda s: s.get("submission_id", 0), reverse=True):
+                ok, details = self._fetch_submission_details(s.get("submission_id"))
+                submission = details.get("submission", {}) if ok else {}
+                command = submission.get("command_executed")
+                if not command:
+                    continue
+                found = {"command": unquote(command), "submission_id": s.get("submission_id"), "windows": windows}
+                if not (submission.get("submission_params") or {}).get("test"):
+                    return {**found, "is_test": False}
+                newest_of_any_kind = newest_of_any_kind or {**found, "is_test": True}
+            older = self._older_window(data.get("prevlink"))
+            if not older or older == kwargs:
+                break
+            kwargs = older
+        if newest_of_any_kind:
+            newest_of_any_kind["windows"] = windows
+        return newest_of_any_kind
+
+    @staticmethod
+    def _older_window(prevlink):
+        """The tmax/tdays kwargs of the previous time window, from the
+        prevlink of a campaign_stage_submissions response; None without one."""
+        query = parse_qs(urlparse(prevlink or "").query)
+        if "tmax" not in query:
+            return None
+        return {key: query[key][0] for key in ("tmax", "tdays") if key in query}
+
+    def get_submission_source(self, submission_id):
+        """{command, submission_id, is_test, dataset} of one Submission,
+        looked up by id (no campaign or stage needed), or None when POMS has
+        no command for it. `dataset` is its stage snapshot's Input Dataset."""
+        ok, details = self._fetch_submission_details(submission_id)
+        submission = details.get("submission", {}) if ok else {}
+        command = submission.get("command_executed")
+        if not command:
+            return None
+        return {
+            "command": unquote(command),
+            "submission_id": submission_id,
+            "is_test": bool((submission.get("submission_params") or {}).get("test")),
+            "dataset": (submission.get("campaign_stage_snapshot_obj") or {}).get("dataset"),
+        }
+
     def get_stage_params(self):
         """Read the current params for the target Campaign Stage."""
         ok, resp = self.pc.show_campaign_stages(campaign_name=self.cfg["campaign_name"])
@@ -217,7 +285,7 @@ class PomsSession:
 
         POMS resumes `new()` from cs_last_split (the end of the last window it
         served) and ignores a changed firsttime while it is set; confirmed live
-        2026-10-23, see docs/adr/0023."""
+        2026-10-23, see docs/adr/0024."""
         data, status = raw_poms_call(
             self.pc, "update_campaign_stage",
             pcl_call=1,

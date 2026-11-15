@@ -268,6 +268,63 @@ every submission gets whatever subgroup `test_param_overrides` says — never
 `command_executed` (`SUBGROUP_COMMAND_PATTERN` in `poms_session.py`), not
 out of either `param_overrides` variant.
 
+## `command_executed` is URL-quoted and carries the postscript, `MT_*` and version
+
+`details["submission"]["command_executed"]` is partly URL-quoted (the
+`--prescript-unquote`/`--postscript-unquote` arguments: `export%20MT_SAMPLE%3D...`).
+`PomsSession.get_launch_command()` returns it unquoted. It holds everything
+`scripts/output_definitions.py` needs to name a stage's outputs: the
+postscript path (`-f dropbox:///.../metadata_postscripts*.sh`; a
+`metadata_prescripts.sh` is passed the same way), the `export MT_*=` values
+and `--mdappversion`. Untrimmed capture: `docs/raw/submission_details_3144257.json`.
+A Test Launch's `submission_params` has `test: 1` and its command can carry
+different `MT_*` values, so `get_launch_command()` prefers a Submission
+without it.
+
+`show_campaign_stages()` returns no stages for an inactive campaign (checked
+live 2026-11-15), so a lookup by campaign and stage name cannot reach it.
+`PomsSession.get_submission_source(id)` reads one Submission instead:
+`command_executed` and `campaign_stage_snapshot_obj["dataset"]` of
+`submission_details(id)["submission"]` (`docs/raw/submission_details_3179008.json`).
+
+## samweb_client shapes (scripts/output_definitions.py)
+
+- `listFiles(defname=<name>)` — a generator of file names.
+- `getFileLineage("children", <file>)` — a list of `{file_name, file_id}`
+  (`docs/raw/sam_lineage.json`, `children_of_parent`).
+- `getMultipleMetadata(<names>)` — a list of metadata dicts like
+  `docs/raw/sam_getMetadata_reco1.json`; a file SAM does not know is left
+  out, not an error.
+
+## A retired file is gone from every SAM query but its parent's children
+
+Probed read-only on 2026-10-13 (`docs/raw/sam_retired_file_2026-10-13.txt`).
+SAM answers for a retired file exactly as for a file it never had:
+
+- `getMetadata(f)`, `getFileLineage("children", f)`,
+  `getFileLineage("parents", f)` and `locateFile(f)` raise
+  `samweb_client.exceptions.FileNotFound`.
+- `getMultipleMetadata([f])` leaves it out.
+- `listFiles` never returns it, not even with `availability: retired` or
+  `availability: anylocation`. A definition built on
+  `availability: retired` is therefore empty.
+- `getFileLineage("children", <its parent>)` still lists it. This is the
+  only query that shows it.
+
+What follows for this repo:
+
+- A list of children can hold names that cannot be read. Code that walks
+  down the lineage must take `FileNotFound` on such a child as "nothing to
+  read here" (`output_definitions._children`, `duplicate_cleanup._children`).
+  `sam_client.is_file_not_found()` matches the exception by class name.
+- A retired file's Dataset.Tag and parents cannot be read. A file under a
+  retired parent can be recognised (its own metadata names a parent SAM does
+  not have), but its input cannot be found through that parent.
+- Retired files cannot be found again through SAM. Cleanup writes their
+  full paths to `logs/<campaign_name>/<definition>_retired_files.txt`
+  before it retires them (docs/adr/0022).
+- `test/helpers.py`'s `FakeSam` behaves this way.
+
 ## samweb CLI output shapes (scripts/run_recovery.sh)
 
 Confirmed live 2026-09-02 against

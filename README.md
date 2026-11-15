@@ -148,7 +148,7 @@ dataset. The script never writes the ini; its own state (`last_split`, the
   switched off, set `"switch": true` in its state file.
 - Before every launch the script writes the stage's `cs_split_type` as
   `new(window=…,firsttime=<first_start + last_split*step>,…)` and resets
-  `cs_last_split` to 0 (ADR-0023). Times are read as Central and sent as GMT.
+  `cs_last_split` to 0 (ADR-0024). Times are read as Central and sent as GMT.
   `round`, `fts`, `localtime` and `lasttime` are optional (defaults in
   `configs/config.ini`). A Test Launch does not set the window.
 

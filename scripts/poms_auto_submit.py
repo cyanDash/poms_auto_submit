@@ -14,8 +14,10 @@ import os
 import sys
 
 import cleanup
+import output_definitions
 import recovery
 import split_window
+import sam_client
 import state
 import stragglers
 from campaign_snapshot import PRO_ELIGIBLE_ROLE, CampaignSnapshot, no_splits_left
@@ -103,6 +105,23 @@ def _manage_stragglers(cfg, snapshot, dry_run):
         logging.exception("straggler check failed -- continuing with cleanup and recovery")
 
 
+def infer_output_definitions(cfg, session, dry_run):
+    """Infers the Output Definitions once, when no splits are left, for
+    recovery and cleanup to read; see docs/adr/0023. Does nothing unless
+    do_recovery or do_cleanup is on or they are already recorded. A failure
+    is logged and retried next run."""
+    if not (cfg["do_recovery"] or cfg["do_cleanup"]):
+        return
+    if output_definitions.recorded_output_definitions(cfg):
+        return
+    try:
+        sam = sam_client.get_sam_client(cfg["experiment"])
+        output_definitions.get_output_definitions(cfg, session, sam, dry_run=dry_run)
+    except Exception:
+        # Any SAM, POMS or import failure: nothing was learned.
+        logging.exception("output definitions: could not infer them -- will retry next run")
+
+
 def submit_plan(cfg, session, plan):
     """Submit each planned slice in order, persisting last_split after each
     success. Shared with recovery.py; see docs/adr/0012. Returns False if
@@ -157,13 +176,12 @@ def run(cfg, dry_run):
     if not dry_run:
         snapshot.record_stuck()
     if no_splits_left(cfg):
+        infer_output_definitions(cfg, session, dry_run)
         _manage_stragglers(cfg, snapshot, dry_run)
     if not plan:
-        if dry_run:
-            if snapshot.cleanup_ready():
-                logging.info("dry-run: would run duplicate-cleanup and turn switch off")
-        elif snapshot.cleanup_ready():
-            cleanup.run_cleanup(cfg, session)
+        if snapshot.cleanup_ready():
+            # A dry run writes the cleanup plan and retires nothing.
+            cleanup.run_cleanup(cfg, session, dry_run=dry_run)
         return
 
     if dry_run:
@@ -179,8 +197,12 @@ def run(cfg, dry_run):
         return
 
     # A launch changes what is in flight, so recovery looks at a fresh snapshot.
-    if not submit_plan(cfg, session, plan) and CampaignSnapshot.take(cfg, session).recovery_ready():
-        recovery.evaluate_and_run_recovery(cfg, session)
+    if not submit_plan(cfg, session, plan):
+        # POMS ran out of splits before max_splits; infer before recovery
+        # can switch the stage to the Recovery Dataset.
+        infer_output_definitions(cfg, session, dry_run)
+        if CampaignSnapshot.take(cfg, session).recovery_ready():
+            recovery.evaluate_and_run_recovery(cfg, session)
 
 
 def run_test_launch(cfg, dry_run):
@@ -203,7 +225,7 @@ def run_test_launch(cfg, dry_run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"), help="path to the campaign ini (default: configs/config.ini)")
-    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
+    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params, submitting or retiring; writes the cleanup plan when cleanup is due")
     parser.add_argument("--follow-launch", action="store_true", help="print POMS's launch stdout while waiting for the jobsub id")
     args = parser.parse_args()
 

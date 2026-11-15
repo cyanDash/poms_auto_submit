@@ -1,0 +1,81 @@
+{
+ "children_of_output": [],
+ "locate": [
+  {
+   "location_type": "disk",
+   "full_path": "dcache:/pnfs/sbn/data_add/sbn_nd/poms_production/mc/SBND2026A/v10_14_02_04/prodgenie_corsika_proton_rockbox0p1_sbnd/PDS_detvar_1_0.94xLY/reco1/reco1-detsim-g4-gen-gen2/3d",
+   "location": "dcache:/pnfs/sbn/data_add/sbn_nd/poms_production/mc/SBND2026A/v10_14_02_04/prodgenie_corsika_proton_rockbox0p1_sbnd/PDS_detvar_1_0.94xLY/reco1/reco1-detsim-g4-gen-gen2/3d",
+   "date": "2026-03-28T23:54:46+00:00",
+   "node": "dcache",
+   "mount_point": "/pnfs/sbn/data_add",
+   "subdir": "sbn_nd/poms_production/mc/SBND2026A/v10_14_02_04/prodgenie_corsika_proton_rockbox0p1_sbnd/PDS_detvar_1_0.94xLY/reco1/reco1-detsim-g4-gen-gen2/3d"
+  }
+ ],
+ "parent": "reco1-detsim-g4-gen-Gen2_2026-d00c-51cf-2f07-09de.root",
+ "children_of_parent": [
+  {
+   "file_name": "reco2-reco1-detsim-g4-gen-Gen2_2026-d00c-51cf-2f07-09de.flat.caf.root",
+   "file_id": 51217579
+  },
+  {
+   "file_name": "scrub_detsim_reco1-3dc72ee2-53bd-d2b3-6788-020963264c77.root",
+   "file_id": 53476187
+  },
+  {
+   "file_name": "reco2.flat.caf-cc27886e-fcc8-b73a-fad9-815e69182bbb.flat.caf.root",
+   "file_id": 53476715
+  },
+  {
+   "file_name": "caf-264cfc90-022c-b453-1c0b-6aea76b639b9.caf.root",
+   "file_id": 53476859
+  },
+  {
+   "file_name": "larcv_mc_20260328_234552_364152-8a20f1a6-7682-eafa-17b1-f5fc69c52333.root",
+   "file_id": 53477438
+  },
+  {
+   "file_name": "hist_scrub_detsim_reco1_reco2_caf-7601e2d0-58d8-9cac-6cd5-a91141f8ad0f.root",
+   "file_id": 53477559
+  },
+  {
+   "file_name": "reco2.flat.caf-fa218261-5a9e-9647-8fd8-47eb2fa9287f.flat.caf.root",
+   "file_id": 55444031
+  },
+  {
+   "file_name": "scrub_detsim_reco1-7b148c79-0d4c-a1ad-454f-f38dbb018349.root",
+   "file_id": 55444032
+  },
+  {
+   "file_name": "hist_scrub_detsim_reco1_reco2_caf-e993776f-ebad-5479-8118-58bc673fe520.root",
+   "file_id": 55444154
+  },
+  {
+   "file_name": "caf-192ef224-a45b-65af-7521-ad6ea6899451.caf.root",
+   "file_id": 55444155
+  },
+  {
+   "file_name": "larcv_mc_20260407_182018_094951-51592cee-b16f-8293-7a0c-05a0000bf962.root",
+   "file_id": 55444474
+  },
+  {
+   "file_name": "hists_reco1-detsim-g4-gen-Gen2_2026-d00c-51cf-2f07-09de.root",
+   "file_id": 56741460
+  },
+  {
+   "file_name": "caf-f759ecc4-7960-dac1-7f29-c3663435e38e.caf.root",
+   "file_id": 69070011
+  },
+  {
+   "file_name": "reco2.flat.caf-ce597ef7-c2e0-aa63-4617-f8ccfa4304d4.flat.caf.root",
+   "file_id": 69070281
+  },
+  {
+   "file_name": "larcv_mc_20260816_000552_857872-5bdef2c8-7309-18dc-d64b-e32b1ce09b53.root",
+   "file_id": 69070285
+  },
+  {
+   "file_name": "hist_scrub_detsim_reco1_reco2_caf-2365f5e7-e17a-16ea-6ca2-c6479605bfa7.root",
+   "file_id": 69070424
+  }
+ ]
+}

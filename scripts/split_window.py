@@ -1,6 +1,6 @@
 """Builds the `new(...)` cs_split_type string for one launch: the ini's
 [split] section fixes everything but `firsttime`, which steps by `step` per
-launch. See docs/adr/0023-rewrite-new-split-firsttime-per-launch.md."""
+launch. See docs/adr/0024-rewrite-new-split-firsttime-per-launch.md."""
 
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -13,7 +13,7 @@ USER_TZ = ZoneInfo("America/Chicago")
 # SAM create_date dimension, and SAM reads that bare timestamp as UTC. With
 # localtime=1 POMS renders Central time that SAM still reads as UTC, so the
 # window lands 5 (CDT) or 6 (CST) hours early. The unix times we send are
-# true instants either way; see docs/adr/0023.
+# true instants either way; see docs/adr/0024.
 DEFAULTS = {"window": "1h", "round": "1", "fts": "1800", "localtime": "0", "lasttime": "2031-04-09"}
 
 

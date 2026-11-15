@@ -76,3 +76,12 @@ have lineage already.
 
 `last_split`, `recovery_handled`, the caches and the output definitions named above now live in one
 state file per ini; see `docs/adr/0020-one-consolidated-state-file-per-config.md`.
+
+## Update (2026-10-13): definition discovery and cleanup do their SAM work in Python
+
+"All samweb work lives in run_recovery.sh" no longer holds. Output definitions are inferred in
+`scripts/output_definitions.py` (ADR-0023) and passed to `run_recovery.sh` as arguments, so the
+"Probe file" section above now only describes the campaign-type probe. Duplicate cleanup reads and
+retires through `samweb_client` in `scripts/duplicate_cleanup.py` (ADR-0022). The SAM client is
+passed in, so no module here is named `samweb_client`. The recovery dataset, the counts and the
+prestage stay in `run_recovery.sh`.

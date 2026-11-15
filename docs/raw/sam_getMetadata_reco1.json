@@ -1,0 +1,56 @@
+{
+ "file_name": "scrub_detsim_reco1-3dc72ee2-53bd-d2b3-6788-020963264c77.root",
+ "file_id": 53476187,
+ "create_date": "2026-03-28T23:54:45+00:00",
+ "user": "sbndpro",
+ "update_date": "2026-08-14T16:50:28+00:00",
+ "update_user": "sbndpro",
+ "file_size": 139095861,
+ "checksum": [
+  "enstore:3032673593",
+  "adler32:a05ced3a",
+  "md5:3dc72ee253bdd2b36788020963264c77"
+ ],
+ "content_status": "good",
+ "file_type": "mc",
+ "file_format": "artroot",
+ "group": "sbnd",
+ "data_tier": "reconstructed",
+ "application": {
+  "family": "art",
+  "name": "sbndcode",
+  "version": "v10_14_02_04"
+ },
+ "process_id": 19754847,
+ "event_count": 5,
+ "first_event": 4,
+ "last_event": 43,
+ "data_stream": "out1",
+ "art.file_format_era": "ART_2011a",
+ "art.file_format_version": 15,
+ "art.process_name": "Reco1",
+ "art.run_type": "physics",
+ "Dataset.Tag": "mc_SBND2026A_prodgenie_corsika_proton_rockbox0p1_sbnd_PDS_detvar_1_0.94xLY_v10_14_02_04_reco1_sbnd",
+ "fcl.name": "scrub_PDS_detsim_reco1.fcl/standard_detsim_sbnd_PMTLowEff.fcl/reco1_detvar_sbnd.fcl/standard_reco2_sbnd.fcl/cafmakerjob_sbnd_sce_systtools_and_fluxwgt_and_g4rw.fcl",
+ "mc.generated_event_count": 50,
+ "production.name": "PDS_detvar_1_0.94xLY",
+ "production.type": "mc",
+ "sbn.migrate": 0,
+ "sbnd_project.name": "SBND2026A",
+ "sbnd_project.software": "sbndcode",
+ "sbnd_project.stage": "scrub_detsim_reco1_reco2_caf",
+ "sbnd_project.version": "v10_14_02_04",
+ "runs": [
+  [
+   712,
+   63,
+   "physics"
+  ]
+ ],
+ "parents": [
+  {
+   "file_name": "reco1-detsim-g4-gen-Gen2_2026-d00c-51cf-2f07-09de.root",
+   "file_id": 50891698
+  }
+ ]
+}
