@@ -183,9 +183,9 @@ cleanup again on an ini that is already switched off, also set
 python scripts/show_output_definitions.py --campaign <campaign_name> --stage <campaign_stage_name> [--all-tags]
 ```
 
-It prints the seven steps of the inference (launch command, input dataset,
-lineage tags, Test Launch tags, postscript patterns, classification,
-result), each with the tags it keeps and drops and why, then each
+It prints the steps of the inference (launch command, input dataset,
+lineage tags, Test Launch tags, postscript patterns, candidates,
+verification, classification, result), each with the tags it keeps and drops and why, then each
 definition's depth, tier and file count. `--all-tags` also lists every
 lineage tag with the newest `create_date` seen for it and whether it was
 accepted, rejected (another campaign's) or ignored (a Test Launch tag). The
@@ -196,7 +196,7 @@ The software version is `--mdappversion`, else `MT_PROJECTVERSION`, else the
 version of the `sbndcode`/`icaruscode` setup in the launch command; step 1
 says which. If the postscript cannot be read, a tag is this stage's when it
 carries the production name (leading `test_` ignored) or `MT_SAMPLE`, next
-to the version (`<name>_<version>` or `<sample>_<version>`); step 6 shows the
+to the version (`<name>_<version>` or `<sample>_<version>`); step 8 shows the
 scope used. With none of name, sample and version known, nothing is recorded.
 
 ## Example workflow

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """show_output_definitions: prints a Campaign Stage's Output Definitions with
 their depth, tier and file count, as output_definitions.py infers them. It
-first prints the seven steps of the inference, each with the tags it keeps
+first prints the steps of the inference, each with the tags it keeps
 and drops and why. With --all-tags it also prints every lineage tag found
 under the sampled inputs, the newest create_date seen for it and whether it
 was accepted, rejected (another campaign's) or ignored (a Test Launch tag).

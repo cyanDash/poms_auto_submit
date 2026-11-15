@@ -26,7 +26,9 @@ class DatedSam(tod.FakeSam):
             row["create_date"] = self.dates.get(row["file_name"], "2026-01-01T00:00:00+00:00")
         return rows
 
-    def countFiles(self, defname=None):
+    def countFiles(self, defname=None, dimensions=None):
+        if dimensions is not None:
+            return super().countFiles(dimensions=dimensions)
         self.count_calls.append(defname)
         return self.counts.get(defname, 0)
 
@@ -112,7 +114,8 @@ def test_tool_prints_the_trace_steps_as_sections_by_default(capsys, monkeypatch,
     headings = [line for line in out.splitlines() if line.startswith("step ")]
     assert [h.split(":")[0] for h in headings] == [
         "step 1 launch command", "step 2 input dataset", "step 3 lineage tags",
-        "step 4 test launch tags", "step 5 postscript patterns", "step 6 classification", "step 7 result",
+        "step 4 test launch tags", "step 5 postscript patterns", "step 6 candidates",
+        "step 7 verification", "step 8 classification", "step 9 result",
     ]
     assert f"    drops  {TEST_TAG} (depth 1): Test Launch tag" in out
     assert f"    drops  {tod.LY094}_reco1_sbnd (depth 1): another campaign's" in out

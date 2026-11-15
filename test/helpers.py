@@ -92,6 +92,13 @@ class FakeSam:
 
     def listFiles(self, defname=None, dimensions=None):
         """Live files only, as SAM lists them by default."""
+        if dimensions is not None and dimensions.startswith("dataset.tag "):
+            tag, _, limit = dimensions[len("dataset.tag "):].partition(" with limit ")
+            live = self.listFiles(defname=tag)
+            return live[:int(limit)] if limit else live
+        if dimensions is not None and dimensions.startswith("defname: "):
+            defname, names = dimensions[len("defname: "):].split(" and file_name ")
+            return [n for n in names.split(",") if n in self.listFiles(defname=defname)]
         if dimensions is not None:
             assert dimensions.startswith("file_name ")
             self.dimension_queries.append(dimensions)
@@ -99,6 +106,12 @@ class FakeSam:
             known = set(self.metadata) | self.outside_files
             return [n for n in names if n in known and n not in self.retired]
         return [n for n in self.definitions.get(defname, []) if n not in self.retired]
+
+    def listDefinitions(self, **criteria):
+        return []
+
+    def countFiles(self, dimensions=None, defname=None):
+        return len(self.listFiles(dimensions=dimensions))
 
     def retireFile(self, name):
         self.retire_calls.append(name)
