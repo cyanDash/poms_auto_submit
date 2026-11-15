@@ -97,7 +97,7 @@ step = 1d                        ; slice n starts at first_start + n * step
 window = 1h                      ; length of each slice
 ```
 
-Before every submission the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step` and resets `cs_last_split` to 0. `round`, `fts`, `localtime` and `lasttime` are optional (defaults in `configs/config.ini`). A Test Launch does not set the window. See `docs/adr/0023-rewrite-new-split-firsttime-per-launch.md`, and `docs/handoff_run3_beamlight.md` for a worked campaign.
+Before every submission the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step` and resets `cs_last_split` to 0. `round`, `fts`, `localtime` and `lasttime` are optional (defaults in `configs/config.ini`). A Test Launch does not set the window. See `docs/adr/0023-rewrite-new-split-firsttime-per-launch.md`, and `auto_poms_run3_instructions.md` for a worked campaign.
 
 ## Example workflow
 
