@@ -58,7 +58,7 @@ this stage's:
 - No launch command, or no name found: nothing is recorded and
   `OutputDefinitionsError` is raised. Unscoped lineage is never used.
 
-A Test Launch never writes the section, and neither does a dry run.
+A dry run does not write the section.
 
 Recovery asks this script for the names and passes the depth-one ones to
 `run_recovery.sh` as arguments; the shell script no longer discovers them

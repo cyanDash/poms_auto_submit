@@ -6,6 +6,7 @@ import pytest
 
 import condor_progress as recovery_condor_progress
 import recovery
+from campaign_snapshot import CampaignSnapshot
 from helpers import make_cfg
 from recovery import evaluate_and_run_recovery, run_recovery_script
 
@@ -129,7 +130,7 @@ def stub_poms_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "poms_client", types.SimpleNamespace())
 
 
-# --- _recovery_ready ---
+# --- recovery_ready ---
 
 def _cp(outcome, pct=None):
     return recovery_condor_progress.Progress(outcome, pct)
@@ -144,11 +145,10 @@ def _by_job(outcomes):
 
 
 def _ready(tmp_path, progress, outcomes=None, **cfg_overrides):
-    import poms_auto_submit as psc
     cfg = make_cfg(do_recovery=True, cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
     cfg.update(cfg_overrides)
     get_condor_progress = _by_job(outcomes) if outcomes is not None else None
-    return psc._recovery_ready(cfg, FakeSession(progress=progress), get_condor_progress=get_condor_progress)
+    return CampaignSnapshot.take(cfg, FakeSession(progress=progress), get_condor_progress).recovery_ready()
 
 
 def test_recovery_ready_true_when_all_finished(tmp_path):
@@ -348,28 +348,6 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert recorded_outputs(tmp_path) == RECORDED
 
 
-def test_recovery_keeps_a_test_launch_prestage_log_apart(tmp_path, monkeypatch):
-    config_path = make_config_file(tmp_path, last_split=5)
-    cfg = make_cfg(
-        config_path=str(config_path), last_split=5,
-        cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign", test_launch=True,
-    )
-    session = FakeSession(
-        progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
-    )
-    record_outputs(tmp_path)
-    calls = []
-
-    def fake_script(input_dataset, campaign_name, prestage_log, output_names):
-        calls.append(prestage_log)
-        return 0.5, 0.98, "recovery_dataset_name"
-
-    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
-
-    evaluate_and_run_recovery(cfg, session, NoCallSam())
-
-    assert calls == [str(tmp_path / "recovery_42_test_launch_prestage.log")]
-
 
 def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
     # A transient POMS hiccup right after the dataset switch is retryable --
@@ -431,8 +409,7 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
 
 
 def test_any_still_running_true_for_live_dag_at_100_pct():
-    import poms_auto_submit as psc
     from condor_progress import Progress
     from helpers import make_cfg
     subs = [{"submission_id": 1, "status": "Completed", "jobsub_job_id": "1@s"}]
-    assert psc._any_still_running(make_cfg(), subs, lambda e, j: Progress("live", 100.0)) is True
+    assert CampaignSnapshot(make_cfg(), subs, lambda e, j: Progress("live", 100.0)).any_still_running() is True

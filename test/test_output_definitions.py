@@ -413,15 +413,6 @@ def test_other_sam_error_in_the_lineage_walk_propagates(tmp_path):
     assert recorded(tmp_path) is None
 
 
-def test_test_launch_returns_definitions_but_never_writes_the_section(tmp_path):
-    cfg = make_state_cfg(tmp_path, test_launch=True)
-
-    definitions = get_output_definitions(cfg, FakeSession(launch_command()), shared_input_sam())
-
-    assert len(definitions) == 5
-    assert recorded(tmp_path) is None
-
-
 # sbnutil's metadata_postscripts.sh style: a variable the launch command
 # never exports, and a commented-out block of reassignments.
 STREAM_POSTSCRIPT = """

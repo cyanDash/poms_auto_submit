@@ -66,3 +66,23 @@ def test_persist_last_split_leaves_other_state_untouched(tmp_path, monkeypatch):
     psc.persist_last_split(cfg, 1)
 
     assert state.read(cfg, "recovery_handled") is True
+
+
+class FakeSession:
+    def __init__(self):
+        self.subgroups = []
+
+    def set_subgroup(self, use_pro):
+        self.subgroups.append(use_pro)
+
+    def submit_next_slice(self):
+        return "555"
+
+
+def test_real_submission_increments_and_persists_last_split(tmp_path, monkeypatch):
+    cfg = load(tmp_path, monkeypatch)
+
+    psc.submit_plan(cfg, FakeSession(), [False, False])
+
+    assert cfg["last_split"] == 2
+    assert state.read(cfg, "last_split", None) == 2

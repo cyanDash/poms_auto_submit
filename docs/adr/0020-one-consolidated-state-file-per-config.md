@@ -34,8 +34,7 @@ lives in one file per ini, `logs/<campaign_name>/state_<ini name>.json`, behind
 - **`run_recovery.sh` is unchanged.** It still writes its output defnames to
   a scratch `output_definitions_<id>.txt` (its prestage log is named after
   that path). `recovery.py` moves the list into the state file and deletes
-  the scratch file. A Test Launch's list is dropped rather than diverted to
-  a sibling file as in ADR-0016.
+  the scratch file. A Test Launch never reaches recovery.
 - **The old per-stage files are not imported.** They are named by stage id,
   which the per-ini path does not carry, and what they hold is safe to lose:
   the submission cache refills from POMS and the stuck and Straggler counts
@@ -58,9 +57,9 @@ lives in one file per ini, `logs/<campaign_name>/state_<ini name>.json`, behind
 - "`run_recovery.sh` is unchanged" no longer holds. It takes the output definition names as
   arguments and writes no scratch `output_definitions_<id>.txt`. `recovery.py` no longer writes
   the `output_definitions` section; `scripts/output_definitions.py` is its only writer, and the
-  entries are `{name, depth}` (ADR-0022).
-- The prestage log is `recovery_<id>[_test_launch]_prestage.log`.
+  entries are `{name, depth}` (ADR-0023).
+- The prestage log is `recovery_<id>_prestage.log`.
 - A cleanup-only ini now works: cleanup infers the definitions when its own state file has none
-  (ADR-0021).
+  (ADR-0022).
 - The state file has a new section, `cleanup` (`plan_path`, `done`, `finished`), owned by
   `scripts/duplicate_cleanup.py`.

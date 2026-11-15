@@ -1,7 +1,7 @@
 """recovery: the seam to scripts/run_recovery.sh; see docs/adr/0010, 0011.
 evaluate_and_run_recovery() is the module's one interface, same convention
 as plan_next_slices(); all eligibility/readiness checking lives in
-poms_auto_submit.py's _recovery_ready(), which reads is_handled().
+campaign_snapshot.py's CampaignSnapshot.recovery_ready(), which reads is_handled().
 """
 
 import logging
@@ -65,8 +65,7 @@ def evaluate_and_run_recovery(cfg, session, sam=None):
 
     stage = session.get_stage_params()
     input_dataset = stage["dataset"]
-    suffix = "_test_launch" if cfg.get("test_launch") else ""
-    prestage_log = os.path.join(cfg["cache_dir"], f"recovery_{session.campaign_stage_id}{suffix}_prestage.log")
+    prestage_log = os.path.join(cfg["cache_dir"], f"recovery_{session.campaign_stage_id}_prestage.log")
 
     try:
         output_names = _direct_output_names(cfg, session, sam)

@@ -1,7 +1,7 @@
 """output_definitions: infers a Campaign Stage's Output Definitions and is
 the only writer of the State File's `output_definitions` section.
 get_output_definitions() is the module's one interface; it raises
-OutputDefinitionsError. See docs/adr/0022.
+OutputDefinitionsError. See docs/adr/0023.
 """
 
 import logging
@@ -44,15 +44,15 @@ class OutputDefinitionsError(RuntimeError):
 def get_output_definitions(cfg, session, sam, dry_run=False):
     """The Campaign Stage's Output Definitions as [{name, depth}]: what the
     State File holds, else inferred and recorded. A flat list of names is
-    never trusted: it is inferred again and replaced. A dry run and a Test
-    Launch record nothing. Raises OutputDefinitionsError when the
+    never trusted: it is inferred again and replaced. A dry run records
+    nothing. Raises OutputDefinitionsError when the
     definitions cannot be inferred; the State File is then left as it is."""
     recorded = state.read(cfg, SECTION, []) or []
     if recorded and all(isinstance(entry, dict) for entry in recorded):
         return [dict(entry) for entry in recorded]
 
     definitions = _infer(cfg, session, sam)
-    if not (dry_run or cfg.get("test_launch")):
+    if not dry_run:
         state.write(cfg, SECTION, definitions)
     return definitions
 

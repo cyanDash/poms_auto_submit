@@ -5,7 +5,7 @@ on disk is deleted. Before a definition's files are retired their full paths
 are listed in <cache_dir>/<definition>_retired_files.txt, the only record of
 them: SAM cannot list a retired file. Per-file lines are
 logged to <cache_dir>/<campaign_stage_name>_cleanup.log only; the root logger
-gets the summary lines. See docs/adr/0021.
+gets the summary lines. See docs/adr/0022.
 
 Public: clean_definitions() is the entry point (plan or resume, retire,
 verify); plan_cleanup() and verify_plan() are its two read-only halves;

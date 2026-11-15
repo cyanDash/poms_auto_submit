@@ -67,8 +67,9 @@ submit_two_slices = 0
 ; the script has submitted that many (it keeps the count in its state file)
 max_splits = 5
 
-; when true, every submission this run makes is a Test Launch (test_param_overrides
-; instead of param_overrides); still counts against last_split/max_splits
+; when true, a run is only a Test Launch: it submits once with the stage's
+; test_param_overrides (set its subgroup to `test` in POMS) and does nothing
+; else -- no planning, in-flight checks, last_split, switch, lock, stragglers, recovery or cleanup
 test_launch = 0
 
 ; when true, automatically build a Recovery Dataset and submit it once the
@@ -203,13 +204,20 @@ crontab -e
 And paste the following script:
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /path/to/poms_auto_submit && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
+0 * * * * cd /path/to/poms_auto_submit && git checkout -q main && source setup.sh && ./scripts/poms_auto_submit.py -c /path/to/config/file
 ```
 Make appropriate changes for the file paths. You now have a crontab installed that runs at the first minute of every hour.
 
 Check the logs on a daily basis during the campaign to notice errors.
 
 Make sure to delete the crontab at the end of your campaign.
+
+## Branches for special campaigns
+
+`main` splits a campaign stage with whatever split type POMS already has. Two campaign styles need extra config keys that live only on their own branch, so check that branch out (and read its README and `configs/config.ini`) before using them:
+
+- `input-dataset-per-slice`: each slice is its own pre-built SAM dataset, and the script sets the stage's Input Dataset before every submission (`input_dataset_template` in `[decision]`).
+- `new-split-window`: the stage uses POMS's `new()` time-window split, and the script moves its start time forward for every submission (the `[split]` section).
 
 # A note on the usage of LLM:
 Approximately 99% of the code and commit messages in this repository are written by Claude.

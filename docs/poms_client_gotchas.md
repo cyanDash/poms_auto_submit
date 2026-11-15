@@ -316,7 +316,7 @@ What follows for this repo:
   not have), but its input cannot be found through that parent.
 - Retired files cannot be found again through SAM. Cleanup writes their
   full paths to `logs/<campaign_name>/<definition>_retired_files.txt`
-  before it retires them (docs/adr/0021).
+  before it retires them (docs/adr/0022).
 - `test/helpers.py`'s `FakeSam` behaves this way.
 
 ## samweb CLI output shapes (scripts/run_recovery.sh)
@@ -415,3 +415,13 @@ progress bookkeeping -- resetting `cs_last_split` mid-campaign means the
 next `launch_jobs` starts allocating splits from batch 0 again. Fine for
 `recovery.py`'s use (a genuinely new Input Dataset), not something to run
 against a stage with real in-progress work you want preserved.
+
+## Launch stdout: `list_launch_file` (no `poms_client` wrapper)
+
+POMS saves each launch's stdout on its own host and serves it at
+`list_launch_file/<experiment>/<role>?campaign_stage_id=&submission_id=&fmt=json`
+(`webservice/FilesPOMS.py`, `poms_service.py` in the poms repo). It returns
+`{lines, do_refresh, campaign_name, stage_name, ...}`; `do_refresh` is non-zero
+while the file was modified in the last 30s. Confirmed live 2026-11-05 on
+submission 3177737. `PomsSession.launch_log()` wraps it via `raw_poms_call`.
+Only the HTTP endpoint is used; this repo does not depend on the poms repo.

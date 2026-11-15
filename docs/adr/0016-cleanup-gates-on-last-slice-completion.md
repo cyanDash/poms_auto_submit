@@ -10,7 +10,7 @@ turn the campaign stage off.
 The obvious trigger is `last_split` reaching `max_splits` (`_no_splits_left()`,
 also used by `_plan()`'s own "max_splits reached" early return). That's
 wrong on its own: `submit_plan()` increments and persists `last_split`
-**the instant a slice is submitted**, not once it finishes. Gating cleanup
+**the instant a slice is submitted** (Test Launches never reach this code, and cron never runs them), not once it finishes. Gating cleanup
 on `_no_splits_left()` alone would fire duplicate-cleanup jobs against the
 last recovery slice's output datasets while that slice might still be
 sitting at, say, 75% complete — running `sam_delete_duplicates` against an
@@ -43,18 +43,10 @@ already refuses to call `run()` at all once `switch` is off. That makes
 cleanup naturally one-shot — the next hourly cron tick just logs "switch is
 off" and returns.
 
-## Test-launch output defnames never reach the file cleanup reads
+## Test-launch output defnames
 
-`output_definitions_{stage_id}.txt` has no per-line marker for whether an
-entry came from a test-launch run. Rather than filter at read time (which
-would need such a marker), `recovery.py` diverts a test-launch's write to a
-sibling `output_definitions_{stage_id}_test_launch.txt` instead. This is
-safe because `run_recovery.sh` only *writes* that path (building the
-recovery dataset's dimension from its own in-memory array) and never reads
-it back, so redirecting the destination doesn't change its behavior.
-`cleanup.py`'s reader also deduplicates (`_load_output_definitions()`,
-first-seen order) since the same dataset can legitimately be recorded by
-more than one recovery evaluation over a campaign's life.
+Superseded: a Test Launch no longer reaches recovery, so nothing diverts its
+output defnames; the sibling `_test_launch.txt` file no longer exists.
 
 ## Update (2026-10-11): `recovery_handled` left the config
 
@@ -68,11 +60,11 @@ test-launch's output defnames are dropped instead of written to a sibling
 ## Update (2026-10-13): cleanup runs in-process and the switch goes off only after verification
 
 The gate above still decides when cleanup runs (as changed by ADR-0017 and ADR-0019). What runs
-after it is replaced; see `docs/adr/0021-keep-one-worker-per-input-and-only-retire.md`:
+after it is replaced; see `docs/adr/0022-keep-one-worker-per-input-and-only-retire.md`:
 
 - No duplicate-cleanup jobs are submitted and `sam_delete_duplicates` is not used.
   `scripts/duplicate_cleanup.sh` is removed. Cleanup plans, retires and verifies in-process.
-- The definitions cleaned are the ones `scripts/output_definitions.py` infers (ADR-0022), not
+- The definitions cleaned are the ones `scripts/output_definitions.py` infers (ADR-0023), not
   "every output dataset recovery ever recorded". `_load_output_definitions()` is gone.
 - `run_cleanup()` turns the switch off only when verification passes. A failure leaves it on and
   is retried next run, so cleanup is one-shot only once it has succeeded.

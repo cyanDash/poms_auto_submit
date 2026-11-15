@@ -14,7 +14,7 @@ background, through `scripts/duplicate_cleanup.sh` (ADR-0016). Faults:
 - **No plan and no check.** An operator could not see what would be retired,
   nor confirm the result afterwards.
 - **Inputs are shared between campaigns.** One input can have children from
-  four campaigns (ADR-0022), so "one file per input" over everything under
+  four campaigns (ADR-0023), so "one file per input" over everything under
   the input would retire other campaigns' data.
 
 ## Decision
@@ -25,7 +25,7 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
 
 - **Scoped to the stage's own definitions.** Cleanup only looks at the Output
   Definitions that `output_definitions.py` infers for this Campaign Stage
-  (ADR-0022). If the definitions cannot be inferred, nothing is cleaned and
+  (ADR-0023). If the definitions cannot be inferred, nothing is cleaned and
   the switch stays on.
 - **Kept Worker, by process id.** In a standard campaign every Output Tier of
   an input is a direct child of the initial fcl file. The tiers are siblings,
@@ -101,7 +101,6 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
 - **`--dry-run` writes the plan and the lists of full paths, and retires
   nothing.** The inferred Output Definitions are not recorded and no
   `cleanup` section is made.
-- **No cleanup under `test_launch`.** The gate stays shut.
 
 ## What SAM says about a retired file
 
