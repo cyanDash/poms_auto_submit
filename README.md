@@ -86,6 +86,19 @@ simultaneously run.
 
 If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
 
+### Time-window splits (`[split]`, this branch only)
+
+For a stage on POMS's `new()` split type whose Input Dataset keeps growing, add a `[split]` section:
+
+```ini
+[split]
+first_start = 2026-11-13 00:00   ; Central time, start of the first slice
+step = 1d                        ; slice n starts at first_start + n * step
+window = 1h                      ; length of each slice
+```
+
+Before every submission the script rewrites the stage's `cs_split_type` with `firsttime = first_start + last_split * step` and resets `cs_last_split` to 0. `round`, `fts`, `localtime` and `lasttime` are optional (defaults in `configs/config.ini`). A Test Launch does not set the window. See `docs/adr/0023-rewrite-new-split-firsttime-per-launch.md`, and `docs/handoff_run3_beamlight.md` for a worked campaign.
+
 ## Example workflow
 
 Validate against a real campaign before trusting it unattended:
