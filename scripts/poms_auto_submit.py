@@ -136,11 +136,9 @@ def run(cfg, dry_run):
     if no_splits_left(cfg):
         _manage_stragglers(cfg, snapshot, dry_run)
     if not plan:
-        if dry_run:
-            if snapshot.cleanup_ready():
-                logging.info("dry-run: would run duplicate-cleanup and turn switch off")
-        elif snapshot.cleanup_ready():
-            cleanup.run_cleanup(cfg, session)
+        if snapshot.cleanup_ready():
+            # A dry run writes the cleanup plan and retires nothing.
+            cleanup.run_cleanup(cfg, session, dry_run=dry_run)
         return
 
     if dry_run:
@@ -170,7 +168,7 @@ def run_test_launch(cfg, dry_run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", default=os.path.join(REPO_ROOT, "configs", "config.ini"), help="path to the campaign ini (default: configs/config.ini)")
-    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params or submitting")
+    parser.add_argument("--dry-run", action="store_true", help="log decisions without updating params, submitting or retiring; writes the cleanup plan when cleanup is due")
     parser.add_argument("--follow-launch", action="store_true", help="print POMS's launch stdout while waiting for the jobsub id")
     args = parser.parse_args()
 

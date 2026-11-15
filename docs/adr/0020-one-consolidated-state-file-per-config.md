@@ -51,3 +51,15 @@ lives in one file per ini, `logs/<campaign_name>/state_<ini name>.json`, behind
 - Resetting or correcting `last_split` means editing the state file;
   `max_splits` is still set in the ini.
 - ADR-0018's "state lives in its own per-Campaign-Stage file" no longer holds.
+
+## Update (2026-10-13): `run_recovery.sh` changed; a `cleanup` section was added
+
+- "`run_recovery.sh` is unchanged" no longer holds. It takes the output definition names as
+  arguments and writes no scratch `output_definitions_<id>.txt`. `recovery.py` no longer writes
+  the `output_definitions` section; `scripts/output_definitions.py` is its only writer, and the
+  entries are `{name, depth}` (ADR-0023).
+- The prestage log is `recovery_<id>_prestage.log`.
+- A cleanup-only ini now works: cleanup infers the definitions when its own state file has none
+  (ADR-0022).
+- The state file has a new section, `cleanup` (`plan_path`, `done`, `finished`), owned by
+  `scripts/duplicate_cleanup.py`.

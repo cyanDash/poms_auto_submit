@@ -1,5 +1,5 @@
-"""cleanup: the seam to scripts/duplicate_cleanup.sh -- TODO.md's File
-Cleanup feature. run_cleanup() is the module's one interface, same
+"""cleanup: retires a finished Campaign Stage's duplicate output files and
+turns the stage off. run_cleanup() is the module's one interface, same
 convention as recovery.py's evaluate_and_run_recovery(); all
 eligibility/readiness checking lives in campaign_snapshot.py's
 CampaignSnapshot.cleanup_ready() -- by the time run_cleanup() is called, the campaign is
@@ -7,54 +7,57 @@ already known to be done.
 """
 
 import logging
-import os
-import subprocess
 
-import state
+import duplicate_cleanup
+import output_definitions
+import sam_client
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CLEANUP_SCRIPT = os.path.join(SCRIPT_DIR, "duplicate_cleanup.sh")
-CLEANUP_SCRIPT_TIMEOUT_SECONDS = 3600
+RETRY_NOTE = "switch stays on, will retry next run"
 
 
-def _load_output_definitions(cfg):
-    """Unique output dataset names recovery.py has ever recorded for this
-    campaign stage, in first-seen order. No recovery has ever run (or it
-    never got past run_recovery.sh's dimension-building step) -> []."""
-    lines = state.read(cfg, "output_definitions", [])
-
-    seen = set()
-    unique = []
-    for name in lines:
-        if name not in seen:
-            seen.add(name)
-            unique.append(name)
-    return unique
-
-
-def run_cleanup(cfg, session):
-    """Submits duplicate-cleanup for every unique output dataset recovery
-    ever recorded, then turns the campaign stage's switch off -- meant to
-    run exactly once, right after the campaign (including its recovery
-    slices) has fully finished. Returns True if cleanup ran (or there was
-    nothing to clean), False if duplicate_cleanup.sh failed."""
+def run_cleanup(cfg, session, sam=None, dry_run=False):
+    """Plans, retires and verifies the duplicates of the stage's Output
+    Definitions, then turns the switch off in the State File. `sam` is the
+    SAM client; the real one when None. Any failure leaves the switch on.
+    A dry run writes the plan file and the lists of the full paths of the
+    files it would retire; it records nothing in the State File and changes
+    nothing in SAM. Returns True when the cleanup (or the dry run) went through."""
     from poms_auto_submit import persist_switch
 
-    outputs = _load_output_definitions(cfg)
-    if not outputs:
-        logging.info("cleanup: no output definitions recorded -- nothing to clean")
-    else:
-        try:
-            subprocess.run(
-                [CLEANUP_SCRIPT, cfg["cache_dir"], *outputs],
-                check=True, capture_output=True, text=True, timeout=CLEANUP_SCRIPT_TIMEOUT_SECONDS,
-            )
-        except (subprocess.SubprocessError, OSError):
-            logging.exception("cleanup: duplicate_cleanup.sh failed -- will retry next run")
-            return False
-        logging.info("cleanup: submitted duplicate-cleanup for %d dataset(s)", len(outputs))
+    sam = sam_client.get_sam_client(cfg["experiment"], sam)
+
+    try:
+        definitions = output_definitions.get_output_definitions(cfg, session, sam, dry_run=dry_run)
+    except Exception:
+        # Any SAM, POMS or import failure: nothing was cleaned.
+        logging.exception("cleanup: could not get the output definitions -- %s", RETRY_NOTE)
+        return False
+
+    result = duplicate_cleanup.clean_definitions(cfg, definitions, sam, dry_run=dry_run)
+
+    if result["skipped"]:
+        logging.info(
+            "cleanup: %d file(s) left in place, has children outside the plan (listed in %s)",
+            len(result["skipped"]), result["plan_path"],
+        )
+    if result["retired_files_lists"]:
+        logging.info(
+            "cleanup: full paths of the files to retire are listed in %s", ", ".join(result["retired_files_lists"]),
+        )
+    if result["bad_inputs"]:
+        logging.error(
+            "cleanup: verification failed for %d input(s): %s -- %s",
+            len(result["bad_inputs"]), ", ".join(sorted(result["bad_inputs"])), RETRY_NOTE,
+        )
+        return False
+    if result["failure"]:
+        logging.error("cleanup: failed (%s) -- %s", result["failure"]["error"], RETRY_NOTE)
+        return False
+    if dry_run:
+        logging.info("dry-run: plan written to %s -- nothing retired, switch left on", result["plan_path"])
+        return True
 
     persist_switch(cfg, False)
     cfg["switch"] = False
-    logging.info("cleanup: done -- switch turned off")
+    logging.info("cleanup: done and verified -- switch turned off")
     return True

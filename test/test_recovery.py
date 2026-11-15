@@ -24,26 +24,45 @@ def fake_run(stdout="", returncode=0, exc=None):
 def test_run_recovery_script_returns_dataset_name(monkeypatch):
     monkeypatch.setattr(recovery.subprocess, "run", fake_run("0.5000\n0.98\nmy_recovery_dataset\n"))
 
-    assert run_recovery_script("input_ds", "campaign", "/tmp/out.txt") == (0.5, 0.98, "my_recovery_dataset")
+    assert run_recovery_script("input_ds", "campaign", "/tmp/prestage.log", ["out_a"]) == (0.5, 0.98, "my_recovery_dataset")
 
 
 def test_run_recovery_script_returns_none_when_not_needed(monkeypatch):
     monkeypatch.setattr(recovery.subprocess, "run", fake_run("0.9900\n0.98\nNO_RECOVERY_NEEDED\n"))
 
-    assert run_recovery_script("input_ds", "campaign", "/tmp/out.txt") == (0.99, 0.98, None)
+    assert run_recovery_script("input_ds", "campaign", "/tmp/prestage.log", ["out_a"]) == (0.99, 0.98, None)
 
 
 def test_run_recovery_script_returns_none_ratio_when_input_dataset_empty(monkeypatch):
     monkeypatch.setattr(recovery.subprocess, "run", fake_run("N/A\n0.98\nNO_RECOVERY_NEEDED\n"))
 
-    assert run_recovery_script("input_ds", "campaign", "/tmp/out.txt") == (None, 0.98, None)
+    assert run_recovery_script("input_ds", "campaign", "/tmp/prestage.log", ["out_a"]) == (None, 0.98, None)
 
 
 def test_run_recovery_script_raises_on_nonzero_exit(monkeypatch):
     monkeypatch.setattr(recovery.subprocess, "run", fake_run("", returncode=2))
 
     with pytest.raises(RuntimeError, match="stderr text"):
-        run_recovery_script("input_ds", "campaign", "/tmp/out.txt")
+        run_recovery_script("input_ds", "campaign", "/tmp/prestage.log", ["out_a"])
+
+
+def test_run_recovery_script_passes_output_names_as_arguments(monkeypatch):
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout="0.5000\n0.98\nds\n", stderr="")
+
+    monkeypatch.setattr(recovery.subprocess, "run", run)
+
+    run_recovery_script("input_ds", "campaign", "/tmp/prestage.log", ["out_a", "out_b"])
+
+    assert calls == [[recovery.RECOVERY_SCRIPT, "input_ds", "campaign", "/tmp/prestage.log", "out_a", "out_b"]]
+
+
+class NoCallSam:
+    def __getattr__(self, name):
+        raise AssertionError(f"unexpected SAM call: {name}")
 
 
 class FakeSession:
@@ -59,6 +78,9 @@ class FakeSession:
 
     def get_stage_params(self):
         return self._stage
+
+    def get_launch_command(self):
+        return None
 
     def set_recovery_input_dataset(self, dataset_name):
         self.calls.append(("set_recovery_input_dataset", dataset_name))
@@ -90,6 +112,14 @@ def persisted_last_split(tmp_path):
 def recorded_outputs(tmp_path):
     import state
     return state.read({"state_file": str(tmp_path / "state.json")}, "output_definitions")
+
+
+RECORDED = [{"name": "ds_reco1", "depth": 1}, {"name": "ds_caf", "depth": 1}, {"name": "ds_ana", "depth": 2}]
+
+
+def record_outputs(tmp_path, entries=RECORDED):
+    import state
+    state.write({"state_file": str(tmp_path / "state.json")}, "output_definitions", entries)
 
 
 @pytest.fixture(autouse=True)
@@ -184,11 +214,83 @@ def test_recovery_script_failure_does_not_persist_handled(tmp_path, monkeypatch)
         cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(progress=[{"submission_id": 1, "status": "Completed"}])
+    record_outputs(tmp_path)
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
 
-    assert evaluate_and_run_recovery(cfg, session) == "recovery_script_failed"
+    assert evaluate_and_run_recovery(cfg, session, NoCallSam()) == "recovery_script_failed"
     assert session.calls == []
     assert not handled(tmp_path)
+
+
+def test_failure_to_infer_output_definitions_is_retried_not_handled(tmp_path, monkeypatch, caplog):
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    session = FakeSession(progress=[{"submission_id": 1, "status": "Completed"}])
+    script_calls = []
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: script_calls.append(a))
+
+    assert evaluate_and_run_recovery(cfg, session, NoCallSam()) == "output_definitions_failed"
+    assert script_calls == []
+    assert session.calls == []
+    assert not handled(tmp_path)
+    assert "will retry next run" in caplog.text
+
+
+def test_recorded_definitions_need_no_sam_client(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "samweb_client", None)  # importing it raises
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    record_outputs(tmp_path)
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
+
+    assert evaluate_and_run_recovery(cfg, FakeSession()) == "no_recovery_needed"
+
+
+def test_no_depth_one_definition_is_retried_not_handled(tmp_path, monkeypatch):
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    record_outputs(tmp_path, [{"name": "ds_ana", "depth": 2}])
+    script_calls = []
+    monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: script_calls.append(a))
+
+    assert evaluate_and_run_recovery(cfg, FakeSession(), NoCallSam()) == "output_definitions_failed"
+    assert script_calls == []
+    assert not handled(tmp_path)
+
+
+def test_recovery_infers_definitions_when_none_are_recorded(tmp_path, monkeypatch):
+    import test_output_definitions as tod
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    session = FakeSession(stage={"dataset": tod.INPUT_DATASET})
+    session.get_launch_command = tod.launch_command
+    script_calls = []
+
+    def fake_script(input_dataset, campaign_name, prestage_log, output_names):
+        script_calls.append(output_names)
+        return 0.99, 0.98, None
+
+    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
+
+    assert evaluate_and_run_recovery(cfg, session, tod.shared_input_sam()) == "no_recovery_needed"
+    (output_names,), = [script_calls]
+    assert sorted(output_names) == sorted(f"{tod.STAGE}_{tier}" for tier in tod.ALL_TIERS)
+    assert sorted(d["name"] for d in recorded_outputs(tmp_path)) == sorted(output_names)
+
+
+def test_recorded_flat_list_is_not_trusted_by_recovery(tmp_path, monkeypatch):
+    import test_output_definitions as tod
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign")
+    record_outputs(tmp_path, [f"{tod.LY094}_reco1_sbnd"])
+    session = FakeSession(stage={"dataset": tod.INPUT_DATASET})
+    session.get_launch_command = tod.launch_command
+    script_calls = []
+
+    def fake_script(input_dataset, campaign_name, prestage_log, output_names):
+        script_calls.append(output_names)
+        return 0.99, 0.98, None
+
+    monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
+
+    assert evaluate_and_run_recovery(cfg, session, tod.shared_input_sam()) == "no_recovery_needed"
+    assert sorted(script_calls[0]) == sorted(f"{tod.STAGE}_{tier}" for tier in tod.ALL_TIERS)
+    assert sorted(d["name"] for d in recorded_outputs(tmp_path)) == sorted(script_calls[0])
 
 
 def test_no_recovery_needed(tmp_path, monkeypatch):
@@ -198,9 +300,10 @@ def test_no_recovery_needed(tmp_path, monkeypatch):
         cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"), campaign_name="test_campaign",
     )
     session = FakeSession(progress=[{"submission_id": 1, "status": "Located"}])
+    record_outputs(tmp_path)
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.99, 0.98, None))
 
-    assert evaluate_and_run_recovery(cfg, session) == "no_recovery_needed"
+    assert evaluate_and_run_recovery(cfg, session, NoCallSam()) == "no_recovery_needed"
     assert session.calls == []
     assert handled(tmp_path)
     assert "do_recovery = 1" in config_path.read_text()
@@ -216,17 +319,16 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
         submit_result="new-sub-id",
     )
+    record_outputs(tmp_path)
     calls = []
 
-    def fake_script(input_dataset, campaign_name, output_path):
-        calls.append((input_dataset, campaign_name, output_path))
-        with open(output_path, "w") as f:
-            f.write("ds_reco1\nds_caf\n")
+    def fake_script(input_dataset, campaign_name, prestage_log, output_names):
+        calls.append((input_dataset, campaign_name, prestage_log, output_names))
         return 0.5, 0.98, "recovery_dataset_name"
 
     monkeypatch.setattr(recovery, "run_recovery_script", fake_script)
 
-    result = evaluate_and_run_recovery(cfg, session)
+    result = evaluate_and_run_recovery(cfg, session, NoCallSam())
 
     assert result == "recovery_submitted"
     assert session.calls == [
@@ -238,12 +340,12 @@ def test_recovery_submitted_resets_and_persists_last_split(tmp_path, monkeypatch
     assert persisted_last_split(tmp_path) == 1
     assert handled(tmp_path)
     assert "do_recovery = 1" in config_path.read_text()
-    (input_dataset, campaign_name, output_path), = calls
+    (input_dataset, campaign_name, prestage_log, output_names), = calls
     assert input_dataset == "input_dataset"
     assert campaign_name == "test_campaign"
-    assert output_path.endswith("output_definitions_42.txt")
-    assert recorded_outputs(tmp_path) == ["ds_reco1", "ds_caf"]
-    assert not (tmp_path / "output_definitions_42.txt").exists()
+    assert prestage_log == str(tmp_path / "recovery_42_prestage.log")
+    assert output_names == ["ds_reco1", "ds_caf"]
+    assert recorded_outputs(tmp_path) == RECORDED
 
 
 
@@ -260,6 +362,8 @@ def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
     )
 
+    record_outputs(tmp_path)
+
     def raise_get_progress_after_switch():
         raise RuntimeError("expired token")
 
@@ -272,7 +376,7 @@ def test_recovery_plan_failed_does_not_persist_handled(tmp_path, monkeypatch):
 
     session.set_recovery_input_dataset = set_recovery_and_break_progress
 
-    result = evaluate_and_run_recovery(cfg, session)
+    result = evaluate_and_run_recovery(cfg, session, NoCallSam())
 
     assert result == "recovery_plan_failed"
     assert session.calls == [("set_recovery_input_dataset", "recovery_dataset_name")]
@@ -291,9 +395,10 @@ def test_recovery_submit_failed_still_persists_handled(tmp_path, monkeypatch):
         progress=[{"submission_id": 1, "status": "Completed", "jobsub_job_id": None}],
         submit_result=None,
     )
+    record_outputs(tmp_path)
     monkeypatch.setattr(recovery, "run_recovery_script", lambda *a, **kw: (0.5, 0.98, "recovery_dataset_name"))
 
-    result = evaluate_and_run_recovery(cfg, session)
+    result = evaluate_and_run_recovery(cfg, session, NoCallSam())
 
     assert result == "recovery_submit_failed"
     assert handled(tmp_path)
