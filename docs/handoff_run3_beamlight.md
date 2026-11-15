@@ -106,17 +106,75 @@ once put 325 files into the dev sample's definitions.
 - `jobsub_rm -G sbnd --jobid=<id>` (after `source setup.sh`) removes a submitted
   cluster.
 
-## Cron
+## Daily cron: submit at 04:00, plot at 01:00
 
-Only after a manual dry run and a manual real run look right. The cron line
-checks out `new-split-window` first, so a stray checkout of another branch
-can't change the code it runs. If the checkout fails (uncommitted edits to
-tracked files), the `&&` stops the run, so look for a missing log entry.
+Only after a manual dry run and a manual real run look right. Cron times are
+the host's local time (Central).
+
+**Submission, 04:00 every day.** The run at 04:00 on date D takes the files
+created that day between 00:00 and 03:00, so the ini needs:
+
+```ini
+[decision]
+max_splits = 60                  ; one launch per day, so this is the number of days to run
+test_launch = 0
+
+[split]
+first_start = 2026-11-15 00:00   ; the first run is at 04:00 on this date
+step = 1d
+window = 3h
+```
+
+Slice n is `first_start + n*1d`, so the first run, at 04:00 on 2026-11-15,
+submits 2026-11-15 00:00–03:00, and `last_split` must be 0 for it. The cron
+line checks out `new-split-window` first, so a stray checkout of another
+branch can't change the code it runs. If the checkout fails (uncommitted edits
+to tracked files), the `&&` stops the run, so look for a missing log entry.
+
+**Plot, 01:00 every day, starting one day after the first submission.** The
+plotter lives in
+`/exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter`
+on branch `window-output-plot`. `scripts/window_output_plotter.py daily` plots
+yesterday's window: for each of the five `data_SBND2026A_…` tiers, the output
+file count against the input count for the window that started at 00:00 the
+day before. So the 01:00 run on Nov 16 plots Nov 15 00:00–03:00, the slice
+submitted at 04:00 on Nov 15, which has had 21 hours to finish. Starting the
+plot cron a day after the submission cron is what gives it something to plot.
+`weekly` plots the last 7 windows instead, and an optional date argument
+replaces "today". The date comes from the system clock, so a missed day
+doesn't shift the plot.
+
+- The constants at the top of `scripts/window_output_plotter.py` are
+  hard-coded and **must match the ini**: `first_start` (its time of day sets
+  the plotted window; it is now `2026-11-15 00:00`), `step` (1d), `window`
+  (3h), plus `input_dataset`, `campaign`, `version` and `tiers`. Edit and
+  commit them on that branch.
+- Output is `plots/<campaign>_<date>_daily.pdf`, relative to the current
+  directory and gitignored, so the cron line must `cd` into the plotter first.
+- Before the first full window has passed, the script exits with "No window
+  has started before <date>; nothing to plot."
+- It only reads SAM. `samweb count-files` works without a token (I checked
+  with no bearer token set).
 
 ```cron
 SHELL=/bin/bash
-0 * * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 4 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 1 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter && git checkout -q window-output-plot && source setup.sh && python scripts/window_output_plotter.py daily
 ```
 
-Remove the cron entry when the campaign is done. Production access ends at
+Install the plotter line on 2026-11-16 (or let it print "nothing to plot" on
+Nov 15). The two lines don't depend on each other: the plot reads yesterday's
+window and the submission writes today's.
+
+**Caveats**
+- **Windows follow `last_split`, not the date.** If a day's launch doesn't
+  happen (the previous slice is still in flight at 04:00, the checkout fails,
+  or the host is down), the next run takes the skipped window and every later
+  one lags by a day. The plotter picks windows by calendar date, so its labels
+  stop matching what was submitted. Check `last_split` in the state file when a
+  day is missed.
+- One day is enough for the jobs of a 3h slice to finish, so the counts the
+  plot reads are normally final. A slow or held slice shows partial outputs.
+
+Remove both cron entries when the campaign is done. Production access ends at
 the end of 2026.
