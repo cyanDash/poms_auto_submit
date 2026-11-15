@@ -1,7 +1,7 @@
 # Run 3 BeamLight campaign: operating manual
 
 Runs `poms_auto_submit` for `Auto_POMS_SBND2026A_Gen2_Run3_BeamLight`, stage
-`decode_reco1_reco2_caf`, as `sbndpro`, and plots the daily output counts. Two
+`decode_reco1_reco2_caf`, as `sbndpro`, and plots the daily output counts (done by another repo). Two
 cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
 
 | | |
