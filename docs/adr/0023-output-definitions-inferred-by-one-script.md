@@ -30,7 +30,13 @@ is left as it is and an error is raised.
 Two methods:
 
 - **Postscript.** The newest Submission's `command_executed` names the
-  metadata postscript (`-f dropbox://.../metadata_postscripts*.sh`) and
+  metadata postscript (`-f dropbox://.../metadata_postscripts*.sh`). It is
+  the command `fife_launch` built after applying the cfg and every
+  `param_overrides` entry, so a `submit.f_N` or postscript line changed
+  through an override is already in it. When several postscripts are
+  shipped, the one the job runs (`. ${CONDOR_DIR_INPUT}/<name>.sh` in
+  `--postscript-unquote`) is used; else the first one shipped. The command
+  also
   carries the `export MT_*=` values and the version (`--mdappversion`, which
   the postscripts call `SBNDCODE_VERSION`). Without `--mdappversion` (the
   sbnnusyst reprocess, submission 3179008) the version is `MT_PROJECTVERSION`,

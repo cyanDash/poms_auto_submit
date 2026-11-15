@@ -28,6 +28,8 @@ LINEAGE_MAX_DEPTH = 6
 RECOVERY_DATASET_SUFFIX = "_{campaign_name}_recovery_campaign"
 
 POSTSCRIPT_PATH_PATTERN = re.compile(r"-f\s+dropbox://(\S*metadata_postscripts[^/\s]*\.sh)")
+# The postscript a job runs: ". ${CONDOR_DIR_INPUT}/<name>.sh ..." in --postscript-unquote.
+POSTSCRIPT_RUN_PATTERN = re.compile(r"\$\{?CONDOR_DIR_INPUT\}?/(metadata_postscripts[^/\s]*\.sh)")
 MT_EXPORT_PATTERN = re.compile(r"export\s+(MT_\w+)=(\S+)")
 VERSION_PATTERN = re.compile(r"--mdappversion[\s=]+(\S+)")
 SETUP_VERSION_PATTERN = re.compile(r"--setup-unquote\s+(?:sbndcode|icaruscode)\s+(v\S+)")
@@ -292,7 +294,7 @@ def _launch_source(session):
 
 def _parse_launch_command(command):
     variables = dict(MT_EXPORT_PATTERN.findall(command))
-    postscript = POSTSCRIPT_PATH_PATTERN.search(command)
+    postscript = _postscript_path(command)
     version, source = None, None
     for found, label in (
         (VERSION_PATTERN.search(command), "--mdappversion"),
@@ -310,8 +312,20 @@ def _parse_launch_command(command):
         "version_source": source,
         "sample": variables.get(SAMPLE_VARIABLE),
         "production_name": variables.get(PRODUCTION_NAME_VARIABLE),
-        "postscript": postscript.group(1) if postscript else None,
+        "postscript": postscript,
     }
+
+
+def _postscript_path(command):
+    """The shipped postscript the job runs; the first shipped one when no
+    postscript line names a shipped file. A submit.f_N or postscript
+    changed through param_overrides is already in the command."""
+    shipped = POSTSCRIPT_PATH_PATTERN.findall(command)
+    for name in reversed(POSTSCRIPT_RUN_PATTERN.findall(command)):
+        for path in shipped:
+            if path.rsplit("/", 1)[-1] == name:
+                return path
+    return shipped[0] if shipped else None
 
 
 def _postscript_patterns(launch):
