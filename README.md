@@ -122,6 +122,13 @@ Check the logs on a daily basis during the campaign to notice errors.
 
 Make sure to delete the crontab at the end of your campaign.
 
+## Branches for special campaigns
+
+`main` splits a campaign stage with whatever split type POMS already has. Two campaign styles need extra config keys that live only on their own branch, so check that branch out (and read its README and `configs/config.ini`) before using them:
+
+- `input-dataset-per-slice`: each slice is its own pre-built SAM dataset, and the script sets the stage's Input Dataset before every submission (`input_dataset_template` in `[decision]`).
+- `new-split-window`: the stage uses POMS's `new()` time-window split, and the script moves its start time forward for every submission (the `[split]` section).
+
 # A note on the usage of LLM:
 Approximately 99% of the code and commit messages in this repository are written by Claude.
 I have tried my best to ensure transparency regarding the AI usage and also spent hours to ensure that this damn thing works.
