@@ -75,7 +75,7 @@ def _tier(name):
 
 
 def _cleaning_order(definition):
-    """Sort key: deeper first, then youngest tier, then name."""
+    """Sort key: deeper first, then youngest tier, unknown tiers last, then name."""
     tier = _tier(definition["name"])
     return (-definition["depth"], TIER_ORDER.index(tier) if tier else len(TIER_ORDER), definition["name"])
 
@@ -616,16 +616,15 @@ def _ungrouped_error(plan, path):
     )
 
 
-def _unknown_tier_error(definitions):
-    """Error text naming the definitions whose tier is not in TIER_ORDER, or
-    None."""
-    unknown = sorted(d["name"] for d in definitions if _tier(d["name"]) is None)
-    if not unknown:
-        return None
-    return (
-        f"no Output Tier known for {', '.join(unknown)}, nothing retired; "
-        f"known tiers (named _<tier>_sbnd): {', '.join(TIER_ORDER)}"
-    )
+def _warn_unknown_tiers(definitions):
+    """Warns once for each definition whose tier is not in TIER_ORDER."""
+    for name in sorted(d["name"] for d in definitions if _tier(d["name"]) is None):
+        _summary(
+            logging.WARNING,
+            "cleanup: no Output Tier known for %s, cleaned after the known tiers; "
+            "the order is a guess (known tiers, named _<tier>_sbnd: %s)",
+            name, ", ".join(TIER_ORDER),
+        )
 
 
 def _load_unfinished_plan(cfg, definitions):
@@ -654,8 +653,8 @@ def clean_definitions(cfg, definitions, sam, dry_run=False):
     `sam`: resumes the plan an earlier run left unfinished, or makes a new
     one and writes its plan file; retires its files one definition at a time
     in tier order, verifying each before the next. A definition whose name
-    does not end `_<tier>_sbnd` for a tier in TIER_ORDER fails the run
-    before anything is planned. A
+    does not end `_<tier>_sbnd` for a tier in TIER_ORDER is cleaned after the
+    known ones, with a warning. A
     plan with a file that cannot be grouped under an input fails before
     anything is retired. A dry run writes the plan file and the lists of
     full paths, logs what would be retired and changes nothing else:
@@ -695,10 +694,7 @@ def _clean(cfg, definitions, sam, dry_run, result):
     def fail(error):
         result["failure"] = {"definition": None, "file": None, "error": str(error)}
 
-    unknown = _unknown_tier_error(definitions)
-    if unknown:
-        _summary(logging.ERROR, "cleanup: %s", unknown)
-        return fail(unknown)
+    _warn_unknown_tiers(definitions)
 
     try:
         plan, path = _load_unfinished_plan(cfg, definitions)

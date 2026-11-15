@@ -75,9 +75,10 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   postscript names the initial fcl as the parent of every tier. A
   definition's tier is its name ending `_<tier>_sbnd` as an exact token
   (`_flatcaf_sbnd` is not `caf`). A missing tier is absent from the order.
-- **An unknown tier stops the cleanup.** A definition whose name ends in no
-  known tier fails the run before anything is planned or retired. The error
-  names the definitions and the known tiers; the switch stays on.
+- **An unknown tier is cleaned last.** A definition whose name ends in no
+  known tier is processed after all known tiers (depth order still first;
+  among unknown ones, by name) and logs a WARNING saying the order is a guess
+  (operator decision 2026-11-15, replacing the rule that it failed the run).
 - **Each definition is verified before the next starts.** After a
   definition is applied it is verified alone (kept files live with live
   parents, retired files not live, no live file outside the plan). It is

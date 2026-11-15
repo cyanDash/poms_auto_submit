@@ -1375,30 +1375,29 @@ def test_apply_retires_tier_by_tier_in_the_tier_order(tmp_path):
     ]
 
 
-def test_an_unknown_tier_stops_cleanup_before_anything_is_retired(tmp_path):
-    sam = tiered_campaign(T_RECO1, T_MYSTERY)
-    cfg = make_cfg(tmp_path)
+def test_an_unknown_tier_is_cleaned_after_every_known_tier(tmp_path, caplog):
+    sam = tiered_campaign(T_RECO1, T_MYSTERY, T_CAF)
 
-    result = clean_definitions(cfg, [T_RECO1, T_MYSTERY], sam)
+    with caplog.at_level(logging.WARNING):
+        result = clean_definitions(make_cfg(tmp_path), [T_MYSTERY, T_RECO1, T_CAF], sam)
 
-    assert result["ok"] is False
-    error = result["failure"]["error"]
-    assert "p_mystery_sbnd" in error
-    assert "p_reco1_sbnd" not in error
-    for tier in duplicate_cleanup.TIER_ORDER:
-        assert tier in error
-    assert sam.retire_calls == []
-    assert sam.lineage_calls == []
-    assert state.read(cfg, "cleanup") is None
-    assert result["plan_path"] is None
+    assert result["ok"] is True
+    assert sam.retire_calls == [
+        "p_caf_sbnd_200.root", "p_reco1_sbnd_200.root", "p_mystery_sbnd_200.root",
+    ]
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("p_mystery_sbnd" in w and "guess" in w for w in warnings)
+    assert not any("p_reco1_sbnd" in w for w in warnings)
 
 
-def test_a_definition_without_the_sbnd_ending_has_an_unknown_tier(tmp_path):
-    sam = tiered_campaign(T_RECO1)
+def test_a_deeper_unknown_tier_still_comes_first_and_unknown_ones_go_by_name():
+    deep = {"name": "q_other_sbnd", "depth": 2}
+    zed = {"name": "p_zed_sbnd", "depth": 1}
+    ahead = {"name": "p_alpha", "depth": 1}
 
-    result = clean_definitions(make_cfg(tmp_path), [{"name": "p_reco1", "depth": 1}], sam)
+    plan = plan_cleanup([zed, T_RECO1, ahead, deep], FakeSam())
 
-    assert result["ok"] is False
+    assert [d["name"] for d in plan["definitions"]] == ["q_other_sbnd", "p_reco1_sbnd", "p_alpha", "p_zed_sbnd"]
 
 
 def test_each_definition_is_verified_before_the_next_starts(tmp_path, monkeypatch):
