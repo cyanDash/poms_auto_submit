@@ -194,6 +194,8 @@ def _trace(cfg, session, sam, outcome):
         origin = f"Submission {source['submission_id']} (newest of any kind, a Test Launch: no other had a command)"
     else:
         origin = f"Submission {source['submission_id']} (not a Test Launch)"
+    if source.get("windows"):
+        origin += f"; {source['windows']} POMS window(s) read"
     postscript = (
         "no postscript named" if not launch["postscript"]
         else f"postscript {launch['postscript']} ({'readable' if readable else 'not readable'})"

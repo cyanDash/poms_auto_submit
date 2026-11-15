@@ -10,9 +10,9 @@ PREFIX = "output definitions: step "
 
 
 class SourceSession(tod.FakeSession):
-    def __init__(self, command, submission_id=3144257, is_test=False, **kwargs):
+    def __init__(self, command, submission_id=3144257, is_test=False, windows=1, **kwargs):
         super().__init__(command, **kwargs)
-        self.source = {"command": command, "submission_id": submission_id, "is_test": is_test}
+        self.source = {"command": command, "submission_id": submission_id, "is_test": is_test, "windows": windows}
 
     def get_launch_source(self):
         return self.source
@@ -51,6 +51,12 @@ def test_the_trace_has_nine_steps_in_order_each_with_the_prefix(tmp_path, caplog
     ]
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith(PREFIX)]
     assert [int(re.match(r"(\d+)", line[len(PREFIX):]).group(1)) for line in lines] == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+def test_step_one_says_how_many_poms_windows_were_read(tmp_path, caplog):
+    steps = run(tmp_path, caplog, SourceSession(tod.launch_command(), windows=3), tod.shared_input_sam())
+
+    assert "3 POMS window(s) read" in steps[1]
 
 
 def test_input_shared_with_other_campaigns_is_traced_step_by_step(tmp_path, caplog):
