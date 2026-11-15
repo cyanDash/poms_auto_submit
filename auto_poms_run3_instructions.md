@@ -134,7 +134,7 @@ to tracked files), the `&&` stops the run, so look for a missing log entry.
 **Plot, 01:00 every day, starting one day after the first submission.** The
 plotter lives in
 `/exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter`
-on branch `window-output-plot`. `scripts/window_output_plotter.py daily` plots
+on branch `auto-run3-data`. `scripts/window_output_plotter.py daily` plots
 yesterday's window: for each of the five `data_SBND2026A_…` tiers, the output
 file count against the input count for the window that started at 00:00 the
 day before. So the 01:00 run on Nov 16 plots Nov 15 00:00–03:00, the slice
@@ -159,7 +159,7 @@ doesn't shift the plot.
 ```cron
 SHELL=/bin/bash
 0 4 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
-0 1 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter && git checkout -q window-output-plot && source setup.sh && python scripts/window_output_plotter.py daily
+0 1 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
 ```
 
 Install the plotter line on 2026-11-16 (or let it print "nothing to plot" on
