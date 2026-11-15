@@ -10,7 +10,7 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
 | Input dataset (stage `dataset`) | `run3_raw_data_ongoing` (grows with new files) |
 | Split type | `new()` time window, driven by the ini's `[split]` section |
 | Submit code | this repo, branch **`new-split-window`** (the `[split]` code lives only here) |
-| Plot code | `/exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter`, branch **`auto-run3-data`** |
+| Plot code | `/exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter`, branch **`auto-run3-data`** |
 | Output base dir | `/pnfs/sbnd/scratch/users/sbndpro/poms_production/` (set in POMS `param_overrides` and `test_param_overrides`; not in the ini) |
 | Plot output | `/exp/sbnd/app/users/sbndpro/mcp/SBND2026A/srcs/sbnutil/keepups/sbnd/data_run3/plots/sbnd_data_run3_keepup_{daily,weekly}.pdf` |
 
@@ -18,7 +18,7 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
 
 1. Check out the branch and set up, as `sbndpro` (this mints the production token):
    ```bash
-   cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit
+   cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit
    git checkout new-split-window
    source setup.sh
    ```
@@ -80,7 +80,7 @@ doesn't shift the plot.
    Edit and commit them on `auto-run3-data`.
 2. Try it by hand (needs no token; it only reads SAM):
    ```bash
-   cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter
+   cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter
    git checkout auto-run3-data
    source setup.sh
    python scripts/window_output_plotter.py daily 2026-11-16
@@ -99,8 +99,8 @@ and paste:
 
 ```cron
 SHELL=/bin/bash
-0 4 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
-0 1 * * * cd /exp/sbnd/app/users/sdas1/production_helper_scripts/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
+0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
+0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source setup.sh && python scripts/window_output_plotter.py daily
 ```
 
 - The checkout in each line stops a stray branch from changing the code that
