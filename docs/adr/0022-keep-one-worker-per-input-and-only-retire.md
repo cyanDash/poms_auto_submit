@@ -94,16 +94,11 @@ the run's lock: get the definitions, plan, retire, verify. The work is in
   read has none. A file with other live children (for example a later
   campaign used it as input) is left in place. It is listed in the plan and
   the log, and does not fail verification.
-- **Merged outputs are only retired as true duplicates.** Grouping stays by
-  the first parent, as the original `sam_delete_duplicates` does. A merged
-  output has several parents (each IntrinsicNuE flatcaf has 50 caf parents).
-  Within a group, if files of one definition with the same first parent
-  have different full parent sets, nothing of that definition in the group
-  is retired. They are listed in the plan's `skipped` as `left in place:
-  parent sets differ` and in the cleanup log; verification expects them
-  live. Identical parent sets, order ignored, are duplicates as before. Files
-  with different first parents are not compared: in a chained stage each
-  worker's chain has its own.
+- **Merged outputs are grouped by their first parent.** As the original
+  script does, a merged output (several parents) is grouped by its first
+  parent only. sam_consumer gives one Executable all of a job's input files
+  together, and the metadata postscript declares outputs only when all of
+  them succeeded, so a merged output's parents always travel together.
 - **Retire only.** A duplicate is retired in SAM. No location is removed and
   nothing is deleted from disk. No SAM definition of the retired files is
   made: SAM cannot list a retired file, so it would be empty.

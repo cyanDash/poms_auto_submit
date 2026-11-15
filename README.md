@@ -142,10 +142,6 @@ Things to know:
   anything is retired (no metadata, no parent, or a wrong depth in
   `output_definitions`). The error names the files; the plan lists them as
   `ungrouped`.
-- **Merged outputs are only retired as true duplicates.** If files of one
-  definition under the same first parent have different sets of parents,
-  none of them is retired. They are listed in the plan and the log as
-  `left in place: parent sets differ`.
 - **A file with live children outside the plan is left in place** (for example
   another campaign used it as input). It is listed in the plan and the log
   as "left in place, has children outside the plan". It does not block the

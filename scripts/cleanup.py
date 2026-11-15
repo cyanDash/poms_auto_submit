@@ -37,7 +37,7 @@ def run_cleanup(cfg, session, sam=None, dry_run=False):
 
     if result["skipped"]:
         logging.info(
-            "cleanup: %d file(s) left in place, children outside the plan or parent sets differ (listed in %s)",
+            "cleanup: %d file(s) left in place, has children outside the plan (listed in %s)",
             len(result["skipped"]), result["plan_path"],
         )
     if result["retired_files_lists"]:
