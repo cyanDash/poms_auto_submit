@@ -140,12 +140,16 @@ every input was already processed.
 A candidate now counts only when it is a genuine output of this stage:
 
 - SAM has files under it (`countFiles(dimensions="dataset.tag <name>")` > 0);
-- up to 5 of its files (`listFiles(dimensions="dataset.tag <name> with limit 5")`)
-  reach a file of the original Input Dataset by walking first parents, at most
-  6 steps; the depth is the number of steps (the smallest of the sample).
-  Membership is one query per level:
-  `listFiles(dimensions="defname: <input> and file_name a,b,c")`. A retired or
-  unknown file ends its walk and counts as not reached;
+- up to 5 of its files reach a file of the original Input Dataset by
+  walking first parents, at most 6 steps; the depth is the number of steps
+  (the smallest of the sample). The sample is the files the lineage scan
+  found under the name when it found any (they descend from the inputs
+  already), else the first 5 of `listFiles(defname=<name>)` (or of
+  `dataset.tag <name>` when no such definition exists). Never `with limit`:
+  measured 2026-11-15, SAM took 4-5 min per `defname: <name> with limit 5`
+  and 0.1 s for the whole list. Membership is checked against the Input
+  Dataset's file names, already listed by the scan. A retired or unknown
+  file ends its walk and counts as not reached;
 - the files' `production.name` and `sbnd_project.version` do not contradict
   `MT_PRODUCTIONNAME` and the version of the launch command (a field absent
   on either side is skipped).

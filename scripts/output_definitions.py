@@ -254,7 +254,10 @@ def _trace(cfg, session, sam, outcome):
             [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags if _matches(t, patterns)],
             name="candidates",
         )
-        verified, failed = _verify(sam, stats["input_names"], candidates, launch)
+        # A name the scan saw is verified on the files it saw: they descend
+        # from the Input Dataset's inputs already.
+        seen_files = {t: sorted(f)[:VERIFY_SAMPLE_FILES] for t, f in stats["files"].items()}
+        verified, failed = _verify(sam, stats["input_names"], candidates, launch, seen_files)
         steps.add(
             f"{len(verified)} of {len(candidates)} candidate(s) are outputs of this stage "
             f"(files in SAM, first parents reach {input_dataset}, metadata agrees)",
@@ -510,16 +513,17 @@ def _candidates(sam, patterns, lineage_tags):
     return {t: source for t, source in sorted(found.items()) if not TEST_TAG_PATTERN.match(t)}
 
 
-def _verify(sam, input_names, candidates, launch):
+def _verify(sam, input_names, candidates, launch, seen_files=None):
     """({name: depth}, {name: reason}): the candidates that are outputs of
-    this stage, and why each other one is not."""
+    this stage, and why each other one is not. `seen_files` gives a name's
+    sample when the lineage scan already found its files."""
     verified, failed = {}, {}
     for name in candidates:
         dimension = f"dataset.tag {name}"
         if sam.countFiles(dimensions=dimension) <= 0:
             failed[name] = "no files in SAM"
             continue
-        files = _sample_files(sam, name)
+        files = (seen_files or {}).get(name) or _sample_files(sam, name)
         mismatch = _metadata_mismatch(sam, files, launch)
         if mismatch:
             failed[name] = f"metadata mismatch: {mismatch}"
@@ -545,14 +549,17 @@ def _metadata_mismatch(sam, files, launch):
 
 
 def _sample_files(sam, name):
-    """Up to VERIFY_SAMPLE_FILES files tagged `name`: through the definition
-    of that name when SAM has one (fast), else by Dataset.Tag (slow)."""
+    """Up to VERIFY_SAMPLE_FILES files tagged `name`: from the definition of
+    that name when SAM has one, else by Dataset.Tag. The whole list is read
+    and cut here: SAM takes minutes over `with limit` and under a second
+    for the full list (measured 2026-11-15)."""
     try:
-        return list(sam.listFiles(dimensions=f"defname: {name} with limit {VERIFY_SAMPLE_FILES}"))
+        files = list(sam.listFiles(defname=name))[:VERIFY_SAMPLE_FILES]
     except Exception as e:
         if "Definition" not in type(e).__name__ and "Dimension" not in type(e).__name__:
             raise
-    return list(sam.listFiles(dimensions=f"dataset.tag {name} with limit {VERIFY_SAMPLE_FILES}"))
+        files = []
+    return files or list(sam.listFiles(dimensions=f"dataset.tag {name}"))[:VERIFY_SAMPLE_FILES]
 
 
 def _depths_to_input(sam, input_names, files):

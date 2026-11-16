@@ -147,14 +147,14 @@ class FakeSam:
 
     def listFiles(self, dimensions=None, defname=None):
         self.calls.append(("listFiles", dimensions or defname))
+        assert " with limit " not in (dimensions or ""), "SAM is slow over `with limit`"
         if defname is not None:
+            if defname in set(self.tags.values()):
+                raise DimensionError("No existing dataset definition")
             assert defname == INPUT_DATASET
             return iter(self.inputs)
-        if dimensions.startswith("defname: ") and " with limit " in dimensions:
-            raise DimensionError("No existing dataset definition")
         if dimensions.startswith("dataset.tag "):
-            limit = int(dimensions.split(" with limit ")[1])
-            return iter(self._tagged(dimensions)[:limit])
+            return iter(self._tagged(dimensions))
         head, names = dimensions.split(" and file_name ")
         assert head == f"defname: {INPUT_DATASET}"
         return iter([n for n in names.split(",") if n in self.inputs])
@@ -658,7 +658,7 @@ def test_a_candidate_with_no_files_in_sam_is_listed_with_the_reason():
 
 
 def test_a_candidate_whose_files_are_not_descendants_of_the_input_dataset_is_dropped():
-    sam = beamlight_sam()
+    sam = beamlight_sam(tiers=[t for t in ALL_TIERS if t != "caf_sbnd"])
     sam.tags["orphan.root"] = f"{STAGE}_caf_sbnd"
     sam.children["other_input"] = ["orphan.root"]
 
@@ -725,3 +725,11 @@ def test_a_tag_that_carries_the_stage_identity_but_matches_no_pattern_still_rais
 
     with pytest.raises(OutputDefinitionsError, match="calib_sbnd"):
         get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam, dry_run=True)
+
+
+def test_a_name_the_scan_saw_is_verified_on_its_files_without_asking_sam_for_a_sample(tmp_path):
+    sam = beamlight_sam()
+
+    get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+
+    assert not [c for c in sam.calls if c[0] == "listFiles" and c[1] != INPUT_DATASET]

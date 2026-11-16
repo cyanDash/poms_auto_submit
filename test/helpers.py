@@ -95,17 +95,11 @@ class FakeSam:
         if name in self.retired or not known:
             raise FileNotFound(f"File '{name}' not found")
 
-    def listFiles(self, defname=None, dimensions=None):
+    def listFiles(self, defname=None, dimensions=None, _by_tag=False):
         """Live files only, as SAM lists them by default."""
+        assert " with limit " not in (dimensions or ""), "SAM is slow over `with limit`"
         if dimensions is not None and dimensions.startswith("dataset.tag "):
-            tag, _, limit = dimensions[len("dataset.tag "):].partition(" with limit ")
-            live = self.listFiles(defname=tag)
-            return live[:int(limit)] if limit else live
-        if dimensions is not None and dimensions.startswith("defname: ") and " with limit " in dimensions:
-            defname, _, limit = dimensions[len("defname: "):].partition(" with limit ")
-            if defname not in self.definitions:
-                raise DimensionError(f"No existing dataset definition with name '{defname}'")
-            return self.listFiles(defname=defname)[:int(limit)]
+            return self.listFiles(defname=dimensions[len("dataset.tag "):], _by_tag=True)
         if dimensions is not None and dimensions.startswith("defname: "):
             defname, names = dimensions[len("defname: "):].split(" and file_name ")
             return [n for n in names.split(",") if n in self.listFiles(defname=defname)]
