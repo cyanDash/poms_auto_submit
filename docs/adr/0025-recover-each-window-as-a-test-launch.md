@@ -56,8 +56,13 @@ own dataset (`--dataset_definition=` in the newest real Submission's
 command), the 3 h window, not the whole growing Input Dataset. The window's
 inputs mostly have children by the time of the recovery; a spread sample of
 `run3_raw_data_ongoing` found 8 with children in 200 probes and took most of
-a 28-minute inference. Verification still accepts any file whose first
-parents reach the whole Input Dataset. `main` and `input-dataset-per-slice`
+a 28-minute inference. The scan stops at the first inputs whose
+descendants show every postscript name (1 of 43 probed, live). Verification
+still accepts any file whose first parents reach the whole Input Dataset.
+Its sample is the first 5 of the definition's full list: SAM took 4-5 min
+per `defname: <name> with limit 5` and 0.1 s for the whole list. Measured
+2026-11-15: 1351 s before, 28 s after, 23 s of it listing
+`run3_raw_data_ongoing`. `main` and `input-dataset-per-slice`
 keep reading the whole dataset: their recovery runs once, after every slice
 has finished.
 

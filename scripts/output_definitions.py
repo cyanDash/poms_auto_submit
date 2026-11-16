@@ -223,7 +223,11 @@ def _trace(cfg, session, sam, outcome):
     # Lineage is read under the launch's own window, where most inputs
     # already have children; verification still reaches the whole dataset.
     scan_dataset = launch["dataset"] or input_dataset
-    lineage, newest, stats = _lineage_tags(sam, scan_dataset)
+    # The window's names come from the postscript; lineage only has to show
+    # each of them once.
+    lineage, newest, stats = _lineage_tags(
+        sam, scan_dataset, stop_when_seen=patterns if scan_dataset != input_dataset else (),
+    )
     input_names = (
         stats["input_names"] if scan_dataset == input_dataset else set(sam.listFiles(defname=input_dataset))
     )
@@ -446,11 +450,12 @@ def _carries(tag, identities, version):
     return f"_{version}_" in padded and any(f"_{i}_" in padded for i in identities)
 
 
-def _lineage_tags(sam, input_dataset):
+def _lineage_tags(sam, input_dataset, stop_when_seen=()):
     """({Dataset.Tag: depth below the input}, {Dataset.Tag: newest
     create_date seen}, stats) over the descendants of the Input Dataset's
-    files, or of a spread sample of them when it is large. `stats` is {inputs,
-    probed, with_children, files: {tag: set of file names}}."""
+    files, or of a spread sample of them when it is large. The scan stops
+    early once every pattern of `stop_when_seen` matches a tag found. `stats`
+    is {inputs, probed, with_children, files: {tag: set of file names}}."""
     all_inputs = list(sam.listFiles(defname=input_dataset))
     read_all = len(all_inputs) <= LINEAGE_MAX_PROBED_INPUTS
     inputs = all_inputs if read_all else all_inputs[::len(all_inputs) // LINEAGE_MAX_PROBED_INPUTS]
@@ -464,6 +469,8 @@ def _lineage_tags(sam, input_dataset):
         if level:
             sampled += 1
             _walk_descendants(sam, level, tags, newest, files)
+            if stop_when_seen and all(any(fnmatchcase(t, p) for t in tags) for p in stop_when_seen):
+                break
         if not read_all and (sampled >= LINEAGE_SAMPLE_SIZE or probed >= LINEAGE_MAX_PROBED_INPUTS):
             break
     return tags, newest, {
@@ -556,14 +563,17 @@ def _metadata_mismatch(sam, files, launch):
 
 
 def _sample_files(sam, name):
-    """Up to VERIFY_SAMPLE_FILES files tagged `name`: through the definition
-    of that name when SAM has one (fast), else by Dataset.Tag (slow)."""
+    """Up to VERIFY_SAMPLE_FILES files tagged `name`: from the definition of
+    that name when SAM has one, else by Dataset.Tag. The whole list is read
+    and cut here: SAM takes minutes over `with limit` and under a second
+    for the full list (measured 2026-11-15)."""
     try:
-        return list(sam.listFiles(dimensions=f"defname: {name} with limit {VERIFY_SAMPLE_FILES}"))
+        files = list(sam.listFiles(defname=name))[:VERIFY_SAMPLE_FILES]
     except Exception as e:
         if "Definition" not in type(e).__name__ and "Dimension" not in type(e).__name__:
             raise
-    return list(sam.listFiles(dimensions=f"dataset.tag {name} with limit {VERIFY_SAMPLE_FILES}"))
+        files = []
+    return files or list(sam.listFiles(dimensions=f"dataset.tag {name}"))[:VERIFY_SAMPLE_FILES]
 
 
 def _depths_to_input(sam, input_names, files):

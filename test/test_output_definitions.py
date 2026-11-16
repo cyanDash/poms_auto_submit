@@ -149,13 +149,13 @@ class FakeSam:
 
     def listFiles(self, dimensions=None, defname=None):
         self.calls.append(("listFiles", dimensions or defname))
+        assert " with limit " not in (dimensions or ""), "SAM is slow over `with limit`"
         if defname is not None:
+            if defname in set(self.tags.values()):
+                raise DimensionError("No existing dataset definition")
             return iter(self.inputs)
-        if dimensions.startswith("defname: ") and " with limit " in dimensions:
-            raise DimensionError("No existing dataset definition")
         if dimensions.startswith("dataset.tag "):
-            limit = int(dimensions.split(" with limit ")[1])
-            return iter(self._tagged(dimensions)[:limit])
+            return iter(self._tagged(dimensions))
         head, names = dimensions.split(" and file_name ")
         assert head == f"defname: {INPUT_DATASET}"
         return iter([n for n in names.split(",") if n in self.inputs])
@@ -728,7 +728,7 @@ def test_a_tag_that_carries_the_stage_identity_but_matches_no_pattern_still_rais
         get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam, dry_run=True)
 
 
-def test_lineage_is_read_under_the_launch_dataset_and_verified_against_the_whole_input():
+def test_lineage_is_read_under_the_launch_dataset_until_every_name_is_seen_and_verified_against_the_whole_input():
     window = "run3_raw_data_ongoing_b78c_time_1794722400__1794733200"
     window_inputs = [f"in{i}" for i in range(900, 903)]
 
@@ -745,5 +745,5 @@ def test_lineage_is_read_under_the_launch_dataset_and_verified_against_the_whole
 
     assert ("listFiles", window) in sam.calls
     assert ("listFiles", INPUT_DATASET) in sam.calls
-    assert "launch dataset " + window + ": 3 of 3 input(s) probed, 3 with children" in step_named(trace, "input dataset")["summary"]
+    assert "launch dataset " + window + ": 1 of 3 input(s) probed, 1 with children" in step_named(trace, "input dataset")["summary"]
     assert len(trace["definitions"]) == len(ALL_TIERS)
