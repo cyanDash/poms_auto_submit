@@ -7,7 +7,8 @@ __pycache__/
 !docs/**/*.json
 *.out
 logs/
-.claude/
+.claude/*
+!.claude/skills/
 
 # campaign-specific config files (e.g. configs/detvar3.ini) are real
 # production values that are not tracked --
