@@ -12,19 +12,20 @@ echo "$1" >> "$FAKE_CALLS_FILE"
 case "$1" in
   list-definition-files) echo in1; echo in2 ;;
   create-definition) echo "$3" > "$FAKE_DIMENSION_FILE" ;;
+  describe-definition) [[ -n "${FAKE_EXISTS:-}" ]] ;;
   count-definition-files) [[ "$2" == input_ds ]] && echo 10 || echo 3 ;;
   *) exit 1 ;;
 esac
 """
 
 
-def run_script(tmp_path, *outputs):
+def run_script(tmp_path, *outputs, exists=False):
     fake = tmp_path / "samweb"
     fake.write_text(FAKE_SAMWEB)
     fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
     env = dict(os.environ, PATH=f"{tmp_path}:{os.environ['PATH']}",
                FAKE_DIMENSION_FILE=str(tmp_path / "dimension.txt"),
-               FAKE_CALLS_FILE=str(tmp_path / "calls.txt"))
+               FAKE_CALLS_FILE=str(tmp_path / "calls.txt"), FAKE_EXISTS="1" if exists else "")
     return subprocess.run(
         ["bash", str(SCRIPT), "input_ds", "camp", str(tmp_path / "prestage.log"), *outputs],
         capture_output=True, text=True, env=env,
@@ -59,3 +60,11 @@ def test_no_output_names_is_a_usage_error(tmp_path):
     assert result.returncode != 0
     assert "usage" in result.stderr
     assert not (tmp_path / "dimension.txt").exists()
+
+
+def test_an_existing_recovery_definition_is_reused(tmp_path):
+    result = run_script(tmp_path, "out_a", exists=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "create-definition" not in (tmp_path / "calls.txt").read_text().split()
+    assert result.stdout.strip().splitlines()[-1] == "input_ds_camp_recovery_campaign"

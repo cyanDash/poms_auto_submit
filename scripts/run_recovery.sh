@@ -60,7 +60,11 @@ for o in "${outputs[@]}"; do
 done
 dimension="defname: $INPUT_DATASET and not ($outputs_clause)"
 
-if ! samweb create-definition "$RECOVERY_NAME" "$dimension" >&2; then
+# A retry after a failed launch finds the definition already made; its name
+# fixes the input and campaign, so it is reused.
+if samweb describe-definition "$RECOVERY_NAME" >/dev/null 2>&1; then
+    echo "reusing existing definition $RECOVERY_NAME" >&2
+elif ! samweb create-definition "$RECOVERY_NAME" "$dimension" >&2; then
     echo "samweb create-definition failed for $RECOVERY_NAME" >&2
     exit 5
 fi
