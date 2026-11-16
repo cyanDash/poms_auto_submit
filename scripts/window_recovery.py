@@ -25,6 +25,8 @@ RATIO_THRESHOLD = 1
 MEMORY_KEY = "-Osubmit.memory="
 RECOVERY_MEMORY = "16GB"
 SUBGROUP_KEY = "-Osubmit.subgroup="
+# POMS's cs_split_type of a stage with no split.
+NO_SPLIT = ""
 # Test overrides allowed to differ from param_overrides: they change where
 # and how big the jobs run, never what the outputs are named.
 FREE_TEST_KEYS = {SUBGROUP_KEY, MEMORY_KEY}
@@ -107,17 +109,28 @@ def recover_window(cfg, session, test_session, sam, dry_run=False):
         return "no_recovery_needed"
 
     original_dataset = stage["dataset"]
+    original_split = stage.get("cs_split_type") or NO_SPLIT
     logging.info("window recovery: %s (output/input ratio %.4f) -- launching", recovery_dataset, ratio)
     try:
         test_session.update_test_stage_params({MEMORY_KEY: RECOVERY_MEMORY})
         session.set_input_dataset(recovery_dataset)
+        if original_split != NO_SPLIT:
+            # With test_split_type empty a Test Launch takes cs_split_type: the
+            # new() window would cut the Recovery Dataset to an empty window
+            # (Submission 3181703, 2026-11-15).
+            session.set_split_type(NO_SPLIT)
+            left = (session.get_stage_params().get("cs_split_type") or NO_SPLIT).strip()
+            if left not in (NO_SPLIT, "None"):
+                raise RuntimeError(f"cs_split_type is still {left!r} after clearing it")
         submission_id = test_session.submit_next_slice()
     except (LaunchFailed, RuntimeError):
         logging.exception("window recovery: launch of %s failed", recovery_dataset)
         return "recovery_failed"
     finally:
-        # The next daily launch must take the real Input Dataset.
+        # The next daily launch must take the real Input Dataset and window.
         session.set_input_dataset(original_dataset)
+        if original_split != NO_SPLIT:
+            session.set_split_type(original_split)
     if submission_id is None:
         logging.error("window recovery: POMS launched nothing for %s", recovery_dataset)
         return "recovery_failed"

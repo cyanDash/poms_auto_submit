@@ -7,8 +7,10 @@ from helpers import make_cfg
 WINDOW = "run3_raw_data_ongoing_b78c_time_1794722400__1794733200"
 COMMAND = f"fife_launch -c x.cfg -Oglobal.sam_dataset={WINDOW} -Osubmit.memory=10GB"
 DEFINITIONS = [{"name": "out_reco1_sbnd", "depth": 1}, {"name": "out_caf_sbnd", "depth": 1}, {"name": "deep_sbnd", "depth": 2}]
+SPLIT = "new(window=3h,round=1,fts=1800,localtime=0,firsttime=1794722400,lasttime=1933477200)"
 SAFE_STAGE = {
     "dataset": "run3_raw_data_ongoing",
+    "cs_split_type": SPLIT,
     "test_split_type": "",
     "param_overrides": [["-Oglobal.basedir=", "/pnfs/x"], ["-Osubmit.memory=", "10GB"], ["-Osubmit.subgroup=", "pro"]],
     "test_param_overrides": [["-Osubmit.subgroup=", "test"], ["-Oglobal.basedir=", "/pnfs/x"]],
@@ -19,13 +21,14 @@ DEFAULT = object()
 
 
 class FakeSession:
-    def __init__(self, events, source=DEFAULT, stage=None, submit_result="9001", fail_launch=False):
+    def __init__(self, events, source=DEFAULT, stage=None, submit_result="9001", fail_launch=False, keep_split=False):
         self.events = events
         self.campaign_stage_id = 27154
         self._source = source if source is not DEFAULT else {"command": COMMAND, "submission_id": 3181441, "is_test": False}
         self._stage = stage or SAFE_STAGE
         self._submit_result = submit_result
         self._fail_launch = fail_launch
+        self._keep_split = keep_split
 
     def get_launch_source(self):
         return self._source
@@ -38,6 +41,11 @@ class FakeSession:
 
     def set_input_dataset(self, name):
         self.events.append(("dataset", name))
+
+    def set_split_type(self, split_type):
+        self.events.append(("split", split_type))
+        if not self._keep_split:
+            self._stage = {**self._stage, "cs_split_type": split_type}
 
     def submit_next_slice(self):
         if self._fail_launch:
@@ -87,8 +95,10 @@ def test_recovers_the_window_with_depth_one_outputs_at_threshold_one(monkeypatch
     assert events == [
         ("test_params", {"-Osubmit.memory=": "16GB"}),
         ("dataset", "rec_ds"),
+        ("split", ""),
         ("test_launch",),
         ("dataset", "run3_raw_data_ongoing"),
+        ("split", SPLIT),
     ]
     assert state.read(cfg, window_recovery.SECTION) == {WINDOW: {"recovery_dataset": "rec_ds", "submission_id": "9001"}}
 
@@ -103,7 +113,7 @@ def test_input_dataset_is_restored_when_the_launch_fails(monkeypatch, tmp_path):
     outcome, cfg, events, _, _ = run_case(monkeypatch, tmp_path, fail_launch=True)
 
     assert outcome == "recovery_failed"
-    assert events[-1] == ("dataset", "run3_raw_data_ongoing")
+    assert events[-2:] == [("dataset", "run3_raw_data_ongoing"), ("split", SPLIT)]
     assert state.read(cfg, window_recovery.SECTION) is None
 
 
@@ -154,3 +164,18 @@ def test_dry_run_counts_the_missing_files_and_writes_nothing(monkeypatch, tmp_pa
         f"defname: {WINDOW} and not (isparentof: (defname: out_reco1_sbnd) and isparentof: (defname: out_caf_sbnd))"
     ]
     assert state.read(cfg, window_recovery.SECTION) is None
+
+
+def test_does_not_launch_when_poms_keeps_the_split_type(monkeypatch, tmp_path):
+    outcome, cfg, events, _, _ = run_case(monkeypatch, tmp_path, keep_split=True)
+
+    assert outcome == "recovery_failed"
+    assert ("test_launch",) not in events
+    assert events[-2:] == [("dataset", "run3_raw_data_ongoing"), ("split", SPLIT)]
+    assert state.read(cfg, window_recovery.SECTION) is None
+
+
+def test_a_stage_without_a_split_type_is_left_without_one(monkeypatch, tmp_path):
+    _, _, events, _, _ = run_case(monkeypatch, tmp_path, stage={**SAFE_STAGE, "cs_split_type": ""})
+
+    assert not [e for e in events if e[0] == "split"]

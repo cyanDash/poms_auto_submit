@@ -28,8 +28,9 @@ twelve hours after the launch). It:
    (`RECOVERY_RATIO_THRESHOLD`): any input without an output in every
    depth-one definition is recovered; none missing means no launch;
 5. sets `-Osubmit.memory=16GB` in `test_param_overrides`, points the stage
-   at the Recovery Dataset, makes a Test Launch, and points the stage back
-   at its original dataset, also when the launch fails;
+   at the Recovery Dataset, clears `cs_split_type` (and checks POMS cleared
+   it), makes a Test Launch, then puts back the original dataset and
+   `cs_split_type`, also when the launch fails;
 6. records `{window: {recovery_dataset, submission_id}}`.
 
 It never touches `last_split`, `cs_split_type` or `param_overrides`. It
@@ -40,6 +41,12 @@ decision 2026-11-15): files still being processed are launched again, and
 their duplicates are left to the cleanup.
 
 ## Test Launch requirements, set by hand
+
+Live 2026-11-15: with `test_split_type` empty, a Test Launch still takes the
+stage's `cs_split_type`. Recovery Submission 3181703 got
+`<recovery>_<uuid>_time_1794733200__1794744000`, the `new()` window after
+the morning's, and POMS ignored it as an empty dataset. So the script clears
+`cs_split_type` for the launch itself (step 5).
 
 A Test Launch uses the stage's `test_split_type` and `test_param_overrides`.
 The operator sets `test_split_type` to None, and makes every test override
