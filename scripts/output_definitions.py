@@ -228,9 +228,18 @@ def _trace(cfg, session, sam, outcome):
     lineage, newest, stats = _lineage_tags(
         sam, scan_dataset, stop_when_seen=patterns if scan_dataset != input_dataset else (),
     )
-    input_names = (
-        stats["input_names"] if scan_dataset == input_dataset else set(sam.listFiles(defname=input_dataset))
-    )
+    # Under a window, a name the scan saw is verified on the files it saw,
+    # against the window's inputs; only a name it did not see needs the
+    # whole Input Dataset's list.
+    window = scan_dataset != input_dataset
+    seen_files = {t: sorted(f)[:VERIFY_SAMPLE_FILES] for t, f in stats["files"].items()} if window else {}
+
+    def input_names_for(name):
+        if not window or name in seen_files:
+            return stats["input_names"]
+        if "whole" not in stats:
+            stats["whole"] = set(sam.listFiles(defname=input_dataset))
+        return stats["whole"]
     dataset_text = (
         f"original Input Dataset {input_dataset} (stage's dataset {stage_dataset}, recovery suffix stripped)"
         if input_dataset != stage_dataset else f"Input Dataset {input_dataset}"
@@ -268,7 +277,7 @@ def _trace(cfg, session, sam, outcome):
             [_entry(t, lineage[t], reason="Test Launch tag") for t in test_tags if _matches(t, patterns)],
             name="candidates",
         )
-        verified, failed = _verify(sam, input_names, candidates, launch)
+        verified, failed = _verify(sam, input_names_for, candidates, launch, seen_files)
         steps.add(
             f"{len(verified)} of {len(candidates)} candidate(s) are outputs of this stage "
             f"(files in SAM, first parents reach {input_dataset}, metadata agrees)",
@@ -528,21 +537,23 @@ def _candidates(sam, patterns, lineage_tags):
     return {t: source for t, source in sorted(found.items()) if not TEST_TAG_PATTERN.match(t)}
 
 
-def _verify(sam, input_names, candidates, launch):
+def _verify(sam, input_names_for, candidates, launch, seen_files=None):
     """({name: depth}, {name: reason}): the candidates that are outputs of
-    this stage, and why each other one is not."""
+    this stage, and why each other one is not. `input_names_for(name)` is
+    the set of inputs a file's first parents must reach; `seen_files` gives
+    a name's sample when the lineage scan already found its files."""
     verified, failed = {}, {}
     for name in candidates:
         dimension = f"dataset.tag {name}"
         if sam.countFiles(dimensions=dimension) <= 0:
             failed[name] = "no files in SAM"
             continue
-        files = _sample_files(sam, name)
+        files = (seen_files or {}).get(name) or _sample_files(sam, name)
         mismatch = _metadata_mismatch(sam, files, launch)
         if mismatch:
             failed[name] = f"metadata mismatch: {mismatch}"
             continue
-        depths = _depths_to_input(sam, input_names, files)
+        depths = _depths_to_input(sam, input_names_for(name), files)
         missing = sum(1 for d in depths.values() if d is None)
         if not files or missing:
             failed[name] = (

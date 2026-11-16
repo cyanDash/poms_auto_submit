@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 from pathlib import Path
@@ -87,6 +88,12 @@ def launch_command(postscript_path=POSTSCRIPT):
     command = unquote(details["submission"]["command_executed"])
     assert REAL_POSTSCRIPT_PATH in command
     return command.replace(REAL_POSTSCRIPT_PATH, str(postscript_path))
+
+
+def whole_dataset_command():
+    """launch_command() without --dataset_definition=: lineage and
+    verification read the whole Input Dataset, as on main."""
+    return re.sub(r"--dataset_definition=\S+", "", launch_command())
 
 
 def shared_input_tags():
@@ -625,7 +632,7 @@ def test_beamlight_names_from_postscript_are_found_though_the_scan_sees_only_ano
 def test_verification_checks_parents_against_the_inputs_already_read(tmp_path):
     sam = beamlight_sam()
 
-    get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam)
+    get_output_definitions(make_state_cfg(tmp_path), FakeSession(whole_dataset_command()), sam)
 
     assert not [c for c in sam.calls if c[0] == "listFiles" and " and file_name " in (c[1] or "")]
     assert sum(1 for c in sam.calls if c == ("listFiles", INPUT_DATASET)) == 1
@@ -663,7 +670,7 @@ def test_a_candidate_whose_files_are_not_descendants_of_the_input_dataset_is_dro
     sam.tags["orphan.root"] = f"{STAGE}_caf_sbnd"
     sam.children["other_input"] = ["orphan.root"]
 
-    trace = trace_of(sam)
+    trace = trace_of(sam, whole_dataset_command())
 
     drops = step_named(trace, "verification")["drops"]
     assert any(
@@ -728,7 +735,7 @@ def test_a_tag_that_carries_the_stage_identity_but_matches_no_pattern_still_rais
         get_output_definitions(make_state_cfg(tmp_path), FakeSession(launch_command()), sam, dry_run=True)
 
 
-def test_lineage_is_read_under_the_launch_dataset_until_every_name_is_seen_and_verified_against_the_whole_input():
+def test_lineage_is_read_under_the_launch_dataset_until_every_name_is_seen_and_verified_on_the_files_it_found():
     window = "run3_raw_data_ongoing_b78c_time_1794722400__1794733200"
     window_inputs = [f"in{i}" for i in range(900, 903)]
 
@@ -744,6 +751,29 @@ def test_lineage_is_read_under_the_launch_dataset_until_every_name_is_seen_and_v
     trace = trace_of(sam, command)
 
     assert ("listFiles", window) in sam.calls
-    assert ("listFiles", INPUT_DATASET) in sam.calls
+    assert ("listFiles", INPUT_DATASET) not in sam.calls
     assert "launch dataset " + window + ": 1 of 3 input(s) probed, 1 with children" in step_named(trace, "input dataset")["summary"]
     assert len(trace["definitions"]) == len(ALL_TIERS)
+
+
+def test_a_name_the_window_scan_did_not_see_is_verified_against_the_whole_input():
+    window = "run3_raw_data_ongoing_b78c_time_1794722400__1794733200"
+    base = beamlight_sam(tiers=[t for t in ALL_TIERS if t != "caf_sbnd"])
+    for i in range(900, 903):
+        f = f"in{i}_old_caf.root"
+        base.children.setdefault("in5", []).append(f)
+        base.tags[f] = f"{STAGE}_caf_sbnd"
+
+    class WindowSam(FakeSam):
+        def listFiles(self, dimensions=None, defname=None):
+            if defname == window:
+                self.calls.append(("listFiles", defname))
+                return iter(["in900", "in901", "in902"])
+            return super().listFiles(dimensions=dimensions, defname=defname)
+
+    sam = WindowSam(base.inputs, base.children, base.tags)
+    command = launch_command().replace("--dataset_definition=", f"--dataset_definition={window} --was=")
+    trace = trace_of(sam, command)
+
+    assert sum(1 for c in sam.calls if c == ("listFiles", INPUT_DATASET)) == 1
+    assert f"{STAGE}_caf_sbnd" in names(trace["definitions"])
