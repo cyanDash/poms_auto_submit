@@ -19,7 +19,7 @@
 #
 # Writes <outdir>/<dag_id>_history.tsv (one row per worker) and prints a
 # bucket x site table with one example job id per cell. Default outdir:
-# ./triage.
+# /tmp/triage.
 #
 # condor_history needs a valid token; if the first call returns nothing the
 # script mints the sbndpro production token (poms_auto_submit setup.sh) and
@@ -34,7 +34,7 @@ EARLY_S=${EARLY_S:-120}
 [[ $# -ge 1 && "$1" == *@* ]] || { echo "Usage: $0 <dag_id>@<schedd> [outdir]" >&2; exit 1; }
 dag=${1%%@*}; dag=${dag%%.*}
 schedd=${1#*@}
-outdir=${2:-./triage}
+outdir=${2:-/tmp/triage}
 mkdir -p "$outdir" || exit 1
 tsv="$outdir/${dag}_history.tsv"
 raw="$outdir/${dag}_history.raw"
