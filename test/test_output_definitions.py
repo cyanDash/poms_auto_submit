@@ -666,7 +666,7 @@ def test_a_candidate_with_no_files_in_sam_is_listed_with_the_reason():
 
 
 def test_a_candidate_whose_files_are_not_descendants_of_the_input_dataset_is_dropped():
-    sam = beamlight_sam()
+    sam = beamlight_sam(tiers=[t for t in ALL_TIERS if t != "caf_sbnd"])
     sam.tags["orphan.root"] = f"{STAGE}_caf_sbnd"
     sam.children["other_input"] = ["orphan.root"]
 
@@ -777,3 +777,11 @@ def test_a_name_the_window_scan_did_not_see_is_verified_against_the_whole_input(
 
     assert sum(1 for c in sam.calls if c == ("listFiles", INPUT_DATASET)) == 1
     assert f"{STAGE}_caf_sbnd" in names(trace["definitions"])
+
+
+def test_a_name_the_scan_saw_is_verified_on_its_files_without_asking_sam_for_a_sample(tmp_path):
+    sam = beamlight_sam()
+
+    get_output_definitions(make_state_cfg(tmp_path), FakeSession(whole_dataset_command()), sam)
+
+    assert not [c for c in sam.calls if c[0] == "listFiles" and c[1] != INPUT_DATASET]

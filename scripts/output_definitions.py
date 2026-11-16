@@ -228,11 +228,11 @@ def _trace(cfg, session, sam, outcome):
     lineage, newest, stats = _lineage_tags(
         sam, scan_dataset, stop_when_seen=patterns if scan_dataset != input_dataset else (),
     )
-    # Under a window, a name the scan saw is verified on the files it saw,
+    # A name the scan saw is verified on the files it saw; under a window,
     # against the window's inputs; only a name it did not see needs the
     # whole Input Dataset's list.
     window = scan_dataset != input_dataset
-    seen_files = {t: sorted(f)[:VERIFY_SAMPLE_FILES] for t, f in stats["files"].items()} if window else {}
+    seen_files = {t: sorted(f)[:VERIFY_SAMPLE_FILES] for t, f in stats["files"].items()}
 
     def input_names_for(name):
         if not window or name in seen_files:
