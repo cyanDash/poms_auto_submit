@@ -1,8 +1,9 @@
 # Run 3 BeamLight campaign: operating manual
 
 Runs `poms_auto_submit` for `Auto_POMS_SBND2026A_Gen2_Run3_BeamLight`, stage
-`decode_reco1_reco2_caf`, as `sbndpro`, and plots the daily output counts (done by another repo). Two
-cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
+`decode_reco1_reco2_caf`, as `sbndpro`, and plots the daily and weekly output
+counts (done by another repo). Four cron jobs (host local time, Central):
+submit at 04:00, recovery at 18:00, daily plot at 10:00, weekly plot at 10:10.
 
 | | |
 |---|---|
@@ -61,37 +62,27 @@ cron jobs: submit at 04:00, plot at 01:00 (host local time, Central).
    `logs/<campaign_name>/poms_auto_submit.log`. Confirm in the POMS page that
    the submission went out. If you launched a window you didn't want,
    `jobsub_rm -G sbnd --jobid=<id>` removes the cluster.
-6. Install the cron line (step 3 below), starting 2026-11-15.
+6. Install the cron lines (section 3 below), starting 2026-11-15.
 
-## 2. Plot (`window_output_plotter.py`)
+## 2. Plot
 
-`scripts/window_output_plotter.py daily` plots yesterday's window: for each of
-the five `data_SBND2026A_…` tiers (`reco1`, `larcvreco1`, `histreco2`,
-`flatcaf`, `caf`), the output file count against the input count for the
-window that started at 00:00 the day before. The 01:00 run on Nov 16 plots
-Nov 15 00:00–03:00, the slice submitted at 04:00 on Nov 15, which has had 21
-hours to finish. `weekly` plots the last 7 windows. An optional date argument
-replaces "today"; the date comes from the system clock, so a missed day
-doesn't shift the plot.
+The plots come from a separate repo (see the table). Before starting, open
+`scripts/window_output_plotter.py` there and set `first_start`, `step` and
+`window` to the same values as the ini, and `campaign`, `input_dataset`,
+`version`, `tiers`, `output_directory` and `state_name` (`state_<ini name>.json`)
+to your campaign's. Commit them on `auto-run3-data`.
 
-1. Check the constants at the top of `scripts/window_output_plotter.py`. They
-   are hard-coded and **must match the ini**: `first_start`
-   (`2026-11-15 00:00`; its time of day sets the plotted window), `step` (1d),
-   `window` (3h), plus `input_dataset`, `campaign`, `version` and `tiers`.
-   Edit and commit them on `auto-run3-data`.
-2. Try it by hand (needs no token; it only reads SAM):
-   ```bash
-   cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter
-   git checkout auto-run3-data
-   source setup.sh
-   python scripts/window_output_plotter.py daily 2026-11-16
-   ```
-   Before the first full window has passed, it exits with "No window has
-   started before <date>; nothing to plot." Output is
-   `sbnd_data_run3_keepup_daily.pdf` (or `_weekly`) in the plots directory
-   above, overwritten on each run.
-3. Install the cron line on 2026-11-16, or let it print "nothing to plot" on
-   Nov 15.
+Try it by hand, then check the PDF in the plots directory:
+
+```bash
+cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter
+git checkout auto-run3-data
+source setup.sh
+python scripts/window_output_plotter.py daily
+```
+
+Before the first full window has passed it prints "nothing to plot". Install
+the cron lines (section 3) on the day after your first slice.
 
 ## 3. Cron
 
@@ -107,14 +98,32 @@ env -i SHELL=/bin/sh PATH=/usr/bin:/bin HOME=/exp/sbnd/app/home/sbnd LOGNAME=sbn
   /bin/sh -c '<the line from the cron block, after the five time fields>'
 ```
 
-The rehearsal passes when it prints what the manual run printed. Then open
-`crontab -e` and paste:
+The rehearsal passes when it prints what the manual run printed.
+
+The four lines run in this order. Each day's window is the 3 hours of input
+files created from 00:00 to 03:00 that day:
+
+```
+  Day 1                                   Day 2
+  -----                                   -----
+  04:00  submit Day 1 window              04:00  submit Day 2 window
+           |
+  18:00  recover Day 1 inputs             10:00  plot Day 1 window (daily)
+         that have no output  ---------->  10:10  plot last 7 windows (weekly)
+
+                                          18:00  recover Day 2 inputs ...
+```
+
+The plots always show the previous day's window, so they start the morning
+after the first submission.
+
+Then open `crontab -e` and paste:
 
 ```cron
 0 4 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/poms_auto_submit.py -c configs/<ini>
-0 16 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/window_recovery.py -c configs/<ini>
-0 1 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py daily
-5 1 * * 1 cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py weekly
+0 18 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit && git checkout -q new-split-window && source ./setup.sh && ./scripts/window_recovery.py -c configs/<ini>
+0 10 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py daily
+10 10 * * * cd /exp/sbnd/app/users/sbndpro/mcp/sdas1/campaign_progress_plotter && git checkout -q auto-run3-data && source ./setup.sh && python scripts/window_output_plotter.py weekly
 ```
 
 - Use `source ./setup.sh`, not `source setup.sh`. Cron runs lines with
@@ -123,61 +132,36 @@ The rehearsal passes when it prints what the manual run printed. Then open
 - The checkout in each line stops a stray branch from changing the code that
   runs. If it fails (uncommitted edits to tracked files), the `&&` stops the
   run, so look for a missing log entry.
-- The weekly plot runs Mondays at 01:05, five minutes after the daily one, so
-  the two never check out the plotter at the same time. It plots the last 7
-  windows.
-- The plot and submission lines don't depend on each other: the plot reads
-  yesterday's window and the submission writes today's. The 16:00 recovery
-  shares the submission's lock, so the two never run at once.
+- The weekly plot runs ten minutes after the daily one, so the two never check
+  out the plotter at the same time.
+- Run the plots before any job that reads the plots directory (the data
+  keepup cron).
+- The 18:00 recovery shares the submission's lock, so the two never run at once.
 - Check `logs/<campaign_name>/poms_auto_submit.log` daily for errors.
 - Remove both entries when the campaign is done. Production access ends at the
   end of 2026.
 
-## 4. How the submit script works
-
-Each run it reads the stage's submissions from POMS and `condor_q`, decides
-how many slices (0, 1 or 2) to launch, and launches them. A submission that
-crosses `pct_complete_threshold` stops counting as in flight, freeing its slot.
-The new slice takes the `pro` subgroup unless an in-flight submission already
-holds it. When the Input Dataset is exhausted and the last slice has finished,
-it builds a recovery slice for input files that never reached an output
-dataset. The script never writes the ini; its own state (`last_split`, the
-`switch` that cleanup turns off, caches) is the state file above.
+## 4. Changing a run
 
 - `max_splits` is the total number of launches an ini may make. With
   `max_splits = 1` and `last_split = 1`, re-running does nothing.
-- To stop a campaign, stop its cron job. To re-run an ini that cleanup
+- To stop a campaign, remove its cron lines. To re-run an ini that cleanup
   switched off, set `"switch": true` in its state file.
-- Before every launch the script writes the stage's `cs_split_type` as
-  `new(window=…,firsttime=<first_start + last_split*step>,…)` and resets
-  `cs_last_split` to 0 (ADR-0024). Times are read as Central and sent as GMT.
-  `round`, `fts`, `localtime` and `lasttime` are optional (defaults in
-  `configs/config.ini`). A Test Launch does not set the window.
+- To recover a window again, delete its entry under `window_recovery` in the
+  state file.
 
-### Recovery of each window (16:00)
+### Recovery cron (18:00)
 
-`scripts/window_recovery.py -c configs/<ini>` recovers the window of the
-newest real Submission once, twelve hours after its launch (ADR-0025). It
-finds that window's inputs with no output in every depth-one output
-definition, and if there are any, launches them as a Test Launch against a
-Recovery Dataset with `-Osubmit.memory=16GB`, then sets the stage's dataset
-back to `run3_raw_data_ongoing`. It never changes `last_split`, so the next
-04:00 launch takes the next window. It recovers even if the morning's
-Submission is still running; the duplicates that makes are for the cleanup.
+`scripts/window_recovery.py -c configs/<ini>` re-launches the inputs of the
+latest window that have no output. Before its first run, set by hand in POMS:
 
-Before its first run, set by hand in POMS:
-
-- `test_split_type` to None, so the Test Launch takes the whole Recovery Dataset;
+- `test_split_type` to None;
 - every `test_param_overrides` entry other than the subgroup and memory equal
-  to `param_overrides` (remove `-Oglobal.prodtype=test`), so the recovered
-  files land in the real definitions.
+  to `param_overrides` (remove `-Oglobal.prodtype=test`).
 
-The script refuses to launch otherwise and logs which entries differ. While
-the stage is set up this way, a hand-made Test Launch also writes real
-outputs. `--dry-run` logs the window, the number of inputs it would recover
-and those checks, and writes nothing. Handled windows are listed under
-`window_recovery` in the state file; delete a window's entry to recover it
-again.
+The script refuses to launch otherwise and logs which entries differ. While the
+stage is set up this way, a hand-made Test Launch also writes real outputs.
+`--dry-run` shows what it would recover.
 
 Design decisions are in `docs/adr/`; domain terms are in `CONTEXT.md`.
 
@@ -197,14 +181,13 @@ so a test launch is not tied to the ini's `[split]`.
 
 ## 6. History
 
-- Oct 23–29: 3h slices under `sbnd_beamlight_newsplit_test.ini` (`first_start`
-  2026-10-25 04:00). The stage's windows ran up to 10-29 04:00 CDT.
-- 2026-11-14: one 1h slice, Nov 13 00:00–01:00 CST, using `sbnd_beamlight_run3.ini`
-  (submission 3181354, cluster `30771358@jobsub04.fnal.gov`, 16 files, subgroup
-  `pro`). It was a launch check. A stray submission, 3181349, was removed with
-  `jobsub_rm` right after it launched.
-- **Not processed: Oct 30 – Nov 12.** Set `first_start` to where you want to
-  resume. `step` and `window` should match, or slices will overlap or leave gaps.
+- 2026-11-15 04:17: first slice, Nov 15 00:00–03:00 CST, launched by hand with
+  `sbnd_beamlight_run3.ini` (submission 3181441).
+- 2026-11-15 19:02: first window recovery. Its Test Launch (3181703) failed
+  with an empty dataset; 3181708 recovered the window.
+- 2026-11-16: the 04:00 cron submitted Nov 16 00:00–03:00 (3181853) and the
+  16:00 cron recovered it (3182055). The recovery cron has since moved to 18:00.
+- 2026-11-17: the daily and weekly plots run at 10:00 and 10:10 every day.
 
 ## 7. Gotchas
 
@@ -232,6 +215,6 @@ so a test launch is not tied to the ini's `[split]`.
   overrides (`-Oglobal.campaign`, `project_name`, `version`) before the next
   launch. A cloned campaign override once put 325 files into the dev sample's
   definitions.
-- **Plotter constants drift.** The plotter's hard-coded `first_start`, `step`
-  and `window` are not read from the ini. Change one side without the other
-  and the plot shows the wrong window.
+- **Plotter constants drift.** The plotter's hard-coded `first_start`, `step`,
+  `window` and `state_name` are not read from the ini. Change one side without
+  the other and the plot shows the wrong window.
