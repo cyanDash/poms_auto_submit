@@ -44,6 +44,13 @@ def _firsttime(split, n):
     return _unix(split["first_start"]) + n * parse_duration(split["step"])
 
 
+def window_start(split, n):
+    """Unix time (UTC) of the first input file launch `n` takes: the
+    `firsttime` of its cs_split_type, and the epoch in the window's SAM
+    definition name `..._time_<first>__<last>`."""
+    return _firsttime(split, n)
+
+
 def describe(split, n):
     """The Central-time range of input files launch `n` takes."""
     start = datetime.fromtimestamp(_firsttime(split, n), timezone.utc)

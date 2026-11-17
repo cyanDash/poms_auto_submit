@@ -75,6 +75,14 @@ def persist_switch(cfg, value):
     state.write(cfg, "switch", bool(value))
 
 
+def record_window_launch(cfg, window_start, submission_id):
+    """Remember which Submission took the input window starting at the unix
+    time `window_start`, for whoever reads the State File later (the Run 3
+    plotter): the `window_launches` section, keyed by that time."""
+    launches = state.read(cfg, "window_launches", {}) or {}
+    state.write(cfg, "window_launches", {**launches, str(window_start): {"submission_id": submission_id}})
+
+
 def acquire_lock(lock_path):
     lock_fh = open(lock_path, "w")
     try:
@@ -156,6 +164,8 @@ def submit_plan(cfg, session, plan):
                 "-- stopping further slice submissions this run"
             )
             return False
+        if cfg.get("split"):
+            record_window_launch(cfg, split_window.window_start(cfg["split"], cfg["last_split"]), submission_id)
         cfg["last_split"] += 1
         persist_last_split(cfg, cfg["last_split"])
     return True

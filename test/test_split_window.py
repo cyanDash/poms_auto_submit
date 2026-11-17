@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import split_window
+import state
 from helpers import make_cfg
 from poms_auto_submit import submit_plan
 from poms_session import EmptyDataset, LaunchFailed
@@ -169,3 +170,50 @@ def test_submit_plan_counts_an_empty_window_and_moves_on(monkeypatch, caplog):
     assert [c[0] for c in session.calls].count("submit") == 2
     assert cfg["last_split"] == 3 and persisted == [2, 3]
     assert any("no input files" in r.getMessage() and split_window.describe(SPLIT, 1) in r.getMessage() for r in caplog.records)
+
+
+def test_window_start_is_the_utc_epoch_of_the_launchs_first_input_file():
+    assert split_window.window_start(SPLIT, 1) == unix("2026-10-23 02:00")
+
+
+def test_submit_plan_records_each_launchs_submission_under_its_window_start(tmp_path):
+    cfg = make_cfg(split=SPLIT, last_split=1, state_file=str(tmp_path / "state.json"))
+
+    submit_plan(cfg, FakeSession(), [False, False])
+
+    assert state.read(cfg, "window_launches") == {
+        str(unix("2026-10-23 02:00")): {"submission_id": "1"},
+        str(unix("2026-10-23 04:00")): {"submission_id": "1"},
+    }
+
+
+def test_submit_plan_keeps_earlier_window_records(tmp_path):
+    cfg = make_cfg(split=SPLIT, last_split=1, state_file=str(tmp_path / "state.json"))
+    state.write(cfg, "window_launches", {"1": {"submission_id": "0"}})
+
+    submit_plan(cfg, FakeSession(), [False])
+
+    assert state.read(cfg, "window_launches")["1"] == {"submission_id": "0"}
+
+
+def test_submit_plan_without_split_records_no_window(tmp_path):
+    cfg = make_cfg(state_file=str(tmp_path / "state.json"))
+
+    submit_plan(cfg, FakeSession(), [False])
+
+    assert state.read(cfg, "window_launches") is None
+
+
+@pytest.mark.parametrize("outcome", [EmptyDataset("x"), LaunchFailed("x"), None])
+def test_submit_plan_records_nothing_when_no_submission_came_back(tmp_path, outcome):
+    class Session(FakeSession):
+        def submit_next_slice(self):
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    cfg = make_cfg(split=SPLIT, last_split=1, state_file=str(tmp_path / "state.json"))
+
+    submit_plan(cfg, Session(), [False])
+
+    assert state.read(cfg, "window_launches") is None
