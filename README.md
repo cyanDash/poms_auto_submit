@@ -114,6 +114,10 @@ section keeps the switch on and needs a person.
 newest `logs/migration_cron_probe_*.log`, then remove the line. The probe starts
 no screen and no migration, and changes nothing in SAM.
 
+The cron must run on sbndgpvm01: SSH works because
+`sbndpro/cron/sbndgpvm01.fnal.gov@FNAL.GOV` is in sbndpro's `~/.k5login`. On
+another host, add that host's cron principal first.
+
 ```cron
 <min> <hour> <day> <month> * /bin/bash /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit/scripts/migration_cron_probe.sh
 ```

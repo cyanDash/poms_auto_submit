@@ -33,3 +33,9 @@ detached in `screen`, and hourly runs only poll it.
 The real path cannot be tested as a personal user.
 `scripts/migration_cron_probe.sh` checks it from sbndpro's cron without starting
 anything. A failed definition keeps the switch on until a person resolves it.
+
+SSH as sbndpro needs the keytab's principal in sbndpro's `~/.k5login`.
+`sbndpro/cron/sbndgpvm01.fnal.gov@FNAL.GOV` was added on 2026-11-22, and the
+probe then passed on all 7 machines. The principal is per host, so the cron
+that drives the migration must run on sbndgpvm01, or the other host's cron
+principal must be added too.
