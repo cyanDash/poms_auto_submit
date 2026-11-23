@@ -106,6 +106,10 @@ starts or checks one detached job per output definition, one per GPVM. It walks
 sbndgpvm01 to 07 and around again past any machine where SSH or the token
 fails. A job's log is `logs/<campaign_name>/migration/<definition>.log`.
 
+A definition with any file only on scratch is held and logged, because the
+mirror script skips scratch locations. It starts on a later run once the files
+are in persistent.
+
 A started definition is never relaunched, because `migrate_definition.sh`
 refuses files already in SBN. A `failed` entry in the state file's `migration`
 section keeps the switch on and needs a person.

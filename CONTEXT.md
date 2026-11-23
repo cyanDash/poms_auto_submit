@@ -54,7 +54,7 @@ Consecutive runs in which a Straggler's unfinished count failed to drop by 5 fro
 The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.subgroup=` param override. Only the `production` role may hold `pro`, and only one slice at a time.
 
 **SBN Migration**:
-The last step of a Campaign Stage when `do_migration` is on: after cleanup has finished, each Output Definition is mirrored from SBND SAM to SBN SAM by one detached job on its own GPVM (sbndgpvm01-07). A started definition is never relaunched; the switch turns off only when every definition is verified in SBN (see docs/adr/0027).
+The last step of a Campaign Stage when `do_migration` is on: after cleanup has finished, each Output Definition is mirrored from SBND SAM to SBN SAM by one detached job on its own GPVM (sbndgpvm01-07). A definition with any file only on scratch is held, because the mirror script skips scratch locations. A started definition is never relaunched; the switch turns off only when every definition is verified in SBN (see docs/adr/0027).
 
 **Recovery Dataset**:
 A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's depth-one Output Definitions (missing even one counts as incomplete; the names come from `scripts/output_definitions.py`, not from the shell script), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).

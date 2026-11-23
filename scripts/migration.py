@@ -30,6 +30,7 @@ MINT_TOKEN_COMMAND = (
     '--vaulttokenfile=/tmp/vt_u$(id -u)-sbnd_production -o /tmp/bt_u$(id -u)_production < /dev/null'
 )
 JOB_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_migration_job.sh")
+SCRATCH_PATH = "/scratch/"
 LOG_ERRORS = ("File not mirrored", "sbn.migrate field error")
 LOG_DONE = "Done Mirroring Dataset!!!!"
 FINISHED_RE = re.compile(r"^Finished .* exit=(\d+)\s*$")
@@ -164,6 +165,32 @@ def _verify(definition, exit_code, saw_done, saw_error, sbnd, sbn):
     return DONE
 
 
+def _ready_to_mirror(definition, sbnd):
+    """Whether every file has a location the mirror script will copy. It
+    skips /scratch/ paths, which leaves a file in SBN with no location."""
+    try:
+        names = set(sbnd.listFiles(defname=definition))
+        off_scratch = {
+            row[1] for row in sbnd.listFilesAndLocations(defname=definition)
+            if SCRATCH_PATH not in row[0]
+        }
+    except Exception as error:
+        logging.warning("migration: %s: could not check file locations (%s) -- will retry next run", definition, error)
+        return False
+    if not names:
+        logging.error("migration: %s: no files -- not started, switch stays on", definition)
+        return False
+    on_scratch = len(names - off_scratch)
+    if on_scratch:
+        logging.error(
+            "migration: %s: %d of %d file(s) are only on scratch -- not started, "
+            "will start once they are in persistent; switch stays on",
+            definition, on_scratch, len(names),
+        )
+        return False
+    return True
+
+
 def _poll(definition, record, ssh, sbnd, sbn):
     """The record after looking at its job."""
     owner = _owner(record)
@@ -237,11 +264,13 @@ def _advance_with(cfg, definitions, ticket, ssh, sbnd, sbn, sleep, dry_run):
         polled = _poll(definition, record, ssh, sbnd, sbn) if record["status"] == RUNNING else record
         records[definition] = polled
 
-    pending = [d for d in definitions if records.get(d, {}).get("status", NOT_STARTED) == NOT_STARTED]
+    unstarted = [d for d in definitions if records.get(d, {}).get("status", NOT_STARTED) == NOT_STARTED]
+    pending = [d for d in unstarted if _ready_to_mirror(d, sbnd)]
+    held = len(pending) < len(unstarted)
     if dry_run:
         for definition in pending:
             logging.info("dry-run: would start the migration of %s on the next free machine", definition)
-        return True
+        return not held
 
     os.makedirs(os.path.dirname(_log_path(cfg, "x")), exist_ok=True)
     state.write(cfg, SECTION, records)
@@ -259,7 +288,7 @@ def _advance_with(cfg, definitions, ticket, ssh, sbnd, sbn, sleep, dry_run):
         persist_switch(cfg, False)
         cfg["switch"] = False
         logging.info("migration: all %d definition(s) verified -- switch turned off", len(definitions))
-    return not failed
+    return not (failed or held)
 
 
 def advance(cfg, dry_run=False, ssh=None, ticket=None, ticket_factory=None, sleep=time.sleep, sbnd=None, sbn=None):

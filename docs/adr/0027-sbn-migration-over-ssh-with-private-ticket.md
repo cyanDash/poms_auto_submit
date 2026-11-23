@@ -25,6 +25,11 @@ detached in `screen`, and hourly runs only poll it.
   machine, so a launch retried after an ambiguous SSH failure cannot run twice.
 - A claimed definition is never relaunched, because `migrate_definition.sh`
   refuses files already in SBN.
+- A definition starts only when every file has a non-scratch location. The
+  mirror script skips `/scratch/` paths, and a test on 2026-11-22 left 12 files
+  declared in SBN with no location, hidden from SAM's default queries and
+  blocked from a rerun by `sbn.migrate = 0`. A held definition starts on a later
+  run once its files are moved.
 - Exit 0 is not trusted, because the script's post-checks only print errors.
   The log must be clean and the SBN file count must equal SBND's.
 

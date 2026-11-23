@@ -69,9 +69,27 @@ class FakeTicket:
 
 
 class Counts:
-    def __init__(self, counts=None, error=None):
+    """`paths` maps a definition to one list of location paths per file."""
+
+    def __init__(self, counts=None, error=None, paths=None, locate_error=None):
         self.counts = counts or {}
         self.error = error
+        self.paths = paths or {}
+        self.locate_error = locate_error
+
+    def _files(self, defname):
+        return self.paths.get(defname, [["/pnfs/sbn/data_add/x"]])
+
+    def listFiles(self, defname=None):
+        if self.locate_error:
+            raise self.locate_error
+        return [f"{defname}_{i}.root" for i in range(len(self._files(defname)))]
+
+    def listFilesAndLocations(self, defname=None):
+        return [
+            (f"dcache:{path}", f"{defname}_{i}.root", "1")
+            for i, paths in enumerate(self._files(defname)) for path in paths
+        ]
 
     def countFiles(self, defname=None):
         if self.error:
@@ -340,6 +358,77 @@ def test_non_sbnd_experiment_starts_nothing(tmp_path, caplog):
     ssh = FakeSsh()
     assert advance(cfg, ssh) is False
     assert ssh.attempts == []
+
+
+# --- files must be off scratch before launch ---
+
+SCRATCH = "/pnfs/sbnd/scratch/users/sbndpro/x"
+PERSISTENT = "/pnfs/sbnd/persistent/users/sbndpro/x"
+
+
+def test_definition_on_scratch_is_held_and_the_others_start(tmp_path, caplog):
+    cfg = make_migration_cfg(tmp_path, ["d1", "d2"])
+    ssh = FakeSsh()
+    assert advance(cfg, ssh, sbnd=Counts(paths={"d1": [[SCRATCH], [SCRATCH]]})) is False
+    assert ssh.launches == [("d2", HOSTS[0])]
+    assert "d1" not in records(cfg)
+    assert "2 of 2 file(s) are only on scratch" in caplog.text
+    assert state.read(cfg, "switch") is None
+
+
+def test_one_scratch_only_file_holds_the_whole_definition(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    advance(cfg, ssh, sbnd=Counts(paths={"d1": [[PERSISTENT], [SCRATCH]]}))
+    assert ssh.attempts == []
+
+
+def test_file_on_both_scratch_and_persistent_can_start(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    advance(cfg, ssh, sbnd=Counts(paths={"d1": [[SCRATCH, PERSISTENT]]}))
+    assert ssh.launches == [("d1", HOSTS[0])]
+
+
+def test_held_definition_starts_once_moved_to_persistent(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    advance(cfg, ssh, sbnd=Counts(paths={"d1": [[SCRATCH]]}))
+    advance(cfg, ssh, sbnd=Counts(paths={"d1": [[PERSISTENT]]}))
+    assert ssh.launches == [("d1", HOSTS[0])]
+
+
+def test_empty_definition_is_held(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    assert advance(cfg, ssh, sbnd=Counts(paths={"d1": []})) is False
+    assert ssh.attempts == []
+
+
+def test_sam_error_during_the_location_check_holds_and_retries(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    assert advance(cfg, ssh, sbnd=Counts(locate_error=OSError("SAM down"))) is False
+    assert ssh.attempts == []
+    advance(cfg, ssh)
+    assert ssh.launches == [("d1", HOSTS[0])]
+
+
+def test_dry_run_reports_a_held_definition(tmp_path, caplog):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    assert advance(cfg, ssh, sbnd=Counts(paths={"d1": [[SCRATCH]]}), dry_run=True) is False
+    assert "only on scratch" in caplog.text
+    assert "would start" not in caplog.text
+    assert records(cfg) == {}
+
+
+def test_started_definition_is_not_rechecked(tmp_path):
+    cfg = make_migration_cfg(tmp_path, ["d1"])
+    ssh = FakeSsh()
+    advance(cfg, ssh)
+    advance(cfg, ssh, sbnd=Counts(paths={"d1": [[SCRATCH]]}))
+    assert records(cfg)["d1"]["status"] == "running"
 
 
 # --- gating ---
