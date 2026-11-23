@@ -29,6 +29,9 @@ logged. Assumes that you have a well-tested campaign ready to be launched.
    no splits are left and nothing is still running, retires duplicate
    output files in SAM and turns the campaign off in its state file (see
    [Cleanup](#cleanup)).
+6. **Mirror to SBN, then switch off** — with `do_migration = 1`, after cleanup,
+   mirrors each output definition to SBN SAM and turns the campaign off once
+   all are verified (see [SBN migration](#sbn-migration)).
 
 `--dry-run` logs what would happen without calling POMS to update params or submit anything. When cleanup is due it writes the cleanup plan and retires nothing.
 
@@ -78,8 +81,13 @@ do_recovery = 1
 
 ; when true, automatically retire duplicate output files in SAM once the
 ; campaign is fully done (nothing is deleted from disk), then turn the
-; campaign off in its state file.
+; campaign off in its state file (unless do_migration is on).
 do_cleanup = 0
+
+; when true, mirror every output definition from SBND SAM to SBN SAM after
+; cleanup, one per GPVM (sbndgpvm01-07), then turn the campaign off. Needs
+; do_cleanup = 1. Run scripts/migration_cron_probe.sh from cron first.
+do_migration = 0
 ```
 
 Set `campaign_name`/`campaign_stage_name` to a campaign stage you own.
@@ -90,6 +98,25 @@ The script never writes to the ini. Everything it tracks itself lives in one sta
 simultaneously run.
 
 If your input dataset has 43k files and each job submits 10k files, then POMS will create 5 splits (slice 0-4). In that case `max_splits = 5`.
+
+## SBN migration
+
+With `do_migration = 1` (needs `do_cleanup = 1`), each hourly run after cleanup
+starts or checks one detached job per output definition, one per GPVM. It walks
+sbndgpvm01 to 07 and around again past any machine where SSH or the token
+fails. A job's log is `logs/<campaign_name>/migration/<definition>.log`.
+
+A started definition is never relaunched, because `migrate_definition.sh`
+refuses files already in SBN. A `failed` entry in the state file's `migration`
+section keeps the switch on and needs a person.
+
+**Before first use, test from cron as `sbndpro`.** Add a one-off line, read the
+newest `logs/migration_cron_probe_*.log`, then remove the line. The probe starts
+no screen and no migration, and changes nothing in SAM.
+
+```cron
+<min> <hour> <day> <month> * /bin/bash /exp/sbnd/app/users/sbndpro/mcp/sdas1/poms_auto_submit/scripts/migration_cron_probe.sh
+```
 
 ## Cleanup
 

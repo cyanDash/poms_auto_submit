@@ -43,6 +43,9 @@ class FakeSnapshot:
     def recovery_ready(self):
         return self._recovery
 
+    def migration_ready(self):
+        return False
+
 
 def patch_snapshot(monkeypatch, plan=(), cleanup=False, recovery=False):
     monkeypatch.setattr(

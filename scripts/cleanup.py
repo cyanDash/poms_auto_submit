@@ -56,6 +56,9 @@ def run_cleanup(cfg, session, sam=None, dry_run=False):
         logging.info("dry-run: plan written to %s -- nothing retired, switch left on", result["plan_path"])
         return True
 
+    if cfg.get("do_migration"):
+        logging.info("cleanup: done and verified -- switch stays on for the SBN migration")
+        return True
     persist_switch(cfg, False)
     cfg["switch"] = False
     logging.info("cleanup: done and verified -- switch turned off")

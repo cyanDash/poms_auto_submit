@@ -25,6 +25,10 @@ def no_splits_left(cfg):
     return cfg["max_splits"] - cfg["last_split"] <= 0
 
 
+def _cleanup_finished(cfg):
+    return bool((state.read(cfg, "cleanup", {}) or {}).get("finished"))
+
+
 class CampaignSnapshot:
     def __init__(self, cfg, submissions, get_condor_progress=None):
         self._cfg = cfg
@@ -83,9 +87,25 @@ class CampaignSnapshot:
         cfg = self._cfg
         if not (cfg["do_cleanup"] and no_splits_left(cfg)):
             return False
+        if cfg.get("do_migration") and _cleanup_finished(cfg):
+            return False
         if cfg["do_recovery"] and not recovery.is_handled(cfg):
             return False
         if not self._submissions:
+            return False
+        return not self.any_still_running(CLEANUP_PCT_COMPLETE_THRESHOLD)
+
+    def migration_ready(self):
+        """Whether the SBN migration may start or be polled: opted in, no
+        splits left and cleanup verified, so duplicates are never mirrored.
+        See docs/adr/0027-sbn-migration-over-ssh-with-private-ticket.md."""
+        cfg = self._cfg
+        if not (cfg.get("do_migration") and no_splits_left(cfg)):
+            return False
+        if not cfg["do_cleanup"]:
+            logging.error("migration: do_migration=1 needs do_cleanup=1 -- nothing started")
+            return False
+        if not _cleanup_finished(cfg):
             return False
         return not self.any_still_running(CLEANUP_PCT_COMPLETE_THRESHOLD)
 

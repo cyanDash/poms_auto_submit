@@ -14,6 +14,7 @@ import os
 import sys
 
 import cleanup
+import migration
 import output_definitions
 import recovery
 import sam_client
@@ -51,6 +52,7 @@ def load_config(path):
         "test_launch": parser.getboolean("decision", "test_launch", fallback=False),
         "do_recovery": parser.getboolean("decision", "do_recovery", fallback=False),
         "do_cleanup": parser.getboolean("decision", "do_cleanup", fallback=False),
+        "do_migration": parser.getboolean("decision", "do_migration", fallback=False),
         "log_file": os.path.join(campaign_dir, "poms_auto_submit.log"),
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
     }
@@ -159,6 +161,8 @@ def run(cfg, dry_run):
         if snapshot.cleanup_ready():
             # A dry run writes the cleanup plan and retires nothing.
             cleanup.run_cleanup(cfg, session, dry_run=dry_run)
+        if snapshot.migration_ready():
+            migration.advance(cfg, dry_run=dry_run)
         return
 
     if dry_run:

@@ -19,7 +19,7 @@ The seam to `poms_client`. Constructed once per run from `(pc, cfg)`; owns ident
 _Avoid_: PomsGateway, poms_client wrapper.
 
 **State File**:
-The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`, once, when no splits are left and `do_recovery` or `do_cleanup` is on; recovery and cleanup only read it), `last_split`, `switch` (turned off by cleanup once it has verified its result), `cleanup` (`{plan_path, done, finished}`: the duplicate cleanup's plan file, the Output Definitions already cleaned, and whether verification passed; deleting the section makes the next run plan afresh). A `--dry-run` writes neither `output_definitions` nor `cleanup`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
+The one file of internal state the script keeps per config, `logs/<campaign_name>/state_<ini name>.json`. One top-level section per owner: `submissions` (PomsSession's cache), `stuck_no_data`, `stragglers`, `recovery_handled`, `output_definitions` (written only by `scripts/output_definitions.py`, once, when no splits are left and `do_recovery` or `do_cleanup` is on; recovery and cleanup only read it), `last_split`, `switch` (turned off by cleanup once it has verified its result, or by the SBN Migration when `do_migration` is on), `migration` (Output Definition -> `{host, session, log, status}`), `cleanup` (`{plan_path, done, finished}`: the duplicate cleanup's plan file, the Output Definitions already cleaned, and whether verification passed; deleting the section makes the next run plan afresh). A `--dry-run` writes neither `output_definitions` nor `cleanup`. Operators set the config and the script never writes it; the script alone writes the State File. Two configs for the same Campaign Stage have separate State Files (see docs/adr/0020).
 _Avoid_: cache file, marker file.
 
 **Campaign Snapshot**:
@@ -52,6 +52,9 @@ Consecutive runs in which a Straggler's unfinished count failed to drop by 5 fro
 
 **Subgroup**:
 The `pro`/`standard` priority lane a slice's jobs run in, set via the `-Osubmit.subgroup=` param override. Only the `production` role may hold `pro`, and only one slice at a time.
+
+**SBN Migration**:
+The last step of a Campaign Stage when `do_migration` is on: after cleanup has finished, each Output Definition is mirrored from SBND SAM to SBN SAM by one detached job on its own GPVM (sbndgpvm01-07). A started definition is never relaunched; the switch turns off only when every definition is verified in SBN (see docs/adr/0027).
 
 **Recovery Dataset**:
 A follow-up Input Dataset built once a Campaign Stage's original Input Dataset is exhausted (see Submission) and its last Submission has finished successfully. Built via a SAM `not isparentof:` dimension selecting the original Input Dataset's files that never became a parent of *all* of the stage's depth-one Output Definitions (missing even one counts as incomplete; the names come from `scripts/output_definitions.py`, not from the shell script), named `<input_dataset>_<campaign_name>_recovery_campaign`. Only built when the fraction of the original Input Dataset that did complete falls at or below a fixed threshold (see `scripts/run_recovery.sh`, `docs/adr/0010`, `docs/adr/0011`).
