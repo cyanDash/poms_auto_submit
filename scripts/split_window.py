@@ -40,6 +40,18 @@ def read(parser):
     return split
 
 
+def read_combine(parser):
+    """(first_launch, last_launch) of the ini's [combine] section, or None.
+    One launch then takes the windows of launches first..last together;
+    see docs/adr/0028."""
+    if not parser.has_section("combine"):
+        return None
+    first, last = parser.getint("combine", "first_launch"), parser.getint("combine", "last_launch")
+    if last < first:
+        raise ValueError(f"[combine] last_launch {last} is before first_launch {first}")
+    return first, last
+
+
 def _firsttime(split, n):
     return _unix(split["first_start"]) + n * parse_duration(split["step"])
 
@@ -80,3 +92,25 @@ def window_dimensions(split, n, dataset):
         return datetime.fromtimestamp(unix, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
     return f"defname: {dataset} and create_date > '{stamp(window_start(split, n))}' and create_date <= '{stamp(window_end(split, n))}'"
+
+
+def _stamp(unix):
+    return datetime.fromtimestamp(unix, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+
+def combined_dimensions(split, first, last, dataset):
+    """SAM dimensions of the files launches `first` to `last` (inclusive)
+    take from `dataset`: the union of their windows, each cut the way
+    window_dimensions() cuts one. Not the span between them, which would
+    also hold every hour the windows leave out."""
+    parts = " or ".join(
+        f"(create_date > '{_stamp(window_start(split, n))}' and create_date <= '{_stamp(window_end(split, n))}')"
+        for n in range(first, last + 1)
+    )
+    return f"defname: {dataset} and ({parts})"
+
+
+def combined_name(split, first, last, dataset):
+    """Name of the combined definition. Ends `_time_<first>__<last>` like
+    POMS's window definitions, so the plotter reads its epochs."""
+    return f"{dataset}_combined_time_{window_start(split, first)}__{window_end(split, last)}"

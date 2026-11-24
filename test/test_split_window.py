@@ -275,3 +275,115 @@ def test_submit_plan_launches_when_sam_cannot_be_asked(monkeypatch):
     submit_plan(make_cfg(split=SPLIT, last_split=1), session, [False], sam=BrokenSam(), dataset="ds", now=unix("2026-11-01 04:00"))
 
     assert ("submit",) in session.calls
+
+
+# --- [combine]: one launch for several windows (ADR-0028) ---
+
+class CombineSession(FakeSession):
+    def __init__(self, result="55"):
+        super().__init__()
+        self.result = result
+
+    def set_input_dataset(self, name):
+        self.calls.append(("dataset", name))
+
+    def submit_next_slice(self):
+        self.calls.append(("submit",))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+class MakingSam(CountingSam):
+    def __init__(self, count=88):
+        super().__init__({})
+        self.count, self.made = count, []
+
+    def countFiles(self, dimensions):
+        self.asked.append(dimensions)
+        return self.count
+
+    def descDefinition(self, name):
+        raise KeyError(name)
+
+    def createDefinition(self, name, dims):
+        self.made.append((name, dims))
+
+
+def combine_cfg(tmp_path, **kw):
+    return make_cfg(split=SPLIT, combine=(1, 3), last_split=1, state_file=str(tmp_path / "state.json"), **kw)
+
+
+NOW = unix("2026-11-01 04:00")
+
+
+def test_combined_dimensions_union_the_windows_not_the_span():
+    dims = split_window.combined_dimensions(SPLIT, 1, 2, "ds")
+
+    assert dims == (
+        "defname: ds and ((create_date > '2026-10-23T07:00:00+00:00' and create_date <= '2026-10-23T08:00:00+00:00')"
+        " or (create_date > '2026-10-23T09:00:00+00:00' and create_date <= '2026-10-23T10:00:00+00:00'))"
+    )
+    assert split_window.combined_name(SPLIT, 1, 2, "ds") == f"ds_combined_time_{unix('2026-10-23 02:00')}__{unix('2026-10-23 05:00')}"
+
+
+def test_combined_launch_is_pro_takes_the_union_and_moves_last_split_past_it(tmp_path):
+    cfg, session, sam = combine_cfg(tmp_path), CombineSession(), MakingSam()
+    name = split_window.combined_name(SPLIT, 1, 3, "ds")
+
+    assert submit_plan(cfg, session, [False], sam=sam, dataset="ds", now=NOW) is True
+
+    assert session.calls == [
+        ("set_subgroup", True), ("dataset", name), ("set_split_type", ""), ("submit",),
+        ("dataset", "ds"), ("set_split_type", split_window.build_split_type(SPLIT, 4)),
+    ]
+    assert sam.made == [(name, split_window.combined_dimensions(SPLIT, 1, 3, "ds"))]
+    assert cfg["last_split"] == 4 and state.read(cfg, "last_split") == 4
+    launches = state.read(cfg, "window_launches")
+    assert launches == {str(split_window.window_start(SPLIT, n)): {"submission_id": "55"} for n in (1, 2, 3)}
+
+
+def test_combined_launch_waits_while_its_last_window_is_open(tmp_path):
+    cfg, session, sam = combine_cfg(tmp_path), CombineSession(), MakingSam()
+
+    submit_plan(cfg, session, [False], sam=sam, dataset="ds", now=unix("2026-10-23 05:30"))
+
+    assert session.calls == [] and cfg["last_split"] == 1 and sam.asked == []
+
+
+def test_combined_launch_without_files_is_counted_and_not_launched(tmp_path):
+    cfg, session = combine_cfg(tmp_path), CombineSession()
+
+    submit_plan(cfg, session, [False], sam=MakingSam(count=0), dataset="ds", now=NOW)
+
+    assert session.calls == [] and cfg["last_split"] == 4
+
+
+def test_failed_combined_launch_restores_the_stage_and_is_not_counted(tmp_path):
+    cfg, session = combine_cfg(tmp_path), CombineSession(result=LaunchFailed("x"))
+
+    assert submit_plan(cfg, session, [False], sam=MakingSam(), dataset="ds", now=NOW) is True
+
+    assert cfg["last_split"] == 1 and state.read(cfg, "window_launches") is None
+    assert session.calls[-2:] == [("dataset", "ds"), ("set_split_type", split_window.build_split_type(SPLIT, 4))]
+
+
+def test_launches_outside_the_combined_range_are_normal(tmp_path):
+    cfg = combine_cfg(tmp_path)
+    cfg["last_split"] = 4
+    session = CombineSession()
+
+    submit_plan(cfg, session, [False], sam=MakingSam(), dataset="ds", now=NOW)
+
+    assert ("dataset", split_window.combined_name(SPLIT, 1, 3, "ds")) not in session.calls
+    assert cfg["last_split"] == 5
+
+
+def test_read_combine_reads_the_section_and_rejects_a_backwards_range():
+    parser = configparser.ConfigParser()
+    assert split_window.read_combine(parser) is None
+    parser.read_string("[combine]\nfirst_launch = 7\nlast_launch = 10\n")
+    assert split_window.read_combine(parser) == (7, 10)
+    parser.read_string("[combine]\nfirst_launch = 7\nlast_launch = 6\n")
+    with pytest.raises(ValueError):
+        split_window.read_combine(parser)

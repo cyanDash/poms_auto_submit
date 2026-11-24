@@ -150,6 +150,22 @@ Then open `crontab -e` and paste:
 - To recover a window again, delete its entry under `window_recovery` in the
   state file.
 
+### Combined launch and span recovery (ADR-0028)
+
+To catch up, add to the ini (and set `submit_two_slices = 1`):
+
+```ini
+[combine]
+first_launch = 7
+last_launch = 10
+```
+
+The run that reaches `last_split = 7` after launch 10's window has ended
+launches windows 7 to 10 as one `pro` Submission and sets `last_split = 11`.
+Keep the 18:00 recovery cron off, then, once nothing runs, recover the span
+by hand: `./scripts/window_recovery.py -c configs/<ini> --since 2026-11-21 --dry-run`,
+then without `--dry-run`. Remove `[combine]` afterwards.
+
 ### Recovery cron (18:00)
 
 `scripts/window_recovery.py -c configs/<ini>` re-launches the inputs of the

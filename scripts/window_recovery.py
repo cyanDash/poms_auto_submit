@@ -14,7 +14,9 @@ import sys
 import output_definitions
 import recovery
 import sam_client
+import split_window
 import state
+from campaign_snapshot import CampaignSnapshot
 from poms_auto_submit import acquire_lock, load_config
 from poms_client_bootstrap import setup_poms_client_path
 from poms_session import LaunchFailed, PomsSession
@@ -32,6 +34,7 @@ NO_SPLIT = ""
 FREE_TEST_KEYS = {SUBGROUP_KEY, MEMORY_KEY}
 # command_executed is the jobsub_submit line; the fife_launch line has the
 # same name as -Oglobal.sam_dataset=.
+WINDOW_TIMES_END = re.compile(r"_time_\d+__(\d+)$")
 WINDOW_DATASET = re.compile(r"(?:--dataset_definition=|-Oglobal\.sam_dataset=)['\"]?([^\s'\"]+)")
 
 
@@ -56,13 +59,42 @@ def test_launch_problems(stage):
     return problems
 
 
-def recover_window(cfg, session, test_session, sam, dry_run=False):
+def span_window(cfg, session, sam, since_epoch, dry_run=False):
+    """The definition that unions every window launched from `since_epoch` on
+    (docs/adr/0028), made if missing, for recovering them together. Returns
+    (name, error): exactly one is None. Refuses while any Submission of the
+    stage is still running."""
+    launches = state.read(cfg, "window_launches", {}) or {}
+    chosen = {int(e): r["submission_id"] for e, r in launches.items() if int(e) >= since_epoch and r.get("submission_id")}
+    if not chosen:
+        return None, f"no window_launches entry from epoch {since_epoch} on"
+    datasets = []
+    for submission_id in sorted(set(chosen.values()), key=int):
+        source = session.get_submission_source(submission_id)
+        dataset = window_dataset(source["command"]) if source else None
+        if dataset is None:
+            return None, f"Submission {submission_id} has no window dataset in its command"
+        datasets.append(dataset)
+    if CampaignSnapshot.take(cfg, session).any_still_running():
+        return None, "a Submission of the stage is still running -- recover after it finishes"
+    name = f"{session.get_stage_params()['dataset']}_span_time_{min(chosen)}__{WINDOW_TIMES_END.search(datasets[-1]).group(1)}"
+    # Made even in a dry run: the dry run counts files through it.
+    try:
+        sam.descDefinition(name)
+    except Exception:
+        sam.createDefinition(name, " or ".join(f"defname: {d}" for d in datasets))
+    return name, None
+
+
+def recover_window(cfg, session, test_session, sam, dry_run=False, window=None):
     """Returns 'no_window' | 'already_handled' | 'output_definitions_failed' |
     'unsafe_test_overrides' | 'no_recovery_needed' | 'dry_run' |
     'recovery_submitted' | 'recovery_failed'. `test_session` launches with
     test_launch set."""
-    source = session.get_launch_source()
-    window = window_dataset(source["command"]) if source and not source["is_test"] else None
+    source = None
+    if window is None:
+        source = session.get_launch_source()
+        window = window_dataset(source["command"]) if source and not source["is_test"] else None
     if window is None:
         logging.error("window recovery: no real Submission with a window dataset in its command")
         return "no_window"
@@ -70,7 +102,7 @@ def recover_window(cfg, session, test_session, sam, dry_run=False):
     if window in handled:
         logging.info("window recovery: %s already handled: %s", window, handled[window])
         return "already_handled"
-    logging.info("window recovery: window %s (Submission %s)", window, source["submission_id"])
+    logging.info("window recovery: window %s (Submission %s)", window, source["submission_id"] if source else "span")
 
     try:
         definitions = output_definitions.get_output_definitions(cfg, session, sam, dry_run=dry_run)
@@ -142,6 +174,10 @@ def recover_window(cfg, session, test_session, sam, dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", "-c", required=True, help="path to the campaign ini")
+    parser.add_argument(
+        "--since", metavar="YYYY-MM-DD",
+        help="recover every window launched from this Central date on, together, instead of the newest one (manual; docs/adr/0028); creates the union definition even with --dry-run",
+    )
     parser.add_argument("--dry-run", action="store_true", help="log what would be recovered; no SAM or POMS write")
     args = parser.parse_args()
 
@@ -166,7 +202,13 @@ def main():
             session = PomsSession(pc, cfg)
             test_session = PomsSession(pc, {**cfg, "test_launch": True})
             sam = sam_client.get_sam_client(cfg["experiment"])
-            outcome = recover_window(cfg, session, test_session, sam, dry_run=args.dry_run)
+            window = None
+            if args.since:
+                window, error = span_window(cfg, session, sam, split_window._unix(args.since), dry_run=args.dry_run)
+                if error:
+                    logging.error("window recovery --since %s: %s", args.since, error)
+                    return 1
+            outcome = recover_window(cfg, session, test_session, sam, dry_run=args.dry_run, window=window)
             return 1 if outcome in ("no_window", "output_definitions_failed", "unsafe_test_overrides", "recovery_failed") else 0
         except Exception:
             logging.exception("window recovery run failed")

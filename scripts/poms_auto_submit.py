@@ -57,6 +57,7 @@ def load_config(path):
         "lock_file": os.path.join(campaign_dir, "poms_auto_submit.lock"),
     }
     cfg["split"] = split_window.read(parser)
+    cfg["combine"] = split_window.read_combine(parser) if cfg["split"] else None
     cfg["cache_dir"] = campaign_dir
     # One state file per ini; see docs/adr/0020-one-consolidated-state-file-per-config.md.
     ini_name = os.path.splitext(os.path.basename(path))[0]
@@ -154,6 +155,53 @@ def _skip_empty_windows(cfg, sam, dataset, now):
         persist_last_split(cfg, cfg["last_split"])
 
 
+def _launch_combined(cfg, session, sam, dataset, now):
+    """The one launch that takes the windows of launches first..last of the
+    ini's [combine] section together (docs/adr/0028), as a pro slice.
+    Returns 'wait' (its last window is still open), 'empty', 'failed' or
+    'launched'. last_split moves past last_launch, and every window gets a
+    window_launches entry with the one submission_id."""
+    split, (first, last) = cfg["split"], cfg["combine"]
+    if split_window.window_end(split, last) > now:
+        logging.info("combined launch %d-%d: its last window ends later -- waiting", first, last)
+        return "wait"
+    dims = split_window.combined_dimensions(split, first, last, dataset)
+    name = split_window.combined_name(split, first, last, dataset)
+    span = f"{split_window.describe(split, first)} .. {split_window.describe(split, last)}"
+    if not sam.countFiles(dimensions=dims):
+        logging.info("combined launch %d-%d: no input files in %s -- counting them without launching", first, last, span)
+        cfg["last_split"] = last + 1
+        persist_last_split(cfg, cfg["last_split"])
+        return "empty"
+    try:
+        sam.descDefinition(name)
+    except Exception:
+        sam.createDefinition(name, dims)
+    logging.info("combined launch %d-%d takes input files created %s as %s", first, last, span, name)
+    session.set_subgroup(True)
+    session.set_input_dataset(name)
+    session.set_split_type("")
+    try:
+        submission_id = session.submit_next_slice()
+    except EmptyDataset:
+        submission_id = "empty"
+    except LaunchFailed as e:
+        logging.error("%s -- not counted; stopping further slice submissions this run", e)
+        return "failed"
+    finally:
+        # The next daily launch must take the real Input Dataset and window.
+        session.set_input_dataset(dataset)
+        session.set_split_type(split_window.build_split_type(split, last + 1))
+    if submission_id is None:
+        return "failed"
+    if submission_id != "empty":
+        for n in range(first, last + 1):
+            record_window_launch(cfg, split_window.window_start(split, n), submission_id)
+    cfg["last_split"] = last + 1
+    persist_last_split(cfg, cfg["last_split"])
+    return "launched" if submission_id != "empty" else "empty"
+
+
 def submit_plan(cfg, session, plan, sam=None, dataset=None, now=None):
     """Submit each planned slice in order, persisting last_split after each
     success. Shared with recovery.py; see docs/adr/0012. With `sam` and
@@ -162,6 +210,13 @@ def submit_plan(cfg, session, plan, sam=None, dataset=None, now=None):
     exhausted partway through."""
     now = time.time() if now is None else now
     for use_pro in plan:
+        if cfg.get("combine") and cfg["last_split"] == cfg["combine"][0]:
+            if sam is None or not dataset:
+                logging.error("combined launch needs the stage's input dataset and SAM -- not launching")
+                return True
+            if _launch_combined(cfg, session, sam, dataset, now) in ("wait", "failed"):
+                return True
+            continue
         if cfg.get("split") and sam is not None and dataset:
             if not _skip_empty_windows(cfg, sam, dataset, now):
                 return True
@@ -228,6 +283,13 @@ def run(cfg, dry_run):
         subgroup_plan = ["pro" if use_pro else "standard" for use_pro in plan]
         if cfg.get("split"):
             for n, subgroup in enumerate(subgroup_plan, start=cfg["last_split"]):
+                if cfg.get("combine") and n == cfg["combine"][0]:
+                    first, last = cfg["combine"]
+                    logging.info(
+                        "dry-run: would take launches %d-%d together (%s .. %s) as one pro slice",
+                        first, last, split_window.describe(cfg["split"], first), split_window.describe(cfg["split"], last),
+                    )
+                    continue
                 logging.info(
                     "dry-run: would take input files created %s with plan=%s",
                     split_window.describe(cfg["split"], n), subgroup,

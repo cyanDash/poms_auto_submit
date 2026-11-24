@@ -179,3 +179,67 @@ def test_a_stage_without_a_split_type_is_left_without_one(monkeypatch, tmp_path)
     _, _, events, _, _ = run_case(monkeypatch, tmp_path, stage={**SAFE_STAGE, "cs_split_type": ""})
 
     assert not [e for e in events if e[0] == "split"]
+
+
+# --- --since: recover several windows together (ADR-0028) ---
+
+class SpanSession(FakeSession):
+    def get_submission_source(self, submission_id):
+        window = {"10": WINDOW, "20": WINDOW_B}[submission_id]
+        return {"command": f"fife_launch -Oglobal.sam_dataset={window}"}
+
+
+WINDOW_B = "run3_raw_data_ongoing_combined_time_1794981600__1795240800"
+
+
+class SpanSam(FakeSam):
+    def __init__(self):
+        super().__init__()
+        self.made = []
+
+    def descDefinition(self, name):
+        raise KeyError(name)
+
+    def createDefinition(self, name, dims):
+        self.made.append((name, dims))
+
+
+def span_case(monkeypatch, tmp_path, running=False):
+    cfg = make_cfg(cache_dir=str(tmp_path), state_file=str(tmp_path / "state.json"))
+    state.write(cfg, "window_launches", {
+        "1794722400": {"submission_id": "10"}, "1794981600": {"submission_id": "20"}, "1795068000": {"submission_id": "20"},
+    })
+
+    class Snapshot:
+        def any_still_running(self, *a):
+            return running
+
+    monkeypatch.setattr(window_recovery.CampaignSnapshot, "take", classmethod(lambda cls, *a, **k: Snapshot()))
+    sam = SpanSam()
+    return cfg, SpanSession([]), sam
+
+
+def test_span_unions_the_windows_of_every_launch_since_the_date(monkeypatch, tmp_path):
+    cfg, session, sam = span_case(monkeypatch, tmp_path)
+
+    name, error = window_recovery.span_window(cfg, session, sam, 1794722400)
+
+    assert error is None
+    assert name == "run3_raw_data_ongoing_span_time_1794722400__1795240800"
+    assert sam.made == [(name, f"defname: {WINDOW} or defname: {WINDOW_B}")]
+
+
+def test_span_skips_launches_before_the_date(monkeypatch, tmp_path):
+    cfg, session, sam = span_case(monkeypatch, tmp_path)
+
+    name, _ = window_recovery.span_window(cfg, session, sam, 1794981600)
+
+    assert sam.made == [(name, f"defname: {WINDOW_B}")]
+
+
+def test_span_refuses_while_a_submission_runs(monkeypatch, tmp_path):
+    cfg, session, sam = span_case(monkeypatch, tmp_path, running=True)
+
+    name, error = window_recovery.span_window(cfg, session, sam, 1794722400)
+
+    assert name is None and "still running" in error and sam.made == []
