@@ -12,6 +12,7 @@ import fcntl
 import logging
 import os
 import sys
+import time
 
 import cleanup
 import output_definitions
@@ -130,11 +131,40 @@ def infer_output_definitions(cfg, session, dry_run):
         logging.exception("output definitions: could not infer them -- will retry next run")
 
 
-def submit_plan(cfg, session, plan):
+def _skip_empty_windows(cfg, sam, dataset, now):
+    """Counts every launch whose window holds no input file in SAM, without
+    launching it (docs/adr/0027). Returns False when the current window has
+    not finished yet, so there is nothing to launch this run."""
+    split = cfg["split"]
+    while True:
+        if split_window.window_end(split, cfg["last_split"]) > now:
+            return False
+        try:
+            count = sam.countFiles(dimensions=split_window.window_dimensions(split, cfg["last_split"], dataset))
+        except Exception:
+            logging.warning("launch %d: could not count its input files in SAM -- launching anyway", cfg["last_split"], exc_info=True)
+            return True
+        if count:
+            return True
+        logging.info(
+            "launch %d: no input files created %s in SAM -- counting it without launching",
+            cfg["last_split"], split_window.describe(split, cfg["last_split"]),
+        )
+        cfg["last_split"] += 1
+        persist_last_split(cfg, cfg["last_split"])
+
+
+def submit_plan(cfg, session, plan, sam=None, dataset=None, now=None):
     """Submit each planned slice in order, persisting last_split after each
-    success. Shared with recovery.py; see docs/adr/0012. Returns False if
-    POMS reported the campaign stage exhausted partway through."""
+    success. Shared with recovery.py; see docs/adr/0012. With `sam` and
+    `dataset` on a split campaign, windows without input files are counted
+    without a launch. Returns False if POMS reported the campaign stage
+    exhausted partway through."""
+    now = time.time() if now is None else now
     for use_pro in plan:
+        if cfg.get("split") and sam is not None and dataset:
+            if not _skip_empty_windows(cfg, sam, dataset, now):
+                return True
         session.set_subgroup(use_pro)
         if cfg.get("split"):
             split_type = split_window.build_split_type(cfg["split"], cfg["last_split"])
@@ -206,8 +236,15 @@ def run(cfg, dry_run):
             logging.info("dry-run: would submit %d slice(s) with subgroup plan=%s", len(plan), subgroup_plan)
         return
 
+    sam = dataset = None
+    if cfg.get("split"):
+        try:
+            dataset = session.get_stage_params()["dataset"]
+            sam = sam_client.get_sam_client(cfg["experiment"])
+        except Exception:
+            logging.warning("could not read the stage's input dataset -- not checking windows for files", exc_info=True)
     # A launch changes what is in flight, so recovery looks at a fresh snapshot.
-    if not submit_plan(cfg, session, plan):
+    if not submit_plan(cfg, session, plan, sam=sam, dataset=dataset):
         # POMS ran out of splits before max_splits; infer before recovery
         # can switch the stage to the Recovery Dataset.
         infer_output_definitions(cfg, session, dry_run)

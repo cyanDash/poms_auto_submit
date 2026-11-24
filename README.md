@@ -208,7 +208,7 @@ so a test launch is not tied to the ini's `[split]`.
   `scripts show_stage.sh` returned 0 stages (stage not found) until a
   submission was made. Stage ids and submissions are still listed via
   `campaign_stage_submissions`.
-- **Empty slices fail to launch** with `LaunchFailed`. Count the files first.
+- **Empty windows are skipped, not launched** (ADR-0027): the script counts the window's files in SAM first and moves `last_split` on without calling POMS. Before that fix (2026-11-19..24) an empty launch left a Submission in `New` and the run waiting on it for days, holding the lock.
 - **State file per ini.** Two inis on one stage do not share state (ADR-0020).
 - **Stage overrides.** `-Oglobal.configuration=` is still unset, so
   `configuration.name` is `override_me` in the metadata. Check the stage

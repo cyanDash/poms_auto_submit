@@ -217,3 +217,61 @@ def test_submit_plan_records_nothing_when_no_submission_came_back(tmp_path, outc
     submit_plan(cfg, Session(), [False])
 
     assert state.read(cfg, "window_launches") is None
+
+
+class CountingSam:
+    """countFiles() answers by window start (unix), 0 unless listed."""
+
+    def __init__(self, counts):
+        self.counts, self.asked = counts, []
+
+    def countFiles(self, dimensions):
+        self.asked.append(dimensions)
+        return next((n for start, n in self.counts.items() if f"> '{start}'" in dimensions), 0)
+
+
+def test_window_dimensions_are_the_utc_range_of_the_launch():
+    assert split_window.window_dimensions(SPLIT, 1, "ds") == (
+        "defname: ds and create_date > '2026-10-23T07:00:00+00:00' and create_date <= '2026-10-23T08:00:00+00:00'"
+    )
+
+
+def test_submit_plan_skips_empty_windows_without_launching(monkeypatch, caplog):
+    persisted = []
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: persisted.append(n))
+    caplog.set_level("INFO")
+    sam = CountingSam({"2026-10-23T09:00:00+00:00": 5})  # launch 2 only
+    cfg = make_cfg(split=SPLIT, last_split=0)
+    session = FakeSession()
+
+    assert submit_plan(cfg, session, [False], sam=sam, dataset="ds", now=unix("2026-11-01 04:00")) is True
+
+    assert [c[1] for c in session.calls if c[0] == "set_split_type"] == [split_window.build_split_type(SPLIT, 2)]
+    assert cfg["last_split"] == 3 and persisted == [1, 2, 3]
+    assert any("counting it without launching" in r.getMessage() for r in caplog.records)
+
+
+def test_submit_plan_does_not_count_a_window_still_open(monkeypatch):
+    persisted = []
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: persisted.append(n))
+    cfg = make_cfg(split=SPLIT, last_split=1)
+    session = FakeSession()
+    sam = CountingSam({})
+
+    # Launch 1 is 02:00-03:00 CDT on 2026-10-23; it is 02:30.
+    assert submit_plan(cfg, session, [False], sam=sam, dataset="ds", now=unix("2026-10-23 02:30")) is True
+
+    assert session.calls == [] and sam.asked == [] and persisted == []
+
+
+def test_submit_plan_launches_when_sam_cannot_be_asked(monkeypatch):
+    monkeypatch.setattr("poms_auto_submit.persist_last_split", lambda cfg, n: None)
+
+    class BrokenSam:
+        def countFiles(self, dimensions):
+            raise OSError("sam down")
+
+    session = FakeSession()
+    submit_plan(make_cfg(split=SPLIT, last_split=1), session, [False], sam=BrokenSam(), dataset="ds", now=unix("2026-11-01 04:00"))
+
+    assert ("submit",) in session.calls

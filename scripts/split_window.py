@@ -66,3 +66,17 @@ def build_split_type(split, n):
         f"new(window={split['window']},round={split['round']},fts={split['fts']},"
         f"localtime={split['localtime']},firsttime={firsttime},lasttime={_unix(split['lasttime'])})"
     )
+
+
+def window_end(split, n):
+    """Unix time (UTC) of the end of the input files launch `n` takes."""
+    return _firsttime(split, n) + parse_duration(split["window"])
+
+
+def window_dimensions(split, n, dataset):
+    """SAM dimensions of the files launch `n` takes from `dataset`: created
+    after the window's start and up to its end (UTC, as POMS reads them)."""
+    def stamp(unix):
+        return datetime.fromtimestamp(unix, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+    return f"defname: {dataset} and create_date > '{stamp(window_start(split, n))}' and create_date <= '{stamp(window_end(split, n))}'"

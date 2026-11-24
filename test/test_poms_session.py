@@ -863,3 +863,14 @@ def test_launch_failed_waits_for_the_launch_log_to_finish_writing(monkeypatch):
 
     with pytest.raises(poms_session.EmptyDataset):
         session.submit_next_slice()
+
+
+def test_submit_next_slice_gives_up_waiting_for_jobsub_job_id(monkeypatch):
+    clock = iter(range(0, 100000, 400))
+    monkeypatch.setattr(poms_session.time, "monotonic", lambda: next(clock))
+    fake_raw_poms_call(monkeypatch, (REAL_LAUNCH_JOBS_URL, 303))
+    session = make_session(
+        submission_details=lambda experiment, role, submission_id: (True, {"submission": {}, "history": [{"status_id": 1000}], "statusmap": {"1000": "New"}}),
+    )
+
+    assert session.submit_next_slice() == "555"

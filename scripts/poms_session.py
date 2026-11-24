@@ -29,6 +29,10 @@ SUBGROUP_COMMAND_PATTERN = re.compile(r"--subgroup=(\S+)")
 
 # jobsub_job_id isn't assigned synchronously with launch_jobs; poll for it.
 JOBSUB_ID_POLL_SECONDS = 5
+# Give up waiting for it after this long: a Submission POMS never moves out of
+# `New` (seen on an empty window, 2026-11-21) would otherwise hold the run's
+# lock for days. The Submission still counts as launched.
+JOBSUB_ID_MAX_WAIT_SECONDS = 900
 
 # See CONTEXT.md's Status entry for why Held/New/Idle count as in-flight.
 ACTIVE_SUBMISSION_STATUSES = {"New", "Idle", "Running", "Held"}
@@ -367,7 +371,14 @@ class PomsSession:
         logging.info("Getting job id...")
         jobsub_job_id = None
         printed = 0
+        deadline = time.monotonic() + JOBSUB_ID_MAX_WAIT_SECONDS
         while jobsub_job_id is None:
+            if time.monotonic() > deadline:
+                logging.warning(
+                    "submission %s has no jobsub_job_id after %ds -- counting it as launched",
+                    submission_id, JOBSUB_ID_MAX_WAIT_SECONDS,
+                )
+                return submission_id
             time.sleep(JOBSUB_ID_POLL_SECONDS)
             jobsub_job_id, status = self._poll_submission(submission_id)
             if self.cfg.get("follow_launch"):
