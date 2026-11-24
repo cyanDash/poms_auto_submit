@@ -10,8 +10,10 @@
 # activates a local python venv, syncing it against requirements.txt on every
 # source (not just first creation).
 #
-# Must be run as the sbndpro user (production members only) — sbndpro has
-# managed tokens, so no kinit is needed to fetch a bearer token.
+# By default must be run as the sbndpro user (production members only) — sbndpro
+# has managed tokens, so no kinit is needed to fetch a bearer token.
+# `source setup.sh --analysis` instead mints an analysis-role token for the
+# current user (no managed credkey, no -r production).
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "setup.sh must be sourced, not executed: 'source setup.sh'" >&2
@@ -43,7 +45,13 @@ echo "poms_auto_submit environment ready (POMS_CLIENT_DIR=${POMS_CLIENT_DIR})"
 
 unset _poms_auto_submit_dir _poms_auto_submit_venv _poms_auto_submit_requirements
 
-# Get token for poms_client
-export HTGETTOKENOPTS="--credkey=sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production -a htvaultprod.fnal.gov -i sbnd"
-export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_poms_auto_submit
+# Get token for poms_client: production (managed token) by default,
+# analysis (personal token) with `source setup.sh --analysis`.
+if [[ "${1:-}" == "--analysis" ]]; then
+    export HTGETTOKENOPTS="-v -a htvaultprod.fnal.gov -i sbnd"
+    export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_poms_auto_submit_analysis
+else
+    export HTGETTOKENOPTS="--credkey=sbndpro/managedtokens/fifeutilgpvm01.fnal.gov -r production -a htvaultprod.fnal.gov -i sbnd"
+    export BEARER_TOKEN_FILE=/tmp/bt_u$(id -u)_poms_auto_submit
+fi
 htgettoken
